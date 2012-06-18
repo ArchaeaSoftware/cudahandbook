@@ -4,7 +4,7 @@
  *
  * Microbenchmark for throughput of synchronous kernel launch.
  *
- * Build with: nvcc -I ..\chLib <options> nullKernelSync.cu
+ * Build with: nvcc -I ../chLib <options> nullKernelSync.cu
  * Requires: No minimum SM requirement.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.

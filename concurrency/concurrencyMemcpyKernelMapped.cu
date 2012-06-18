@@ -7,7 +7,7 @@
  *
  * NOTE: To date, I have not found a piece of hardware where this is faster.
  *
- * Build with: nvcc -I ..\chLib <options> concurrencyMemcpyKernelMapped.cu
+ * Build with: nvcc -I ../chLib <options> concurrencyMemcpyKernelMapped.cu
  * Requires: SM 1.1 for mapped pinned memory and global atomics.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.

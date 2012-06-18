@@ -12,7 +12,7 @@
  * This implementation uses the SSE-optimized memcpy of memcpy16.cpp,
  * so for simplicity, it requires host pointers to be 16-byte aligned.
  *
- * Build with: nvcc -I ..\chLib <options> pageableMemcpyHtoD16.cu memcpy16.cpp
+ * Build with: nvcc -I ../chLib <options> pageableMemcpyHtoD16.cu memcpy16.cpp
  * Requires: No minimum SM requirement.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.

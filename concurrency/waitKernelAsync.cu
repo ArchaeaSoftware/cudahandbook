@@ -5,7 +5,7 @@
  * Microbenchmark of kernel launch overhead for kernels that
  * do varying amounts of work.
  *
- * Build with: nvcc -I ..\chLib <options> waitKernelAsync.cu
+ * Build with: nvcc -I ../chLib <options> waitKernelAsync.cu
  * Requires: No minimum SM requirement.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.

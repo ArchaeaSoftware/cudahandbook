@@ -4,7 +4,7 @@
  *
  * Microbenchmark for throughput of asynchronous kernel launch.
  *
- * Build with: nvcc -I ..\chLib <options> nullKernelAsync.cu
+ * Build with: nvcc -I ../chLib <options> nullKernelAsync.cu
  * Requires: No minimum SM requirement.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.

@@ -9,7 +9,7 @@
  * staging buffer has been filled, the GPU pulls from one while the
  * CPU fills the other.  CUDA events are used for synchronization.
  *
- * Build with: nvcc -I ..\chLib <options> pageableMemcpyHtoD.cu
+ * Build with: nvcc -I ../chLib <options> pageableMemcpyHtoD.cu
  * Requires: No minimum SM requirement.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
