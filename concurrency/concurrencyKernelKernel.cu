@@ -4,7 +4,7 @@
  *
  * Microbenchmark to shmoo kernel/kernel concurrency.
  *
- * Build with: nvcc -I ..\chLib --gpu-architecture sm_20 <options> concurrencyKernelKernel.cu
+ * Build with: nvcc -I ../chLib --gpu-architecture sm_20 <options> concurrencyKernelKernel.cu
  * Requires: SM 2.x, if kernel concurrency is desired.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.

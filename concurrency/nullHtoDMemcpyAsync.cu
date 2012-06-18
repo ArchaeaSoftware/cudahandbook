@@ -4,7 +4,7 @@
  *
  * Microbenchmark for throughput of asynchronous host->device memcpy.
  *
- * Build with: nvcc -I ..\chLib <options> nullHtoDMemcpyAsync.cu
+ * Build with: nvcc -I ../chLib <options> nullHtoDMemcpyAsync.cu
  * Requires: No minimum SM requirement.
  *
   * Copyright (c) 2011-2012, Archaea Software, LLC.

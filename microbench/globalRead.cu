@@ -4,7 +4,7 @@
  *
  * Microbenchmark for read bandwidth from global memory.
  *
- * Build with: nvcc -I ..\chLib <options> globalRead.cu
+ * Build with: nvcc -I ../chLib <options> globalRead.cu
  * Requires: No minimum SM requirement.
  *
   * Copyright (c) 2011-2012, Archaea Software, LLC.

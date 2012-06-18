@@ -7,7 +7,7 @@
  * cannot perform peer-to-peer directly, e.g. because they are plugged
  * into different I/O hubs.
  *
- * Build with: nvcc -I ..\chLib <options> peer2peerMemcpy.cu
+ * Build with: nvcc -I ../chLib <options> peer2peerMemcpy.cu
  * Requires: No minimum SM requirement.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.

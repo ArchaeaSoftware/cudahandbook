@@ -4,7 +4,7 @@
  *
  * Microbenchmark to shmoo performance improvements due to streaming.
  *
- * Build with: nvcc -I ..\chLib --gpu-architecture sm_11 <options> concurrencyMemcpyKernel.cu
+ * Build with: nvcc -I ../chLib --gpu-architecture sm_11 <options> concurrencyMemcpyKernel.cu
  * Requires: SM 1.1 for global atomics.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.

@@ -4,7 +4,7 @@
  *
  * Microbenchmark for throughput of synchronous device->host memcpy.
  *
- * Build with: nvcc -I ..\chLib <options> nullDtoHMemcpySync.cu
+ * Build with: nvcc -I ../chLib <options> nullDtoHMemcpySync.cu
  * Requires: No minimum SM requirement.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.

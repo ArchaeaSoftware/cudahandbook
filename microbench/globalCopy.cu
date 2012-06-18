@@ -4,7 +4,7 @@
  *
  * Microbenchmark for copy bandwidth of global memory.
  *
- * Build with: nvcc -I ..\chLib <options> globalCopy.cu
+ * Build with: nvcc -I ../chLib <options> globalCopy.cu
  * Requires: No minimum SM requirement.
  *
   * Copyright (c) 2011-2012, Archaea Software, LLC.

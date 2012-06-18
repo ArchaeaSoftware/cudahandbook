@@ -4,7 +4,7 @@
  *
  * Microbenchmark to shmoo CPU overhead of host->device memcpy.
  *
- * Build with: nvcc -I ..\chLib <options> breakevenHtoDMemcpy.cu
+ * Build with: nvcc -I ../chLib <options> breakevenHtoDMemcpy.cu
  * Requires: No minimum SM requirement.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
