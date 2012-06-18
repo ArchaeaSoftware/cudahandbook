@@ -230,58 +230,30 @@ Error:
     return ret;
 }
 
-double
-ReportRow( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks, int step )
-{
-    int maxThreads = 0;
-    double maxops = 0.0;
-    for ( int cThreads = threadStart; cThreads <= threadStop; cThreads *= 2 ) {
-        double ops = AtomicsPerSecond( N, cBlocks, cThreads );
-        if ( ops > maxops ) {
-            maxops = ops;
-            maxThreads = cThreads;
-        }
-        printf( "%.2f\t", ops/1e6f );
-    }
-    printf( "%.2f\t%d\n", maxops/1e6f, maxThreads );
-    return maxops;
-}
-
-void
-Shmoo( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
-{
-    printf( "All units in Mops (millions of operations per second):\n" );
-    for ( int cThreads = threadStart; cThreads <= threadStop; cThreads *= 2 ) {
-        printf( "%d\t", cThreads );
-    }
-    printf( "maxops\tmaxThreads\n" );
-    ReportRow( N, threadStart, threadStop, cBlocks, 1 );
-    ReportRow( N, threadStart, threadStop, cBlocks, 2 );
-    ReportRow( N, threadStart, threadStop, cBlocks, 4 );
-    ReportRow( N, threadStart, threadStop, cBlocks, 8 );
-    ReportRow( N, threadStart, threadStop, cBlocks, 16 );
-    ReportRow( N, threadStart, threadStop, cBlocks, 32 );
-    ReportRow( N, threadStart, threadStop, cBlocks, 64 );
-    ReportRow( N, threadStart, threadStop, cBlocks, 128 );
-    ReportRow( N, threadStart, threadStop, cBlocks, 256 );
-}
-
-
 int
 main( int argc, char *argv[] )
 {
+    cudaError_t status;
     int device = 0;
     int size = 16;
+	cudaDeviceProp props;
     if ( chCommandLineGet( &device, "device", argc, argv ) ) {
         printf( "Using device %d...\n", device );
     }
-    cudaSetDevice(device);
+    CUDART_CHECK( cudaSetDevice(device) );
+	CUDART_CHECK( cudaGetDeviceProperties( &props, device ) );
     if ( chCommandLineGet( &size, "size", argc, argv ) ) {
         printf( "Using %dM operands ...\n", size );
     }
 
     cudaGetSymbolAddress( (void **) &g_pacquireCount, "g_acquireCount" );
 
-    Shmoo(  (size_t) 131072, 32, 1024, 1500 );
+    double ops;
+	ops = AtomicsPerSecond( size*1048576, 1500, props.maxThreadsPerBlock );
+    printf( "Spinlock acquire/release operations per second (in millions): %.2f", ops/1e6f );
+
     return 0;
+Error:
+
+	return 1;
 }
