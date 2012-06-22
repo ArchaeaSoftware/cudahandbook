@@ -228,19 +228,9 @@ main( int argc, char *argv[] )
             printf( "Microseconds per reduction operation:\n" );
             for ( size_t i = 0; i < numTests; i++ ) {
                 printf( "\t%s: %.2f\n", rgTests[i].szName, 
-                        usPerInvocation( 100000, 1, rgTests[i].pfn ) );
+                    usPerInvocation( 100000, 1, rgTests[i].pfn ) );
             }
             exit(0);
-#if 0
-                const size_t N = 1;
-                printf( "\tReduction1: %.2f\n", usPerInvocation( 100000, N, Reduction1 ) );
-                printf( "\tReduction2: %.2f\n", usPerInvocation( 100000, N, Reduction2 ) );
-                printf( "\tReduction3: %.2f\n", usPerInvocation( 100000, N, Reduction3 ) );
-                printf( "\tReduction4: %.2f\n", usPerInvocation( 100000, N, Reduction4 ) );
-                printf( "\tReduction5: %.2f\n", usPerInvocation( 100000, N, Reduction5 ) );
-                printf( "\tReduction6: %.2f\n", usPerInvocation( 100000, N, Reduction6 ) );
-                exit(0);
-#endif
         }
 
         sum = 0;
@@ -251,6 +241,9 @@ main( int argc, char *argv[] )
         printf( "Testing on %d integers\n", cInts );
         printf( "\t\t128\t256\t512\tmaxThr\tmaxBW\n" );
         for ( size_t i = 0; i < numTests; i++ ) {
+            // for SM 1.x, skip the global atomics test.
+            if ( props.major < 2 && rgTests[i].pfn == Reduction5 ) continue;
+
             printf( "%s\t", rgTests[i].szName );
             Shmoo( &result[i], deviceData, cInts, sum, true, false, rgTests[i].pfn );
             printf( "%d\t%.2f\n", result[i].numThreads, result[i].Bandwidth );
