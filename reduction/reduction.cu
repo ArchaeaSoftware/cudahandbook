@@ -40,14 +40,16 @@
 #include <assert.h>
 
 #include <chTimer.h>
+#include <chCommandLine.h>
 #include <chError.h>
 
-#include "reduction1ExplicitLoop.cu"
-#include "reduction2WarpSynchronous.cu"
-#include "reduction3WarpSynchronousTemplated.cu"
-#include "reduction4SinglePass.cu"
-#include "reduction5GlobalAtomics.cu"
-#include "reduction6SharedAtomics.cu"
+#include "reduction1ExplicitLoop.cuh"
+#include "reduction2WarpSynchronous.cuh"
+#include "reduction3WarpSynchronousTemplated.cuh"
+#include "reduction4SinglePass.cuh"
+#include "reduction5GlobalAtomics.cuh"
+#include "reduction6SharedAtomics.cuh"
+#include "reduction7AnyBlockSize.cuh"
 
 typedef struct TimingResult_struct {
     double Bandwidth;
@@ -161,6 +163,15 @@ Error:
     return ret;
 }
 
+void
+Usage()
+{
+    printf( "Command-line options\n" );
+    printf( "    --n <N>: specify number of Mintegers to process (scaled by 1048576)\n" );
+    printf( "    --throughput: compute throughput of different reduction implementations\n" );
+    printf( "    --help or --usage: generate this message\n" );
+}
+
 int
 main( int argc, char *argv[] )
 {
@@ -169,13 +180,16 @@ main( int argc, char *argv[] )
     int *hostData = 0;
     int *deviceData = 0;
     int sum;
+    int cMInts = 32;
     size_t cInts;
 
-    if ( argc != 2 ) {
-        printf( "Usage: %s <N> where <N> is the number of Mints to allocate\n", argv[0] );
-        exit(1);
+    if ( chCommandLineGetBool( "usage", argc, argv ) ) {
+        Usage();
+        return 0;
     }
-    cInts = (size_t) atoi(argv[1]) * 1048576;
+
+    chCommandLineGet( &cMInts, "n", argc, argv );
+    cInts = cMInts * 1048576;
 
     hostData = (int *) malloc( cInts*sizeof(int) );
     if ( ! hostData )
@@ -193,36 +207,41 @@ main( int argc, char *argv[] )
     CUDART_CHECK( cudaMemcpy( deviceData, hostData, cInts*sizeof(int), 
         cudaMemcpyHostToDevice ) );
 
-#if 1
     {
-        printf( "Microseconds per reduction operation:\n" );
-        const size_t N = 1;
-        printf( "\tReduction1: %.2f\n", usPerInvocation( 100000, N, Reduction1 ) );
-        printf( "\tReduction2: %.2f\n", usPerInvocation( 100000, N, Reduction2 ) );
-        printf( "\tReduction3: %.2f\n", usPerInvocation( 100000, N, Reduction3 ) );
-        printf( "\tReduction4: %.2f\n", usPerInvocation( 100000, N, Reduction4 ) );
-        printf( "\tReduction5: %.2f\n", usPerInvocation( 100000, N, Reduction5 ) );
-        printf( "\tReduction6: %.2f\n", usPerInvocation( 100000, N, Reduction6 ) );
-
-exit(0);
     
-    }
-#endif
-    
-    {
         struct {
             const char *szName;
             pfnReduction pfn;
-        } rgTests[] = { { "explicit loop", Reduction1 },
+        } rgTests[] = { { "simple loop", Reduction1 },
                         { "warpsync", Reduction2 },
                         { "templated", Reduction3 },
                         { "single pass", Reduction4 },
                         { "global atomic", Reduction5 },
                         { "shared atomic", Reduction6 },
+                        { "any block size", Reduction7 },
                        };
 
         const size_t numTests = sizeof(rgTests)/sizeof(rgTests[0]);
         TimingResult result[numTests];
+
+        if ( chCommandLineGetBool( "throughput", argc, argv ) ) {
+            printf( "Microseconds per reduction operation:\n" );
+            for ( size_t i = 0; i < numTests; i++ ) {
+                printf( "\t%s: %.2f\n", rgTests[i].szName, 
+                        usPerInvocation( 100000, 1, rgTests[i].pfn ) );
+            }
+            exit(0);
+#if 0
+                const size_t N = 1;
+                printf( "\tReduction1: %.2f\n", usPerInvocation( 100000, N, Reduction1 ) );
+                printf( "\tReduction2: %.2f\n", usPerInvocation( 100000, N, Reduction2 ) );
+                printf( "\tReduction3: %.2f\n", usPerInvocation( 100000, N, Reduction3 ) );
+                printf( "\tReduction4: %.2f\n", usPerInvocation( 100000, N, Reduction4 ) );
+                printf( "\tReduction5: %.2f\n", usPerInvocation( 100000, N, Reduction5 ) );
+                printf( "\tReduction6: %.2f\n", usPerInvocation( 100000, N, Reduction6 ) );
+                exit(0);
+#endif
+        }
 
         sum = 0;
         for ( size_t i = 0; i < cInts; i++ ) {
