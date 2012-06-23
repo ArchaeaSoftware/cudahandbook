@@ -47,9 +47,8 @@
 #include "reduction2WarpSynchronous.cuh"
 #include "reduction3WarpSynchronousTemplated.cuh"
 #include "reduction4SinglePass.cuh"
-#include "reduction5GlobalAtomics.cuh"
-#include "reduction6SharedAtomics.cuh"
-#include "reduction7AnyBlockSize.cuh"
+#include "reduction5Atomics.cuh"
+#include "reduction6AnyBlockSize.cuh"
 
 typedef struct TimingResult_struct {
     double Bandwidth;
@@ -114,7 +113,7 @@ Shmoo( TimingResult *timingResult,
     cudaDeviceProp props;
 
     cudaGetDeviceProperties( &props, 0 );
-    for ( int cThreads = 128; cThreads <= 512; cThreads*=2 ) {
+    for ( int cThreads = 128; cThreads <= props.maxThreadsPerBlock; cThreads*=2 ) {
         int sum = 0;
         double bw = TimedReduction( &sum, deviceData, cInts, cBlocks, cThreads, pfnReduce );
         if( sum != expectedSum ) {
@@ -217,8 +216,7 @@ main( int argc, char *argv[] )
                         { "templated", Reduction3 },
                         { "single pass", Reduction4 },
                         { "global atomic", Reduction5 },
-                        { "shared atomic", Reduction6 },
-                        { "any block size", Reduction7 },
+                        { "any block size", Reduction6 },
                        };
 
         const size_t numTests = sizeof(rgTests)/sizeof(rgTests[0]);
@@ -239,7 +237,11 @@ main( int argc, char *argv[] )
         }
 
         printf( "Testing on %d integers\n", cInts );
-        printf( "\t\t128\t256\t512\tmaxThr\tmaxBW\n" );
+        printf( "\t\t" );
+        for ( int i = 128; i <= props.maxThreadsPerBlock; i *= 2 ) {
+            printf( "%d\t", i );
+        }
+        printf( "maxThr\tmaxBW\n" );
         for ( size_t i = 0; i < numTests; i++ ) {
             // for SM 1.x, skip the global atomics test.
             if ( props.major < 2 && rgTests[i].pfn == Reduction5 ) continue;

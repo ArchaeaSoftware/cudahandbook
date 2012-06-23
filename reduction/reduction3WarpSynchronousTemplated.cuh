@@ -54,6 +54,12 @@ Reduction3_kernel( int *out, const int *in, size_t N )
     shared_sum[tid] = sum;
     __syncthreads();
 
+    if (numThreads >= 1024) { 
+        if (tid < 512) { 
+            shared_sum[tid] += shared_sum[tid + 512]; 
+        } 
+        __syncthreads();
+    }
     if (numThreads >= 512) { 
         if (tid < 256) { 
             shared_sum[tid] += shared_sum[tid + 256]; 
@@ -108,15 +114,16 @@ Reduction3( int *out, int *partial,
             int numBlocks, int numThreads )
 {
     switch ( numThreads ) {
-        case   1: return Reduction3_template<  1>( out, partial, in, N, numBlocks );
-        case   2: return Reduction3_template<  2>( out, partial, in, N, numBlocks );
-        case   4: return Reduction3_template<  4>( out, partial, in, N, numBlocks );
-        case   8: return Reduction3_template<  8>( out, partial, in, N, numBlocks );
-        case  16: return Reduction3_template< 16>( out, partial, in, N, numBlocks );
-        case  32: return Reduction3_template< 32>( out, partial, in, N, numBlocks );
-        case  64: return Reduction3_template< 64>( out, partial, in, N, numBlocks );
-        case 128: return Reduction3_template<128>( out, partial, in, N, numBlocks );
-        case 256: return Reduction3_template<256>( out, partial, in, N, numBlocks );
-        case 512: return Reduction3_template<512>( out, partial, in, N, numBlocks );
+        case    1: return Reduction3_template<   1>( out, partial, in, N, numBlocks );
+        case    2: return Reduction3_template<   2>( out, partial, in, N, numBlocks );
+        case    4: return Reduction3_template<   4>( out, partial, in, N, numBlocks );
+        case    8: return Reduction3_template<   8>( out, partial, in, N, numBlocks );
+        case   16: return Reduction3_template<  16>( out, partial, in, N, numBlocks );
+        case   32: return Reduction3_template<  32>( out, partial, in, N, numBlocks );
+        case   64: return Reduction3_template<  64>( out, partial, in, N, numBlocks );
+        case  128: return Reduction3_template< 128>( out, partial, in, N, numBlocks );
+        case  256: return Reduction3_template< 256>( out, partial, in, N, numBlocks );
+        case  512: return Reduction3_template< 512>( out, partial, in, N, numBlocks );
+        case 1024: return Reduction3_template<1024>( out, partial, in, N, numBlocks );
     }
 }

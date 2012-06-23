@@ -33,10 +33,6 @@
  *
  */
 
-//
-// reads N ints and writes an intermediate sum per block
-// blockDim.x must be a power of 2!
-//
 __global__ void
 Reduction2_kernel( int *out, const int *in, size_t N )
 {
