@@ -41,6 +41,12 @@ __device__ void
 Reduction4_LogStepShared( int *out, volatile int *partials )
 {
     const int tid = threadIdx.x;
+    if (numThreads >= 1024) {
+        if (tid < 512) { 
+            partials[tid] += partials[tid + 512];
+        }
+        __syncthreads();
+    }
     if (numThreads >= 512) {
         if (tid < 256) { 
             partials[tid] += partials[tid + 256];

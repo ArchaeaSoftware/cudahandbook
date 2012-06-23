@@ -51,6 +51,7 @@ Reduction1_kernel( int *out, const int *in, size_t N )
     shared_sum[tid] = sum;
     __syncthreads();
 
+#pragma unroll 2
     for ( int activeThreads = blockDim.x>>1; 
               activeThreads; 
               activeThreads >>= 1 ) {
