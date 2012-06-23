@@ -88,7 +88,7 @@ __global__ void
 reduceSinglePass( int *out, int *partial, 
                   const int *in, unsigned int N )
 {
-    extern __shared__ int shared_sum[];
+    extern __shared__ int sPartials[];
     unsigned int tid = threadIdx.x;
     int sum = 0;
     for ( size_t i = blockIdx.x*numThreads + tid;
@@ -96,16 +96,16 @@ reduceSinglePass( int *out, int *partial,
                  i += numThreads*gridDim.x ) {
         sum += in[i];
     }
-    shared_sum[tid] = sum;
+    sPartials[tid] = sum;
     __syncthreads();
 
     if (gridDim.x == 1) {
         Reduction4_LogStepShared<numThreads>( &out[blockIdx.x], 
-                                              shared_sum );
+                                              sPartials );
         return;
     }
     Reduction4_LogStepShared<numThreads>( &partial[blockIdx.x], 
-                                          shared_sum );
+                                          sPartials );
 
     __shared__ bool lastBlock;
 
@@ -132,9 +132,9 @@ reduceSinglePass( int *out, int *partial,
                      i += numThreads ) {
             sum += partial[i];
         }
-        shared_sum[threadIdx.x] = sum;
+        sPartials[threadIdx.x] = sum;
         __syncthreads();
-        Reduction4_LogStepShared<numThreads>( out, shared_sum );
+        Reduction4_LogStepShared<numThreads>( out, sPartials );
         retirementCount = 0;
     }
 }

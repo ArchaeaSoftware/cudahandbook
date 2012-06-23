@@ -36,7 +36,7 @@
 __global__ void
 Reduction2_kernel( int *out, const int *in, size_t N )
 {
-    extern __shared__ int shared_sum[];
+    extern __shared__ int sPartials[];
     int sum = 0;
     const int tid = threadIdx.x;
     for ( size_t i = blockIdx.x*blockDim.x + tid;
@@ -44,19 +44,19 @@ Reduction2_kernel( int *out, const int *in, size_t N )
           i += blockDim.x*gridDim.x ) {
         sum += in[i];
     }
-    shared_sum[tid] = sum;
+    sPartials[tid] = sum;
     __syncthreads();
 
     for ( int activeThreads = blockDim.x>>1; 
               activeThreads > 32; 
               activeThreads >>= 1 ) {
         if ( tid < activeThreads ) {
-            shared_sum[tid] += shared_sum[tid+activeThreads];
+            sPartials[tid] += sPartials[tid+activeThreads];
         }
         __syncthreads();
     }
     if ( threadIdx.x < 32 ) {
-        volatile int *wsSum = shared_sum;
+        volatile int *wsSum = sPartials;
         if ( blockDim.x > 32 ) wsSum[tid] += wsSum[tid + 32];
         wsSum[tid] += wsSum[tid + 16];
         wsSum[tid] += wsSum[tid + 8];
@@ -64,7 +64,7 @@ Reduction2_kernel( int *out, const int *in, size_t N )
         wsSum[tid] += wsSum[tid + 2];
         wsSum[tid] += wsSum[tid + 1];
         if ( tid == 0 ) {
-            volatile int *wsSum = shared_sum;
+            volatile int *wsSum = sPartials;
             out[blockIdx.x] = wsSum[0];
         }
     }

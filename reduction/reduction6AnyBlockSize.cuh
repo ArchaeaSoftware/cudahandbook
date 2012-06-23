@@ -1,8 +1,9 @@
 /*
  *
- * reduction1ExplicitLoop.cuh
+ * reduction6AnyBlockSize.cuh
  *
- * Header for simplest formulation of reduction in shared memory.
+ * Implementation of reduction1ExplicitLoop.cuh, but with extra
+ * code to enable the kernel to work on any block size.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -38,7 +39,7 @@
 // blockDim.x must be a power of 2!
 //
 __global__ void
-Reduction1_kernel( int *out, const int *in, size_t N )
+Reduction6_kernel( int *out, const int *in, size_t N )
 {
     extern __shared__ int sPartials[];
     int sum = 0;
@@ -51,7 +52,22 @@ Reduction1_kernel( int *out, const int *in, size_t N )
     sPartials[tid] = sum;
     __syncthreads();
 
-    for ( int activeThreads = blockDim.x>>1; 
+    // start the shared memory loop on the next power of 2 less
+    // than the block size.  If block size is not a power of 2,
+    // accumulate the intermediate sums in the remainder range.
+    int floorPow2 = blockDim.x;
+
+    if ( floorPow2 & (floorPow2-1) ) {
+        while ( floorPow2 & (floorPow2-1) ) {
+            floorPow2 &= floorPow2-1;
+        }
+        if ( tid >= floorPow2 ) {
+            sPartials[tid - floorPow2] += sPartials[tid];
+        }
+        __syncthreads();
+    }
+
+    for ( int activeThreads = floorPow2>>1; 
               activeThreads; 
               activeThreads >>= 1 ) {
         if ( tid < activeThreads ) {
@@ -66,15 +82,15 @@ Reduction1_kernel( int *out, const int *in, size_t N )
 }
 
 void
-Reduction1( int *answer, int *partial, 
+Reduction6( int *answer, int *partial, 
             const int *in, size_t N, 
             int numBlocks, int numThreads )
 {
     unsigned int sharedSize = numThreads*sizeof(int);
-    Reduction1_kernel<<< 
+    Reduction6_kernel<<< 
         numBlocks, numThreads, sharedSize>>>( 
             partial, in, N );
-    Reduction1_kernel<<< 
+    Reduction6_kernel<<< 
         1, numThreads, sharedSize>>>( 
             answer, partial, numBlocks );
 }

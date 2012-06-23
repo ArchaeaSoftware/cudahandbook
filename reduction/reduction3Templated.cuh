@@ -1,8 +1,10 @@
 /*
  *
- * reduction3WarpSynchronousTemplated.cuh
+ * reduction3Templated.cuh
  *
- * Header for templated formulation of reduction in shared memory.
+ * Header for reduction implementation that is templated both to
+ * operate on arbitrary data types, and to unroll the log-step
+ * loop for the thread block.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -33,18 +35,13 @@
  *
  */
 
-//
-// templated implementation of reduction can be used to generate
-// optimized specializations for different block sizes.
-//
-
-template<unsigned int numThreads>
+template<class ReductionType, class T, unsigned int numThreads>
 __global__ void
-Reduction3_kernel( int *out, const int *in, size_t N )
+Reduction3_kernel( ReductionType *out, const T *in, size_t N )
 {
-    extern __shared__ int sPartials[];
+    SharedMemory<ReductionType> sPartials;
     const unsigned int tid = threadIdx.x;
-    int sum = 0;
+    ReductionType sum;
     for ( size_t i = blockIdx.x*numThreads + tid;
           i < N;
           i += numThreads*gridDim.x )
@@ -61,8 +58,8 @@ Reduction3_kernel( int *out, const int *in, size_t N )
         __syncthreads();
     }
     if (numThreads >= 512) { 
-        if (tid < 256) { 
-            sPartials[tid] += sPartials[tid + 256]; 
+        if (tid < 256) {
+            sPartials[tid] += sPartials[tid + 256];
         } 
         __syncthreads();
     }
@@ -78,10 +75,9 @@ Reduction3_kernel( int *out, const int *in, size_t N )
         } 
         __syncthreads();
     }
-
     // warp synchronous at the end
     if ( tid < 32 ) {
-        volatile int *wsSum = sPartials;
+        volatile ReductionType *wsSum = sPartials;
         if (numThreads >=  64) { wsSum[tid] += wsSum[tid + 32]; }
         if (numThreads >=  32) { wsSum[tid] += wsSum[tid + 16]; }
         if (numThreads >=  16) { wsSum[tid] += wsSum[tid +  8]; }
@@ -89,41 +85,36 @@ Reduction3_kernel( int *out, const int *in, size_t N )
         if (numThreads >=   4) { wsSum[tid] += wsSum[tid +  2]; }
         if (numThreads >=   2) { wsSum[tid] += wsSum[tid +  1]; }
         if ( tid == 0 ) {
-            out[blockIdx.x] = wsSum[0];
+            out[blockIdx.x] = sPartials[0];
         }
     }
 }
 
-template<unsigned int numThreads>
+template<class ReductionType, class T, unsigned int numThreads>
 void
-Reduction3_template( int *answer, int *partial, 
-                     const int *in, size_t N, 
-                     int numBlocks )
+Reduction3_template( ReductionType *answer, ReductionType *partial, const T *in, size_t N, int numBlocks )
 {
-    Reduction3_kernel<numThreads><<< 
-        numBlocks, numThreads, numThreads*sizeof(int)>>>( 
-            partial, in, N );
-    Reduction3_kernel<numThreads><<< 
-        1, numThreads, numThreads*sizeof(int)>>>( 
-            answer, partial, numBlocks );
+    Reduction3_kernel<ReductionType, T, numThreads><<< numBlocks, numThreads, numThreads*sizeof(ReductionType)>>>( partial, in, N );
+    Reduction3_kernel<ReductionType, ReductionType, numThreads><<< 1, numThreads, numThreads*sizeof(ReductionType)>>>( answer, partial, numBlocks );
 }
 
+template<class ReductionType, class T>
 void
-Reduction3( int *out, int *partial, 
-            const int *in, size_t N, 
-            int numBlocks, int numThreads )
+Reduction3( ReductionType *out, ReductionType *partial, const T *in, size_t N, int numBlocks, int numThreads )
 {
+    if ( N < numBlocks*numThreads ) {
+        numBlocks = (N+numThreads-1)/numThreads;
+    }
     switch ( numThreads ) {
-        case    1: return Reduction3_template<   1>( out, partial, in, N, numBlocks );
-        case    2: return Reduction3_template<   2>( out, partial, in, N, numBlocks );
-        case    4: return Reduction3_template<   4>( out, partial, in, N, numBlocks );
-        case    8: return Reduction3_template<   8>( out, partial, in, N, numBlocks );
-        case   16: return Reduction3_template<  16>( out, partial, in, N, numBlocks );
-        case   32: return Reduction3_template<  32>( out, partial, in, N, numBlocks );
-        case   64: return Reduction3_template<  64>( out, partial, in, N, numBlocks );
-        case  128: return Reduction3_template< 128>( out, partial, in, N, numBlocks );
-        case  256: return Reduction3_template< 256>( out, partial, in, N, numBlocks );
-        case  512: return Reduction3_template< 512>( out, partial, in, N, numBlocks );
-        case 1024: return Reduction3_template<1024>( out, partial, in, N, numBlocks );
+        case   1: return Reduction3_template<ReductionType, T,  1>( out, partial, in, N, numBlocks );
+        case   2: return Reduction3_template<ReductionType, T,  2>( out, partial, in, N, numBlocks );
+        case   4: return Reduction3_template<ReductionType, T,  4>( out, partial, in, N, numBlocks );
+        case   8: return Reduction3_template<ReductionType, T,  8>( out, partial, in, N, numBlocks );
+        case  16: return Reduction3_template<ReductionType, T, 16>( out, partial, in, N, numBlocks );
+        case  32: return Reduction3_template<ReductionType, T, 32>( out, partial, in, N, numBlocks );
+        case  64: return Reduction3_template<ReductionType, T, 64>( out, partial, in, N, numBlocks );
+        case 128: return Reduction3_template<ReductionType, T,128>( out, partial, in, N, numBlocks );
+        case 256: return Reduction3_template<ReductionType, T,256>( out, partial, in, N, numBlocks );
+        case 512: return Reduction3_template<ReductionType, T,512>( out, partial, in, N, numBlocks );
     }
 }

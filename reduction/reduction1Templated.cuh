@@ -1,8 +1,7 @@
 /*
+ * reduction1Templated.cuh
  *
- * reduction1ExplicitLoop.cuh
- *
- * Header for simplest formulation of reduction in shared memory.
+ * Header for simplest formulation of templated reduction.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -33,15 +32,12 @@
  *
  */
 
-//
-// reads N ints and writes an intermediate sum per block
-// blockDim.x must be a power of 2!
-//
+template<class ReductionType, class T>
 __global__ void
-Reduction1_kernel( int *out, const int *in, size_t N )
+Reduction1_kernel( ReductionType *out, const T *in, size_t N )
 {
-    extern __shared__ int sPartials[];
-    int sum = 0;
+    SharedMemory<ReductionType> sPartials;
+    ReductionType sum;
     const int tid = threadIdx.x;
     for ( size_t i = blockIdx.x*blockDim.x + tid;
           i < N;
@@ -59,22 +55,22 @@ Reduction1_kernel( int *out, const int *in, size_t N )
         }
         __syncthreads();
     }
-
     if ( tid == 0 ) {
         out[blockIdx.x] = sPartials[0];
     }
 }
 
+template<class ReductionType, class T>
 void
-Reduction1( int *answer, int *partial, 
-            const int *in, size_t N, 
-            int numBlocks, int numThreads )
+Reduction1( ReductionType *answer, ReductionType *partial, const T *in, size_t N, int numBlocks, int numThreads )
 {
-    unsigned int sharedSize = numThreads*sizeof(int);
-    Reduction1_kernel<<< 
-        numBlocks, numThreads, sharedSize>>>( 
+    if ( N < numBlocks*numThreads ) {
+        numBlocks = (N+numThreads-1)/numThreads;
+    }
+    Reduction1_kernel<ReductionType, T><<< 
+        numBlocks, numThreads, numThreads*sizeof(ReductionType)>>>( 
             partial, in, N );
-    Reduction1_kernel<<< 
-        1, numThreads, sharedSize>>>( 
+    Reduction1_kernel<ReductionType, ReductionType><<<         
+        1, numThreads, numThreads*sizeof(ReductionType)>>>( 
             answer, partial, numBlocks );
 }
