@@ -1,8 +1,7 @@
 /*
+ * reduction2Templated.cuh
  *
- * reduction1ExplicitLoop.cuh
- *
- * Header for simplest formulation of reduction in shared memory.
+ * Header for warp synchronus formulation of templated reduction.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -33,48 +32,59 @@
  *
  */
 
-//
-// reads N ints and writes an intermediate sum per block
-// blockDim.x must be a power of 2!
-//
+template<class ReductionType, class T>
 __global__ void
-Reduction1_kernel( int *out, const int *in, size_t N )
+Reduction2_kernel( ReductionType *out, const T *in, size_t N )
 {
-    extern __shared__ int sPartials[];
-    int sum = 0;
+    SharedMemory<ReductionType> sPartials;
+    ReductionType sum;
     const int tid = threadIdx.x;
     for ( size_t i = blockIdx.x*blockDim.x + tid;
           i < N;
-          i += blockDim.x*gridDim.x ) {
+          i += blockDim.x*gridDim.x )
+    {
         sum += in[i];
     }
     sPartials[tid] = sum;
     __syncthreads();
 
     for ( int activeThreads = blockDim.x>>1; 
-              activeThreads; 
+              activeThreads > 32; 
               activeThreads >>= 1 ) {
         if ( tid < activeThreads ) {
             sPartials[tid] += sPartials[tid+activeThreads];
         }
         __syncthreads();
     }
-
-    if ( tid == 0 ) {
-        out[blockIdx.x] = sPartials[0];
+    if ( threadIdx.x < 32 ) {
+        volatile ReductionType *wsSum = sPartials;
+        if ( blockDim.x > 32 ) wsSum[tid] += wsSum[tid + 32];
+        wsSum[tid] += wsSum[tid + 16];
+        wsSum[tid] += wsSum[tid + 8];
+        wsSum[tid] += wsSum[tid + 4];
+        wsSum[tid] += wsSum[tid + 2];
+        wsSum[tid] += wsSum[tid + 1];
+        if ( tid == 0 ) {
+            out[blockIdx.x] = sPartials[0];
+        }
     }
 }
 
+template<class ReductionType, class T>
 void
-Reduction1( int *answer, int *partial, 
-            const int *in, size_t N, 
+Reduction2( ReductionType *answer, 
+            ReductionType *partial, 
+            const T *in, 
+            size_t N, 
             int numBlocks, int numThreads )
 {
-    unsigned int sharedSize = numThreads*sizeof(int);
-    Reduction1_kernel<<< 
-        numBlocks, numThreads, sharedSize>>>( 
+    if ( N < numBlocks*numThreads ) {
+        numBlocks = (N+numThreads-1)/numThreads;
+    }
+    Reduction2_kernel<ReductionType, T><<< 
+        numBlocks, numThreads, numThreads*sizeof(ReductionType)>>>( 
             partial, in, N );
-    Reduction1_kernel<<< 
-        1, numThreads, sharedSize>>>( 
+    Reduction2_kernel<ReductionType, ReductionType><<<         
+        1, numThreads, numThreads*sizeof(ReductionType)>>>( 
             answer, partial, numBlocks );
 }

@@ -1,8 +1,8 @@
 /*
  *
- * reduction1ExplicitLoop.cuh
+ * reduction5GlobalAtomics.cuh
  *
- * Header for simplest formulation of reduction in shared memory.
+ * Header for reduction using atomics in global memory.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -34,47 +34,26 @@
  */
 
 //
-// reads N ints and writes an intermediate sum per block
-// blockDim.x must be a power of 2!
+// reads in[0..N-1] and writes their sum to *out
 //
 __global__ void
-Reduction1_kernel( int *out, const int *in, size_t N )
+Reduction5_kernel( int *out, const int *in, size_t N )
 {
-    extern __shared__ int sPartials[];
-    int sum = 0;
     const int tid = threadIdx.x;
+    int partialSum = 0;
     for ( size_t i = blockIdx.x*blockDim.x + tid;
           i < N;
           i += blockDim.x*gridDim.x ) {
-        sum += in[i];
+        partialSum += in[i];
     }
-    sPartials[tid] = sum;
-    __syncthreads();
-
-    for ( int activeThreads = blockDim.x>>1; 
-              activeThreads; 
-              activeThreads >>= 1 ) {
-        if ( tid < activeThreads ) {
-            sPartials[tid] += sPartials[tid+activeThreads];
-        }
-        __syncthreads();
-    }
-
-    if ( tid == 0 ) {
-        out[blockIdx.x] = sPartials[0];
-    }
+    atomicAdd( out, partialSum );
 }
 
 void
-Reduction1( int *answer, int *partial, 
+Reduction5( int *answer, int *partial, 
             const int *in, size_t N, 
             int numBlocks, int numThreads )
 {
-    unsigned int sharedSize = numThreads*sizeof(int);
-    Reduction1_kernel<<< 
-        numBlocks, numThreads, sharedSize>>>( 
-            partial, in, N );
-    Reduction1_kernel<<< 
-        1, numThreads, sharedSize>>>( 
-            answer, partial, numBlocks );
+    cudaMemset( answer, 0, sizeof(int) );
+    Reduction5_kernel<<< numBlocks, numThreads>>>( answer, in, N );
 }
