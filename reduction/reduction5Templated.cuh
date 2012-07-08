@@ -10,7 +10,7 @@
 // numThreads must be a power of 2!
 //
 
-template<class ReductionType, class T, unsigned int numThreads, unsigned int numBlocks>
+template<typename ReductionType, typename T, unsigned int numThreads, unsigned int numBlocks>
 __global__ void
 Reduction5_kernel( ReductionType *out, const T *in, size_t N )
 {
@@ -59,7 +59,7 @@ Reduction5_kernel( ReductionType *out, const T *in, size_t N )
     }
 }
 
-template<class ReductionType, class T, unsigned int numThreads>
+template<typename ReductionType, typename T, unsigned int numThreads>
 void
 Reduction5_template( ReductionType *answer, ReductionType *partial, const T *in, size_t N, int numBlocks )
 {
@@ -67,7 +67,7 @@ Reduction5_template( ReductionType *answer, ReductionType *partial, const T *in,
     Reduction5_kernel<ReductionType, ReductionType, numThreads, 1><<<         1, numThreads, numThreads*sizeof(ReductionType)>>>( answer, partial, numBlocks );
 }
 
-template<class ReductionType, class T>
+template<typename ReductionType, typename T>
 void
 Reduction5( ReductionType *out, ReductionType *partial, const T *in, size_t N, int numBlocks, int numThreads )
 {
