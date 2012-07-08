@@ -33,7 +33,7 @@
  *
  */
 
-template<class ReductionType, class T, unsigned int numThreads>
+template<typename ReductionType, typename T, unsigned int numThreads>
 __device__ void
 Reduction4_LogStepShared( volatile ReductionType *out, volatile ReductionType *sPartials )
 {
@@ -78,7 +78,7 @@ Reduction4_LogStepShared( volatile ReductionType *out, volatile ReductionType *s
 // Global variable used by reduceSinglePass to count blocks
 __device__ unsigned int retirementCount = 0;
 
-template<class ReductionType, class T, unsigned int numThreads>
+template<typename ReductionType, typename T, unsigned int numThreads>
 __global__ void reduceSinglePass(ReductionType *out, ReductionType *partial, const T *in, unsigned int N)
 {
     SharedMemory<ReductionType> sPartials;
@@ -128,14 +128,14 @@ __global__ void reduceSinglePass(ReductionType *out, ReductionType *partial, con
     }
 }
 
-template<class ReductionType, class T, unsigned int numThreads>
+template<typename ReductionType, typename T, unsigned int numThreads>
 void
 Reduction4_template( ReductionType *out, ReductionType *partial, const T *in, size_t N, int numBlocks )
 {
     reduceSinglePass<ReductionType, T, numThreads><<< numBlocks, numThreads, numThreads*sizeof(ReductionType)>>>( out, partial, in, N );
 }
 
-template<class ReductionType, class T>
+template<typename ReductionType, typename T>
 void 
 Reduction4( ReductionType *out, ReductionType *partial, const T *in, size_t N, int numBlocks, int numThreads )
 {

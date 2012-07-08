@@ -32,7 +32,7 @@
  *
  */
 
-template<class ReductionType, class T>
+template<typename ReductionType, typename T>
 __global__ void
 Reduction1_kernel( ReductionType *out, const T *in, size_t N )
 {
@@ -60,7 +60,7 @@ Reduction1_kernel( ReductionType *out, const T *in, size_t N )
     }
 }
 
-template<class ReductionType, class T>
+template<typename ReductionType, typename T>
 void
 Reduction1( ReductionType *answer, ReductionType *partial, const T *in, size_t N, int numBlocks, int numThreads )
 {

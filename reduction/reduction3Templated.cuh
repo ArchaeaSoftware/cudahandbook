@@ -35,7 +35,7 @@
  *
  */
 
-template<class ReductionType, class T, unsigned int numThreads>
+template<typename ReductionType, typename T, unsigned int numThreads>
 __global__ void
 Reduction3_kernel( ReductionType *out, const T *in, size_t N )
 {
@@ -90,7 +90,7 @@ Reduction3_kernel( ReductionType *out, const T *in, size_t N )
     }
 }
 
-template<class ReductionType, class T, unsigned int numThreads>
+template<typename ReductionType, typename T, unsigned int numThreads>
 void
 Reduction3_template( ReductionType *answer, ReductionType *partial, const T *in, size_t N, int numBlocks )
 {
@@ -98,7 +98,7 @@ Reduction3_template( ReductionType *answer, ReductionType *partial, const T *in,
     Reduction3_kernel<ReductionType, ReductionType, numThreads><<< 1, numThreads, numThreads*sizeof(ReductionType)>>>( answer, partial, numBlocks );
 }
 
-template<class ReductionType, class T>
+template<typename ReductionType, typename T>
 void
 Reduction3( ReductionType *out, ReductionType *partial, const T *in, size_t N, int numBlocks, int numThreads )
 {
