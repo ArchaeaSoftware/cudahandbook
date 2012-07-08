@@ -49,7 +49,7 @@
 #include "chError.h"
 #include "chTimer.h"
 
-#define STAGING_BUFFER_SIZE 8*1048576
+#define STAGING_BUFFER_SIZE 1048576
 
 void *g_hostBuffers[2];
 cudaEvent_t g_events[2];
@@ -137,13 +137,13 @@ main( int argc, char *argv[] )
         goto Error;
     }
     for ( int i = 0; i < cIterations; i++ ) {
-		size_t numInts4 = numInts / 4;
+        size_t numInts4 = numInts / 4;
         size_t dstOffset = rand() % (numInts4-1);
         size_t srcOffset = rand() % (numInts4-1);
         size_t intsThisIteration = 1 + rand() % (numInts-max(dstOffset,srcOffset)-1);
-		dstOffset *= 4;
-		srcOffset *= 4;
-		intsThisIteration *= 4;
+        dstOffset *= 4;
+        srcOffset *= 4;
+        intsThisIteration *= 4;
         if ( ! TestMemcpy( deviceInt, hostInt, testVector, dstOffset, srcOffset, intsThisIteration ) ) {
             TestMemcpy( deviceInt, hostInt, testVector, dstOffset, srcOffset, intsThisIteration );
             goto Error;
