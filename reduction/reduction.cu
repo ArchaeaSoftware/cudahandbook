@@ -2,8 +2,8 @@
  *
  * Microbenchmark for reduction (summation) of 32-bit integers.
  *
- * Build with: nvcc -I ../chLib --gpu-architecture sm_12 <options> reduction.cu
- * Requires: SM 1.2 for shared atomics (as well as global atomics).
+ * Build with: nvcc -I ../chLib --gpu-architecture sm_11 <options> reduction.cu
+ * Requires: SM 1.1 for global atomics.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -166,6 +166,7 @@ void
 Usage()
 {
     printf( "Command-line options\n" );
+    printf( "    --device <deviceID>: specify device to run the test on\n" );
     printf( "    --n <N>: specify number of Mintegers to process (scaled by 1048576)\n" );
     printf( "    --throughput: compute throughput of different reduction implementations\n" );
     printf( "    --help or --usage: generate this message\n" );
@@ -181,6 +182,7 @@ main( int argc, char *argv[] )
     int sum;
     int cMInts = 32;
     size_t cInts;
+    int device = 0;
 
     if ( chCommandLineGetBool( "usage", argc, argv ) ) {
         Usage();
@@ -189,10 +191,12 @@ main( int argc, char *argv[] )
 
     chCommandLineGet( &cMInts, "n", argc, argv );
     cInts = cMInts * 1048576;
+    chCommandLineGet( &device, "device", argc, argv );
 
     hostData = (int *) malloc( cInts*sizeof(int) );
     if ( ! hostData )
         goto Error;
+    CUDART_CHECK( cudaSetDevice( device ) );
     CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
     CUDART_CHECK( cudaMalloc( &deviceData, cInts*sizeof(int) ) );
     CUDART_CHECK( cudaGetDeviceProperties( &props, 0 ) );
@@ -243,9 +247,6 @@ main( int argc, char *argv[] )
         }
         printf( "maxThr\tmaxBW\n" );
         for ( size_t i = 0; i < numTests; i++ ) {
-            // for SM 1.x, skip the global atomics test.
-            if ( props.major < 2 && rgTests[i].pfn == Reduction5 ) continue;
-
             printf( "%s\t", rgTests[i].szName );
             Shmoo( &result[i], deviceData, cInts, sum, true, false, rgTests[i].pfn );
             printf( "%d\t%.2f\n", result[i].numThreads, result[i].Bandwidth );
