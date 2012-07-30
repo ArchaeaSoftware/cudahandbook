@@ -156,7 +156,6 @@ main( int argc, char *argv[] )
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
         chMemcpyHtoD( deviceInt, testVector, numInts*sizeof(int) ) ;
-        //cudaMemcpy( deviceInt, testVector, numInts*sizeof(int), cudaMemcpyHostToDevice );
     }
     CUDART_CHECK( cudaThreadSynchronize() );
     chTimerGetTime( &stop );
