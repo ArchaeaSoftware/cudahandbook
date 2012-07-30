@@ -140,20 +140,12 @@ main( int argc, char *argv[] )
     }
     for ( int i = 0; i < cIterations; i++ ) {
         size_t numInts4 = numInts / 4;
-        int r0 = rand();
-        int r1 = rand();
-        int r2 = rand();
-        size_t dstOffset = r0 % (numInts4-1);
-        size_t srcOffset = r1 % (numInts4-1);
-        size_t intsThisIteration = 1 + r2 % (numInts4-max(dstOffset,srcOffset)-1);
+        size_t dstOffset = rand() % (numInts4-1);
+        size_t srcOffset = rand() % (numInts4-1);
+        size_t intsThisIteration = 1 + rand() % (numInts4-max(dstOffset,srcOffset)-1);
         dstOffset *= 4;
         srcOffset *= 4;
         intsThisIteration *= 4;
-if ( intsThisIteration > numInts ) {
-    *(int *) NULL = 0;
-
-}
-        assert( intsThisIteration <= numInts );
         if ( ! TestMemcpy( deviceInt, hostInt, testVector, dstOffset, srcOffset, intsThisIteration ) ) {
             TestMemcpy( deviceInt, hostInt, testVector, dstOffset, srcOffset, intsThisIteration );
             goto Error;
