@@ -1,13 +1,13 @@
 /*
  *
- * globalReadTex.cu
+ * globalRead.cu
  *
- * Microbenchmark for read bandwidth from global memory via texture.
+ * Microbenchmark for read bandwidth from global memory.
  *
- * Build with: nvcc -I ../chLib <options> globalReadTex.cu
+ * Build with: nvcc -I ..\chLib <options> globalRead.cu
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
@@ -55,7 +55,6 @@ struct myInt2 {
 
     __host__ __device__ myInt2() { }
     __host__ __device__ myInt2( int i ) { i2.x = i2.y = i; }
-    __host__ __device__ myInt2( int2 _i2 ) { i2 = _i2; }
 };
 
 template<>
@@ -73,7 +72,6 @@ struct myInt4 {
 
     __host__ __device__ myInt4() { }
     __host__ __device__ myInt4( int i ) { i4.x = i4.y = i4.z = i4.w = i; }
-    __host__ __device__ myInt4( int4 _i4 ) { i4 = _i4; }
 };
 
 template<>
@@ -88,52 +86,9 @@ plus( const myInt4& a, const myInt4& b )
     return ret;
 }
 
-texture<char, 1, cudaReadModeElementType> tex_char;
-texture<short, 1, cudaReadModeElementType> tex_short;
-texture<int, 1, cudaReadModeElementType> tex_int;
-texture<int2, 1, cudaReadModeElementType> tex_int2;
-texture<int4, 1, cudaReadModeElementType> tex_int4;
-
-template<typename T>
-__device__ void
-ReadViaTex( T& passback, size_t i )
-{
-    passback = T(0xbeefcafe);
-}
-
-__device__ void
-ReadViaTex( char& passback, size_t i )
-{
-    passback = tex1Dfetch( tex_char, i );
-}
-
-__device__ void
-ReadViaTex( short& passback, size_t i )
-{
-    passback = tex1Dfetch( tex_short, i );
-}
-
-__device__ void
-ReadViaTex( int& passback, size_t i )
-{
-    passback = tex1Dfetch( tex_int, i );
-}
-
-__device__ void
-ReadViaTex( myInt2& passback, size_t i )
-{
-    passback = tex1Dfetch( tex_int2, i );
-}
-
-__device__ void
-ReadViaTex( myInt4& passback, size_t i )
-{
-    passback = tex1Dfetch( tex_int4, i );
-}
-
 template<class T, const int n> 
 __global__ void
-GlobalReads( T *out, bool bOffset, size_t N, bool bWriteResults )
+GlobalReads( T *out, const T *in, size_t N, bool bWriteResults )
 {
     T sums[n];
     size_t i;
@@ -145,18 +100,14 @@ GlobalReads( T *out, bool bOffset, size_t N, bool bWriteResults )
           i += n*blockDim.x*gridDim.x ) {
         for ( int j = 0; j < n; j++ ) {
             size_t index = i+j*blockDim.x;
-            T value;
-            ReadViaTex( value, index+bOffset );
-            sums[j] = plus( sums[j], value );
+            sums[j] = plus( sums[j], in[index] );
         }
     }
     // to avoid the (index<N) conditional in the inner loop, 
     // we left off some work at the end
     for ( int j = 0; j < n; j++ ) {
         size_t index = i+j*blockDim.x;
-        T value;
-        ReadViaTex( value, index+bOffset );
-        if ( index<N ) sums[j] = plus( sums[j], value );
+        if ( index<N ) sums[j] = plus( sums[j], in[index] );
     }
     
     if ( bWriteResults ) {
@@ -188,14 +139,6 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
     CUDART_CHECK( cudaMalloc( &in, N*sizeof(T) ) );
     CUDART_CHECK( cudaMalloc( &out, cBlocks*cThreads*sizeof(T) ) );
 
-    switch ( sizeof(T) ) {
-        case  1: CUDART_CHECK( cudaBindTexture( NULL, tex_char, in, N*sizeof(T) ) );  break;
-        case  2: CUDART_CHECK( cudaBindTexture( NULL, tex_short, in, N*sizeof(T) ) ); break;
-        case  4: CUDART_CHECK( cudaBindTexture( NULL, tex_int, in, N*sizeof(T) ) ); break;
-        case  8: CUDART_CHECK( cudaBindTexture( NULL, tex_int2, in, N*sizeof(T) ) ); break;
-        case 16: CUDART_CHECK( cudaBindTexture( NULL, tex_int4, in, N*sizeof(T) ) ); break;
-    }
-
     hostIn = new T[N];
     if ( ! hostIn )
         goto Error;
@@ -217,7 +160,7 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
 
     {
         // confirm that kernel launch with this configuration writes correct result
-        GlobalReads<T,n><<<cBlocks,cThreads>>>( out, bOffset, N-bOffset, true );
+        GlobalReads<T,n><<<cBlocks,cThreads>>>( out, in+bOffset, N-bOffset, true );
         CUDART_CHECK( cudaMemcpy( hostOut, out, cBlocks*cThreads*sizeof(T), cudaMemcpyDeviceToHost ) );
         CUDART_CHECK( cudaGetLastError() ); 
         T sumGPU = T(0);
@@ -233,7 +176,7 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
     cIterations = 10;
     cudaEventRecord( evStart );
     for ( int i = 0; i < cIterations; i++ ) {
-        GlobalReads<T,n><<<cBlocks,cThreads>>>( out, bOffset, N-bOffset, false );
+        GlobalReads<T,n><<<cBlocks,cThreads>>>( out, in+bOffset, N-bOffset, false );
     }
     cudaEventRecord( evStop );
     CUDART_CHECK( cudaThreadSynchronize() );
@@ -318,17 +261,26 @@ main( int argc, char *argv[] )
     }
     CUDART_CHECK( cudaSetDevice(device) );
     CUDART_CHECK( cudaGetDeviceProperties( &prop, device ) );
-    printf( "Running globalReadTex.cu microbenchmark on %s\n", prop.name );
+    printf( "Running globalRead.cu microbenchmark on %s\n", prop.name );
     if ( chCommandLineGet( &size, "size", argc, argv ) ) {
         printf( "Using %dM operands ...\n", size );
     }
 
-    Shmoo<char,false>(  (size_t) size*1048576, 32, 512, 1500 );
-    Shmoo<short,false>(  (size_t) size*1048576, 32, 512, 1500 );
-    Shmoo<int,false>(  (size_t) size*1048576, 32, 512, 1500 );
-    Shmoo<myInt2,false>( (size_t) size*1048576, 32, 512, 1500 );
-    Shmoo<myInt4,false>( (size_t) size*1048576, 32, 512, 1500 );
-
+    if ( chCommandLineGetBool( "uncoalesced", argc, argv ) ) {
+        printf( "Using uncoalesced memory transactions\n" );
+        Shmoo<char,false>(  (size_t) size*1048576, 32, 512, 1500 );
+        Shmoo<short,false>(  (size_t) size*1048576, 32, 512, 1500 );
+        Shmoo<int,false>(  (size_t) size*1048576, 32, 512, 1500 );
+        Shmoo<myInt2,false>( (size_t) size*1048576, 32, 512, 1500 );
+        Shmoo<myInt4,false>( (size_t) size*1048576, 32, 512, 1500 );
+    } else {
+        printf( "Using coalesced memory transactions\n" );
+        Shmoo<char,true>(  (size_t) size*1048576, 32, 512, 1500 );
+        Shmoo<short,true>(  (size_t) size*1048576, 32, 512, 1500 );
+        Shmoo<int,true>(  (size_t) size*1048576, 32, 512, 1500 );
+        Shmoo<myInt2,true>( (size_t) size*1048576, 32, 512, 1500 );
+        Shmoo<myInt4,true>( (size_t) size*1048576, 32, 512, 1500 );
+    }
     return 0;
 Error:
     return 1;

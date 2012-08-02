@@ -1,10 +1,10 @@
 /*
  *
- * globalReadTex.cu
+ * globalWrite.cu
  *
- * Microbenchmark for read bandwidth from global memory via texture.
+ * Microbenchmark for write bandwidth to global memory.
  *
- * Build with: nvcc -I ../chLib <options> globalReadTex.cu
+ * Build with: nvcc -I ../chLib <options> globalWrite.cu
  * Requires: No minimum SM requirement.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
@@ -13,7 +13,7 @@
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions 
  * are met: 
-
+ *
  * 1. Redistributions of source code must retain the above copyright 
  *    notice, this list of conditions and the following disclaimer. 
  * 2. Redistributions in binary form must reproduce the above copyright 
@@ -55,7 +55,6 @@ struct myInt2 {
 
     __host__ __device__ myInt2() { }
     __host__ __device__ myInt2( int i ) { i2.x = i2.y = i; }
-    __host__ __device__ myInt2( int2 _i2 ) { i2 = _i2; }
 };
 
 template<>
@@ -73,7 +72,6 @@ struct myInt4 {
 
     __host__ __device__ myInt4() { }
     __host__ __device__ myInt4( int i ) { i4.x = i4.y = i4.z = i4.w = i; }
-    __host__ __device__ myInt4( int4 _i4 ) { i4 = _i4; }
 };
 
 template<>
@@ -88,152 +86,49 @@ plus( const myInt4& a, const myInt4& b )
     return ret;
 }
 
-texture<char, 1, cudaReadModeElementType> tex_char;
-texture<short, 1, cudaReadModeElementType> tex_short;
-texture<int, 1, cudaReadModeElementType> tex_int;
-texture<int2, 1, cudaReadModeElementType> tex_int2;
-texture<int4, 1, cudaReadModeElementType> tex_int4;
-
-template<typename T>
-__device__ void
-ReadViaTex( T& passback, size_t i )
-{
-    passback = T(0xbeefcafe);
-}
-
-__device__ void
-ReadViaTex( char& passback, size_t i )
-{
-    passback = tex1Dfetch( tex_char, i );
-}
-
-__device__ void
-ReadViaTex( short& passback, size_t i )
-{
-    passback = tex1Dfetch( tex_short, i );
-}
-
-__device__ void
-ReadViaTex( int& passback, size_t i )
-{
-    passback = tex1Dfetch( tex_int, i );
-}
-
-__device__ void
-ReadViaTex( myInt2& passback, size_t i )
-{
-    passback = tex1Dfetch( tex_int2, i );
-}
-
-__device__ void
-ReadViaTex( myInt4& passback, size_t i )
-{
-    passback = tex1Dfetch( tex_int4, i );
-}
-
 template<class T, const int n> 
 __global__ void
-GlobalReads( T *out, bool bOffset, size_t N, bool bWriteResults )
+GlobalWrites( T *out, T value, size_t N )
 {
-    T sums[n];
     size_t i;
-    for ( int j = 0; j < n; j++ ) {
-        sums[j] = T(0);
-    }
     for ( i = n*blockIdx.x*blockDim.x+threadIdx.x; 
           i < N-n*blockDim.x*gridDim.x; 
           i += n*blockDim.x*gridDim.x ) {
         for ( int j = 0; j < n; j++ ) {
             size_t index = i+j*blockDim.x;
-            T value;
-            ReadViaTex( value, index+bOffset );
-            sums[j] = plus( sums[j], value );
+            out[index] = value;
         }
     }
     // to avoid the (index<N) conditional in the inner loop, 
     // we left off some work at the end
     for ( int j = 0; j < n; j++ ) {
         size_t index = i+j*blockDim.x;
-        T value;
-        ReadViaTex( value, index+bOffset );
-        if ( index<N ) sums[j] = plus( sums[j], value );
-    }
-    
-    if ( bWriteResults ) {
-        T sum = T(0);
-        for ( int j = 0; j < n; j++ ) {
-            sum = plus( sum, sums[j] );
-        }
-        out[blockIdx.x*blockDim.x+threadIdx.x] = sum;
+        if ( index<N ) out[index] = value;
     }
 }
 
 template<class T, const int n, bool bOffset>
 double
-BandwidthReads( size_t N, int cBlocks, int cThreads )
+BandwidthWrites( size_t N, int cBlocks, int cThreads )
 {
-    T *in = 0;
     T *out = 0;
-    T *hostIn = 0;
-    T *hostOut = 0;
     double ret = 0.0;
     double elapsedTime;
     float ms;
     int cIterations;
     cudaError_t status;
-    T sumCPU;
     cudaEvent_t evStart = 0;
     cudaEvent_t evStop = 0;
 
-    CUDART_CHECK( cudaMalloc( &in, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMalloc( &out, cBlocks*cThreads*sizeof(T) ) );
+    CUDART_CHECK( cudaMalloc( &out, N*sizeof(T) ) );
 
-    switch ( sizeof(T) ) {
-        case  1: CUDART_CHECK( cudaBindTexture( NULL, tex_char, in, N*sizeof(T) ) );  break;
-        case  2: CUDART_CHECK( cudaBindTexture( NULL, tex_short, in, N*sizeof(T) ) ); break;
-        case  4: CUDART_CHECK( cudaBindTexture( NULL, tex_int, in, N*sizeof(T) ) ); break;
-        case  8: CUDART_CHECK( cudaBindTexture( NULL, tex_int2, in, N*sizeof(T) ) ); break;
-        case 16: CUDART_CHECK( cudaBindTexture( NULL, tex_int4, in, N*sizeof(T) ) ); break;
-    }
-
-    hostIn = new T[N];
-    if ( ! hostIn )
-        goto Error;
-    hostOut = new T[cBlocks*cThreads];
-    if ( ! hostOut )
-        goto Error;
-
-    sumCPU = T(0);
-    // populate input array with random numbers
-    for ( size_t i = bOffset; i < N; i++ ) {
-        T nextrand = T(rand());
-        sumCPU = plus( sumCPU, nextrand );
-        hostIn[i] = nextrand;
-    }
-
-    CUDART_CHECK( cudaMemcpy( in, hostIn, N*sizeof(T), cudaMemcpyHostToDevice ) );
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
-
-    {
-        // confirm that kernel launch with this configuration writes correct result
-        GlobalReads<T,n><<<cBlocks,cThreads>>>( out, bOffset, N-bOffset, true );
-        CUDART_CHECK( cudaMemcpy( hostOut, out, cBlocks*cThreads*sizeof(T), cudaMemcpyDeviceToHost ) );
-        CUDART_CHECK( cudaGetLastError() ); 
-        T sumGPU = T(0);
-        for ( size_t i = 0; i < cBlocks*cThreads; i++ ) {
-            sumGPU = plus( sumGPU, hostOut[i] );
-        }
-        if ( memcmp( &sumCPU, &sumGPU, sizeof(T) ) ) {
-            printf( "Incorrect sum computed!\n" );
-            goto Error;
-        }
-    }
 
     cIterations = 10;
     cudaEventRecord( evStart );
     for ( int i = 0; i < cIterations; i++ ) {
-        GlobalReads<T,n><<<cBlocks,cThreads>>>( out, bOffset, N-bOffset, false );
+        GlobalWrites<T,n><<<cBlocks,cThreads>>>( out+bOffset, (T) 0xcc, N-bOffset );
     }
     cudaEventRecord( evStop );
     CUDART_CHECK( cudaThreadSynchronize() );
@@ -248,24 +143,27 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
     ret /= 1024.0*1048576.0;
 
 Error:
-    if ( hostIn ) delete[] hostIn;
-    if ( hostOut ) delete[] hostOut;
     cudaEventDestroy( evStart );
     cudaEventDestroy( evStop );
-    cudaFree( in );
     cudaFree( out );
     return ret;
 }
 
 template<class T, const int n, bool bOffset>
 double
-ReportRow( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
+ReportRow( size_t N, 
+           size_t threadStart, 
+           size_t threadStop, 
+           size_t cBlocks )
 {
     int maxThreads = 0;
     double maxBW = 0.0;
     printf( "%d\t", n );
-    for ( int cThreads = threadStart; cThreads <= threadStop; cThreads *= 2 ) {
-        double bw = BandwidthReads<T,n,bOffset>( N, cBlocks, cThreads );
+    for ( int cThreads = threadStart; 
+              cThreads <= threadStop; 
+              cThreads *= 2 ) {
+        double bw;
+        bw = BandwidthWrites<T,n,bOffset>( N, cBlocks, cThreads );
         if ( bw > maxBW ) {
             maxBW = bw;
             maxThreads = cThreads;
@@ -280,7 +178,7 @@ template<class T, bool bCoalesced>
 void
 Shmoo( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
 {
-    printf( "Operand size: %d byte%c\n", sizeof(T), sizeof(T)==1 ? '\0' : 's' );
+    printf( "Operand size: %d byte%c\n", (int) sizeof(T), sizeof(T)==1 ? '\0' : 's' );
     printf( "Input size: %dM operands\n", (int) (N>>20) );
     printf( "Unroll\t" );
     for ( int cThreads = threadStart; cThreads <= threadStop; cThreads *= 2 ) {
@@ -309,27 +207,30 @@ Shmoo( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
     int device = 0;
     int size = 16;
-    cudaDeviceProp prop;
     if ( chCommandLineGet( &device, "device", argc, argv ) ) {
         printf( "Using device %d...\n", device );
     }
-    CUDART_CHECK( cudaSetDevice(device) );
-    CUDART_CHECK( cudaGetDeviceProperties( &prop, device ) );
-    printf( "Running globalReadTex.cu microbenchmark on %s\n", prop.name );
+    cudaSetDevice(device);
     if ( chCommandLineGet( &size, "size", argc, argv ) ) {
         printf( "Using %dM operands ...\n", size );
     }
 
-    Shmoo<char,false>(  (size_t) size*1048576, 32, 512, 1500 );
-    Shmoo<short,false>(  (size_t) size*1048576, 32, 512, 1500 );
-    Shmoo<int,false>(  (size_t) size*1048576, 32, 512, 1500 );
-    Shmoo<myInt2,false>( (size_t) size*1048576, 32, 512, 1500 );
-    Shmoo<myInt4,false>( (size_t) size*1048576, 32, 512, 1500 );
-
+    if ( chCommandLineGetBool( "uncoalesced", argc, argv ) ) {
+        printf( "Using uncoalesced memory transactions\n" );
+        Shmoo<char,false>(  (size_t) size*1048576, 32, 512, 150 );
+        Shmoo<short,false>(  (size_t) size*1048576, 32, 512, 150 );
+        Shmoo<int,false>(  (size_t) size*1048576, 32, 512, 150 );
+        Shmoo<myInt2,false>( (size_t) size*1048576, 32, 512, 150 );
+        Shmoo<myInt4,false>( (size_t) size*1048576, 32, 512, 150 );
+    } else {
+        printf( "Using coalesced memory transactions\n" );
+        Shmoo<char,true>(  (size_t) size*1048576, 32, 512, 150 );
+        Shmoo<short,true>(  (size_t) size*1048576, 32, 512, 150 );
+        Shmoo<int,true>(  (size_t) size*1048576, 32, 512, 150 );
+        Shmoo<myInt2,true>( (size_t) size*1048576, 32, 512, 150 );
+        Shmoo<myInt4,true>( (size_t) size*1048576, 32, 512, 150 );
+    }
     return 0;
-Error:
-    return 1;
 }
