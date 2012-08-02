@@ -4,7 +4,7 @@
  *
  * Microdemo to illustrate 2D memset via surface store.
  *
- * Build with: nvcc -I ../chLib <options> surf2Dmemset_shmoo.cu -lcuda
+ * Build with: nvcc --gpu-architecture sm_20 -I ../chLib <options> surf2Dmemset_shmoo.cu -lcuda
  * (Needs driver API for cuArrayGetDescriptor() ).
  * Requires: SM 2.x for surface load/store.
  *
