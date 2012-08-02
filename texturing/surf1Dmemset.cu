@@ -4,7 +4,7 @@
  *
  * Microdemo to illustrate 1D memset via surface store.
  *
- * Build with: nvcc -I ../chLib <options> surf1Dmemset.cu
+ * Build with: nvcc --gpu-architecture sm_20 -I ../chLib <options> surf1Dmemset.cu
  * Requires: SM 2.x for surface load/store.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
