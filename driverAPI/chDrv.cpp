@@ -1,20 +1,16 @@
 /*
  *
- * initDrv.cpp
+ * chDrv.cpp
  *
- * Microdemo to illustrate how to initialize the driver API.
+ * Implementation file for helper classes and functions for driver API.
  *
- * Build with: nvcc -I ..\chLib <options> initDrv.cpp
- * (You also can build with your local C compiler - gcc or cl.exe)
- * Requires: No minimum SM requirement.
- *
-  * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions 
  * are met: 
-
+ *
  * 1. Redistributions of source code must retain the above copyright 
  *    notice, this list of conditions and the following disclaimer. 
  * 2. Redistributions in binary form must reproduce the above copyright 
@@ -37,70 +33,9 @@
  *
  */
 
-#include <stdio.h>
-#include <stdlib.h> // for rand()
+#include <chDrv.h>
 
-#include <cuda.h>
-
-#include <chError.h>
-#include <chCommandLine.h>
-
-using namespace std;
-
-#include <string>
-#include <list>
-#include <map>
-#include <vector>
-
-
-class chCUDADevice
-{
-public:
-    chCUDADevice();
-    virtual ~chCUDADevice();
-
-    CUresult Initialize( 
-        int ordinal, 
-        list<string>& moduleList,
-        unsigned int Flags = 0,
-        unsigned int numOptions = 0,
-        CUjit_option *options = NULL,
-        void **optionValues = NULL );
-    CUresult loadModuleFromFile( 
-        CUmodule *pModule,
-        string fileName,
-        unsigned int numOptions = 0,
-        CUjit_option *options = NULL,
-        void **optionValues = NULL );
-
-    CUdevice device() const { return m_device; }
-    CUcontext context() const { return m_context; }
-    CUmodule module( string s ) const { return (*m_modules.find(s)).second; }
-
-private:
-    CUdevice m_device;
-    CUcontext m_context;
-    map<string, CUmodule> m_modules;
-
-};
-
-inline
-chCUDADevice::chCUDADevice()
-{
-    m_device = 0;
-    m_context = 0;
-}
-
-inline 
-chCUDADevice::~chCUDADevice()
-{
-    for ( map<string, CUmodule>::iterator it = m_modules.begin();
-          it != m_modules.end();
-          it ++ ) {
-        cuModuleUnload( (*it).second );
-    }
-    cuCtxDestroy( m_context );
-}
+vector<chCUDADevice *> g_CUDAdevices;
 
 CUresult
 chCUDADevice::loadModuleFromFile( 
@@ -172,8 +107,6 @@ Error:
     return status;
 }
 
-vector<chCUDADevice *> g_CUDAdevices;
-
 CUresult
 chCUDAInitialize( list<string>& moduleList )
 {
@@ -208,81 +141,3 @@ Error:
     return status;
 }
 
-CUresult
-TestSAXPY( chCUDADevice *chDevice, size_t N, float alpha )
-{
-    CUresult status;
-    CUdeviceptr dptrOut = 0;
-    CUdeviceptr dptrIn = 0;
-    float *hostOut = 0;
-    float *hostIn = 0;
-
-    CUDA_CHECK( cuCtxPushCurrent( chDevice->context() ) );
-
-    CUDA_CHECK( cuMemAlloc( &dptrOut, N*sizeof(float) ) );
-    CUDA_CHECK( cuMemsetD32( dptrOut, 0, N ) );
-    CUDA_CHECK( cuMemAlloc( &dptrIn, N*sizeof(float) ) );
-    CUDA_CHECK( cuMemHostAlloc( (void **) &hostOut, N*sizeof(float), 0 ) );
-    CUDA_CHECK( cuMemHostAlloc( (void **) &hostIn, N*sizeof(float), 0 ) );
-    for ( size_t i = 0; i < N; i++ ) {
-        hostIn[i] = (float) rand() / (float) RAND_MAX;
-    }
-    CUDA_CHECK( cuMemcpyHtoDAsync( dptrIn, hostIn, N*sizeof(float ), NULL ) );
-
-    {
-        CUmodule moduleSAXPY;
-        CUfunction kernelSAXPY;
-        void *params[] = { &dptrOut, &dptrIn, &N, &alpha };
-        
-        moduleSAXPY = chDevice->module( "saxpy.ptx" );
-        if ( ! moduleSAXPY ) {
-            status = CUDA_ERROR_NOT_FOUND;
-            goto Error;
-        }
-        CUDA_CHECK( cuModuleGetFunction( &kernelSAXPY, moduleSAXPY, "saxpy" ) );
-
-        CUDA_CHECK( cuLaunchKernel( kernelSAXPY, 1500, 1, 1, 512, 1, 1, 0, NULL, params, NULL ) );
-
-    }
-
-    CUDA_CHECK( cuMemcpyDtoHAsync( hostOut, dptrOut, N*sizeof(float), NULL ) );
-    CUDA_CHECK( cuCtxSynchronize() );
-    for ( size_t i = 0; i < N; i++ ) {
-        if ( fabsf( hostOut[i] - alpha*hostIn[i] ) > 1e-5f ) {
-            status = CUDA_ERROR_UNKNOWN;
-            goto Error;
-        }
-    }
-    status = CUDA_SUCCESS;
-
-Error:
-    cuCtxPopCurrent( NULL );
-    cuMemFreeHost( hostOut );
-    cuMemFreeHost( hostIn );
-    cuMemFree( dptrOut );
-    cuMemFree( dptrIn );
-    return status;
-}
-
-int
-main( int argc, char *argv[] )
-{
-    CUresult status;
-
-    list<string> moduleList;
-    moduleList.push_back( "saxpy.ptx" );
-
-    CUDA_CHECK( chCUDAInitialize( moduleList ) );
-    for ( vector<chCUDADevice *>::iterator it  = g_CUDAdevices.begin();
-                                           it != g_CUDAdevices.end();
-                                           it++ ) {
-        char deviceName[256];
-        chCUDADevice *chDevice = *it;
-        CUDA_CHECK( cuDeviceGetName( deviceName, 255, chDevice->device() ) );
-        printf( "Testing SAXPY on %s (device %d)...\n", deviceName, chDevice->device() );
-        CUDA_CHECK( TestSAXPY( chDevice, 16*1048576, 2.0 ) );
-    }
-    return 0;
-Error:
-    return 1;
-}
