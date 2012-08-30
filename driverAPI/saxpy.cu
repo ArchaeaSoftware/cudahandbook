@@ -38,7 +38,7 @@
  */
 
 // saxpy global function adds in[i]*alpha to each element out[i]
-__global__ void
+extern "C" __global__ void
 saxpy( float *out, const float *in, size_t N, float alpha )
 {
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x;
