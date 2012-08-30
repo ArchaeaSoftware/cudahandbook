@@ -56,65 +56,147 @@ class chCUDADevice
 {
 public:
     chCUDADevice();
+    virtual ~chCUDADevice();
 
-    CUresult Initialize( int ordinal, const list<string>& moduleList );
-    CUresult loadModuleFromFile( const char *szFilename );
+    CUresult Initialize( 
+        int ordinal, 
+        list<string>& moduleList,
+        unsigned int numOptions = 0,
+        CUjit_option *options = NULL,
+        void **optionValues = NULL );
+    CUresult loadModuleFromFile( 
+        CUmodule *pModule,
+        const char *fileName,
+        unsigned int numOptions = 0,
+        CUjit_option *options = NULL,
+        void **optionValues = NULL );
 
 private:
     CUdevice m_device;
     CUcontext m_context;
     map<const char *, CUmodule> m_modules;
+
 };
 
-inline chCUDADevice::chCUDADevice()
+inline
+chCUDADevice::chCUDADevice()
 {
     m_device = 0;
     m_context = 0;
 }
 
+inline 
+chCUDADevice::~chCUDADevice()
+{
+    for ( map<const char *, CUmodule>::iterator it = m_modules.begin();
+          it != m_modules.end();
+          it ++ ) {
+        cuModuleUnload( (*it).second );
+    }
+    cuCtxDestroy( m_context );
+}
+
 CUresult
-chCUDADevice::Initialize( int ordinal, const list<string>& moduleList )
+chCUDADevice::loadModuleFromFile( 
+    CUmodule *pModule,
+    const char *fileName,
+    unsigned int numOptions,
+    CUjit_option *options,
+    void **optionValues )
 {
     CUresult status;
-    CUdevice device = 0;
+    CUmodule module = 0;
+    long int lenFile;
+    FILE *file = fopen( fileName, "rb" );
+    char *fileContents = 0;
+    if ( ! file ) {
+        status = CUDA_ERROR_NOT_FOUND;
+        goto Error;
+    }
+    if ( 0 != fseek( file, 0, SEEK_END ) ) {
+        fclose( file );
+        status = CUDA_ERROR_UNKNOWN;
+        goto Error;
+    }
+    lenFile = ftell( file );
+    fileContents = (char *) malloc( lenFile+1 );
+    if ( fileContents ) {
+        fseek( file, 0, SEEK_SET );
+        if ( lenFile != fread( fileContents, 1, lenFile, file ) ) {
+            fclose( file );
+            status = CUDA_ERROR_UNKNOWN;
+            goto Error;
+        }
+        fileContents[lenFile] = '\0'; // NULL terminate the string
+        status = cuModuleLoadDataEx( &module, fileContents, numOptions, options, optionValues );
+        free( fileContents );
+        if ( status != CUDA_SUCCESS )
+            goto Error;
+        m_modules.insert( pair<const char *, CUmodule>(fileName, module) );
+    }
+Error:
+    return status;
+}
+
+CUresult
+chCUDADevice::Initialize( 
+    int ordinal, 
+    list<string>& moduleList,
+    unsigned int numOptions,
+    CUjit_option *options,
+    void **optionValues )
+{
+    CUresult status;
+    CUdevice device;
     CUcontext ctx = 0;
 
     CUDA_CHECK( cuDeviceGet( &device, ordinal ) );
     CUDA_CHECK( cuCtxCreate( &ctx, 0, device ) );
+    for ( list<string>::iterator it  = moduleList.begin();
+                                 it != moduleList.end();
+                                 it++ ) {
+        CUDA_CHECK( loadModuleFromFile( NULL, (*it).c_str(), numOptions, options, optionValues ) );
+    }
     CUDA_CHECK( cuCtxPopCurrent( &ctx ) );
-
+    return CUDA_SUCCESS;
 Error:
+    cuCtxDestroy( ctx );
     return status;
 }
 
 vector<chCUDADevice *> g_CUDAdevices;
 
 CUresult
-chCUDAInitialize( const list<string>& moduleList )
+chCUDAInitialize( list<string>& moduleList )
 {
     CUresult status;
     int cDevices;
     int cDevicesInitialized = 0;
+    chCUDADevice *newDevice;
     
     CUDA_CHECK( cuInit( 0 ) );
     CUDA_CHECK( cuDeviceGetCount( &cDevices ) );
     for ( int i = 0; i < cDevices; i++ ) {
         CUdevice device;
         CUcontext ctx = 0;
-        chCUDADevice *newDevice = 0;
+        newDevice = 0;
 
         newDevice = new chCUDADevice;
         if ( ! newDevice ) {
             status = CUDA_ERROR_OUT_OF_MEMORY;
             goto Error;
         }
+
         CUDA_CHECK( newDevice->Initialize( i, moduleList ) );
         g_CUDAdevices.push_back( newDevice );
-
     }
+    return CUDA_SUCCESS;
 Error:
-    for ( int i = 0; i < cDevices; i++ ) {
+    while ( ! g_CUDAdevices.empty() ) {
+        delete (*g_CUDAdevices.end());
+        g_CUDAdevices.pop_back();
     }
+    delete newDevice;
     return status;
 }
 
@@ -124,6 +206,7 @@ main( int argc, char *argv[] )
     CUresult status;
 
     list<string> moduleList;
+    moduleList.push_back( "saxpy.ptx" );
 
     CUDA_CHECK( chCUDAInitialize( moduleList ) );
 Error:
