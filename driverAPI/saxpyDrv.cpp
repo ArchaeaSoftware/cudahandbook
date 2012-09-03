@@ -38,6 +38,7 @@
  */
 
 #include <stdio.h>
+#include <math.h>
 #include <stdlib.h> // for rand()
 
 #include <chDrv.h>
@@ -117,7 +118,7 @@ main( int argc, char *argv[] )
         char deviceName[256];
         chCUDADevice *chDevice = *it;
         CUDA_CHECK( cuDeviceGetName( deviceName, 255, chDevice->device() ) );
-        printf( "Testing SAXPY on %s (device %d)...\n", deviceName, chDevice->device() );
+        printf( "Testing SAXPY on %s (device %d)...", deviceName, chDevice->device() );
         CUDA_CHECK( TestSAXPY( chDevice, 16*1048576, 2.0 ) );
     }
     return 0;
