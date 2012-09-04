@@ -44,7 +44,8 @@
 #include <stdlib.h>
 
 //
-// saxpy global function adds in[i]*alpha to each element out[i]
+// saxpy global function adds x[i]*alpha to each element y[i]
+// and writes the result to out[i].
 //
 // Due to low arithmetic density, this kernel is extremely bandwidth-bound.
 //
