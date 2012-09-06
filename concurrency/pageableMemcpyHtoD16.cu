@@ -146,6 +146,7 @@ main( int argc, char *argv[] )
         dstOffset *= 4;
         srcOffset *= 4;
         intsThisIteration *= 4;
+        assert( intsThisIteration <= numInts );
         if ( ! TestMemcpy( deviceInt, hostInt, testVector, dstOffset, srcOffset, intsThisIteration ) ) {
             TestMemcpy( deviceInt, hostInt, testVector, dstOffset, srcOffset, intsThisIteration );
             goto Error;

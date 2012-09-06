@@ -37,6 +37,9 @@
  */
 
 
+#ifndef __CHERROR_H__
+#define __CHERROR_H__
+
 #ifdef DEBUG
 #include <stdio.h>
 #endif
@@ -46,14 +49,14 @@
 #endif
 
 template<typename T>
-const char *
+inline const char *
 chGetErrorString( T status )
 {
     return cudaGetErrorString(status);
 }
 
 template<>
-const char *
+inline const char *
 chGetErrorString( CUresult status )
 {
     switch ( status ) {
@@ -157,4 +160,6 @@ chGetErrorString( CUresult status )
         } \
     } while (0); 
     
+#endif
+
 #endif

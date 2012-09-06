@@ -318,17 +318,39 @@ main( int argc, char *argv[] )
     }
     CUDART_CHECK( cudaSetDevice(device) );
     CUDART_CHECK( cudaGetDeviceProperties( &prop, device ) );
+<<<<<<< HEAD
     printf( "Running globalReadTex.cu microbenchmark on %s\n", prop.name );
+=======
+    printf( "Running globalRead.cu microbenchmark on %s\n", prop.name );
+>>>>>>> Check in globalReadTex.cu
     if ( chCommandLineGet( &size, "size", argc, argv ) ) {
         printf( "Using %dM operands ...\n", size );
     }
 
+<<<<<<< HEAD
     Shmoo<char,false>(  (size_t) size*1048576, 32, 512, 1500 );
     Shmoo<short,false>(  (size_t) size*1048576, 32, 512, 1500 );
     Shmoo<int,false>(  (size_t) size*1048576, 32, 512, 1500 );
     Shmoo<myInt2,false>( (size_t) size*1048576, 32, 512, 1500 );
     Shmoo<myInt4,false>( (size_t) size*1048576, 32, 512, 1500 );
 
+=======
+    if ( chCommandLineGetBool( "uncoalesced", argc, argv ) ) {
+        printf( "Using uncoalesced memory transactions\n" );
+//        Shmoo<char,false>(  (size_t) size*1048576, 32, 512, 1500 );
+//        Shmoo<short,false>(  (size_t) size*1048576, 32, 512, 1500 );
+//        Shmoo<int,false>(  (size_t) size*1048576, 32, 512, 1500 );
+        Shmoo<myInt2,false>( (size_t) size*1048576, 32, 512, 1500 );
+//        Shmoo<myInt4,false>( (size_t) size*1048576, 32, 512, 1500 );
+    } else {
+        printf( "Using coalesced memory transactions\n" );
+//        Shmoo<char,true>(  (size_t) size*1048576, 32, 512, 1500 );
+//        Shmoo<short,true>(  (size_t) size*1048576, 32, 512, 1500 );
+//        Shmoo<int,true>(  (size_t) size*1048576, 32, 512, 1500 );
+//        Shmoo<myInt2,true>( (size_t) size*1048576, 32, 512, 1500 );
+//        Shmoo<myInt4,true>( (size_t) size*1048576, 32, 512, 1500 );
+    }
+>>>>>>> Check in globalReadTex.cu
     return 0;
 Error:
     return 1;
