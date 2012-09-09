@@ -42,12 +42,6 @@
  */
 
 __global__ void
-AddTo64( unsigned long long *sum, unsigned long long *out, const unsigned long long *pIn )
-{
-    (void) atomicAdd( &out[threadIdx.x], *pIn );
-}
-
-__global__ void
 Return64( unsigned long long *sum, unsigned long long *out, const unsigned long long *pIn )
 {
     out[threadIdx.x] = atomicAdd( &sum[threadIdx.x], *pIn );
