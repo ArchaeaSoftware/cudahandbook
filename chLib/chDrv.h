@@ -44,6 +44,7 @@ using namespace std;
 
 #include <chError.h>
 
+#include <stdio.h>
 #include <string>
 #include <list>
 #include <map>
