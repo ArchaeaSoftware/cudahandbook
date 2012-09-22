@@ -50,6 +50,9 @@ typedef unsigned int uint;
 #include "scanWarp2.cuh"
 #include "scanWarpShuffle.cuh"
 
+#include "scanZeroPad.cuh"
+
+
 #define min(a,b) ((a)<(b)?(a):(b))
 
 int *g_hostIn, *g_hostOut;
@@ -86,6 +89,17 @@ ScanInclusiveCPUPeriodic( int *out, const int *in, size_t N )
     }
 }
 
+template<ScanType scantype>
+void
+ScanCPU32( int *out, const int *in, size_t N )
+{
+    if ( scantype == Exclusive ) {
+        ScanExclusiveCPUPeriodic<32>( out, in, N );
+        return;
+    }
+    ScanInclusiveCPUPeriodic<32>( out, in, N );
+}
+
 void
 RandomArray( int *out, size_t N, int modulus )
 {
@@ -105,6 +119,72 @@ ScanInclusiveGPUWarp( int *out, const int *in, size_t N )
         __syncthreads();
         out[i+threadIdx.x] = scanWarp<int,false>( sPartials+threadIdx.x );
     }
+}
+
+__global__ void
+ScanInclusiveGPUWarp_0( int *out, const int *in, size_t N )
+{
+    extern __shared__ int sPartials[];
+    const int sIndex = scanSharedIndex<true>( threadIdx.x );
+
+    sPartials[sIndex-16] = 0;
+
+    for ( size_t i = blockIdx.x*blockDim.x;
+                 i < N;
+                 i += blockDim.x ) {
+        sPartials[sIndex] = in[i+threadIdx.x];
+        out[i+threadIdx.x] = scanWarp<int,true>( sPartials+sIndex );
+    }
+}
+
+void
+ScanInclusiveGPU_0( 
+    int *out, 
+    const int *in, 
+    size_t N, 
+    int cThreads )
+{
+    int cBlocks = (int) (N/150);
+    if ( cBlocks > 150 ) {
+        cBlocks = 150;
+    }
+    ScanInclusiveGPUWarp_0<<<cBlocks, 
+        cThreads, 
+        scanSharedMemory<int,true>(cThreads)>>>( 
+        out, in, N );
+}
+
+__global__ void
+ScanExclusiveGPUWarp_0( int *out, const int *in, size_t N )
+{
+    extern __shared__ int sPartials[];
+    const int sIndex = scanSharedIndex<true>( threadIdx.x );
+
+    sPartials[sIndex-16] = 0;
+
+    for ( size_t i = blockIdx.x*blockDim.x;
+                 i < N;
+                 i += blockDim.x ) {
+        sPartials[sIndex] = in[i+threadIdx.x];
+        out[i+threadIdx.x] = scanWarpExclusive<int,true>( sPartials+sIndex );
+    }
+}
+
+void
+ScanExclusiveGPU_0( 
+    int *out, 
+    const int *in, 
+    size_t N, 
+    int cThreads )
+{
+    int cBlocks = (int) (N/150);
+    if ( cBlocks > 150 ) {
+        cBlocks = 150;
+    }
+    ScanExclusiveGPUWarp_0<<<cBlocks, 
+        cThreads, 
+        scanSharedMemory<int,true>(cThreads)>>>( 
+        out, in, N );
 }
 
 void
@@ -283,7 +363,27 @@ main( int argc, char *argv[] )
 
     for ( int numThreads = 256; numThreads <= maxThreads; numThreads *= 2 ) {
         float maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanInclusiveCPUPeriodic<32>, ScanInclusiveGPU, numInts, numThreads );
+        SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanExclusiveGPU_0, numInts, numThreads );
+        printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
+#if 0
+        maxElementsPerSecond = 0.0f;
+        SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanInclusiveGPU_0, numInts, numThreads );
+        printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
+        maxElementsPerSecond = 0.0f;
+        SCAN_TEST_VECTOR( ScanInclusiveCPUPeriodic<32>, ScanInclusiveGPU2, numInts, numThreads );
+        printf( "GPU2: %.2f Melements/s\n", maxElementsPerSecond );
+        maxElementsPerSecond = 0.0f;
+        SCAN_TEST_VECTOR( ScanInclusiveCPUPeriodic<32>, ScanInclusiveGPUShuffle, numInts, numThreads );
+        printf( "Shuffle: %.2f Melements/s\n", maxElementsPerSecond );
+#endif
+    }
+#if 0
+    for ( int numThreads = 256; numThreads <= maxThreads; numThreads *= 2 ) {
+        float maxElementsPerSecond = 0.0f;
+        SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanInclusiveGPU, numInts, numThreads );
+        printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
+        maxElementsPerSecond = 0.0f;
+        SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanInclusiveGPU_0, numInts, numThreads );
         printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
         maxElementsPerSecond = 0.0f;
         SCAN_TEST_VECTOR( ScanInclusiveCPUPeriodic<32>, ScanInclusiveGPU2, numInts, numThreads );
@@ -292,6 +392,7 @@ main( int argc, char *argv[] )
         SCAN_TEST_VECTOR( ScanInclusiveCPUPeriodic<32>, ScanInclusiveGPUShuffle, numInts, numThreads );
         printf( "Shuffle: %.2f Melements/s\n", maxElementsPerSecond );
     }
+#endif
 
     return 0;
 Error:
