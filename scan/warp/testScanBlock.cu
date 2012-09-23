@@ -203,6 +203,53 @@ ScanGPUBlock(
         out, in, N );
 }
 
+template<ScanType scantype, int logBlockSize>
+__global__ void
+ScanGPUBlockShuffle( int *out, const int *in, size_t N )
+{
+    const int tid = threadIdx.x;
+    for ( size_t i = blockIdx.x*blockDim.x;
+                 i < N;
+                 i += blockDim.x ) {
+        int myValue = in[i+tid];
+        if ( scantype == Exclusive ) {
+            myValue = exclusive_scan_block<logBlockSize>( myValue, tid );
+        }
+        else {
+            myValue = inclusive_scan_block<logBlockSize>( myValue, tid );
+        }
+        out[i+threadIdx.x] = myValue;
+    }
+}
+
+template<ScanType scantype>
+void
+ScanGPUBlockShuffle( 
+    int *out, 
+    const int *in, 
+    size_t N, 
+    int cThreads )
+{
+    int cBlocks = (int) (N/150);
+    if ( cBlocks > 150 ) {
+        cBlocks = 150;
+    }
+    /*if ( scantype == Inclusive )*/ {
+        switch( cThreads ) {
+            case  128: return ScanGPUBlockShuffle<scantype, 7><<<cBlocks,cThreads>>>( out, in, N );
+            case  256: return ScanGPUBlockShuffle<scantype, 8><<<cBlocks,cThreads>>>( out, in, N );
+            case  512: return ScanGPUBlockShuffle<scantype, 9><<<cBlocks,cThreads>>>( out, in, N );
+            case 1024: return ScanGPUBlockShuffle<scantype,10><<<cBlocks,cThreads>>>( out, in, N );
+        }
+#if 0
+        ScanGPUBlockShuffle<scantype><<<cBlocks, cThreads>>>( 
+            out, in, N );
+#endif
+    }
+    ScanGPUBlock<scantype><<<cBlocks, cThreads, cThreads*sizeof(int)>>>( 
+        out, in, N );
+}
+
 __global__ void
 ScanInclusiveGPUWarp_0( int *out, const int *in, size_t N )
 {
@@ -463,19 +510,19 @@ main( int argc, char *argv[] )
 
     for ( int numThreads = 256; numThreads <= maxThreads; numThreads *= 2 ) {
         float maxElementsPerSecond = 0.0f;
+#if 0
         SCAN_TEST_VECTOR( ScanCPUBlock<Exclusive>, ScanGPUBlock<Exclusive>, numInts, numThreads );
         printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
-#if 0
         maxElementsPerSecond = 0.0f;
         SCAN_TEST_VECTOR( ScanCPUBlock<Exclusive>, ScanExclusiveGPU_0, numInts, numThreads );
         printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
         maxElementsPerSecond = 0.0f;
         SCAN_TEST_VECTOR( ScanCPUBlock<Exclusive>, ScanExclusiveGPU2, numInts, numThreads );
         printf( "GPU2: %.2f Melements/s\n", maxElementsPerSecond );
-        maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanCPUBlock<Exclusive>, ScanGPUShuffle<Exclusive>, numInts, numThreads );
-        printf( "Shuffle: %.2f Melements/s\n", maxElementsPerSecond );
 #endif
+        maxElementsPerSecond = 0.0f;
+        SCAN_TEST_VECTOR( ScanCPUBlock<Exclusive>, ScanGPUBlockShuffle<Exclusive>, numInts, numThreads );
+        printf( "Shuffle: %.2f Melements/s\n", maxElementsPerSecond );
     }
 
     for ( int numThreads = 256; numThreads <= maxThreads; numThreads *= 2 ) {
@@ -489,10 +536,10 @@ main( int argc, char *argv[] )
         maxElementsPerSecond = 0.0f;
         SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanInclusiveGPU2, numInts, numThreads );
         printf( "GPU2: %.2f Melements/s\n", maxElementsPerSecond );
-        maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanGPUShuffle<Inclusive>, numInts, numThreads );
-        printf( "Shuffle: %.2f Melements/s\n", maxElementsPerSecond );
 #endif
+        maxElementsPerSecond = 0.0f;
+        SCAN_TEST_VECTOR( ScanCPUBlock<Inclusive>, ScanGPUBlockShuffle<Inclusive>, numInts, numThreads );
+        printf( "Shuffle: %.2f Melements/s\n", maxElementsPerSecond );
     }
 
     return 0;

@@ -66,25 +66,26 @@ template <int levels>
 __device__ __forceinline__ uint 
 exclusive_scan_warp_shfl(int mysum)
 {
+    const unsigned int lane   = threadIdx.x & 31;
     for(int i = 0; i < levels; ++i)
         mysum = shfl_scan_add_step(mysum, 1 << i);
     mysum = __shfl_up(mysum, 1);
-    return (threadIdx.x&31) ? mysum : 0;
+    return (lane) ? mysum : 0;
 }
 
 template <int logBlockSize>
-__device__ uint
-inclusive_scan_block(uint val, const unsigned int idx)
+__device__ int
+inclusive_scan_block(int val, const unsigned int idx)
 {
     const unsigned int lane   = idx & 31;
     const unsigned int warpid = idx >> 5;
-    __shared__ uint sPartials[WARP_SIZE];
+    __shared__ int sPartials[WARP_SIZE];
 
     // step 1: Intra-warp scan in each warp
 
     val = inclusive_scan_warp_shfl<LOG_WARP_SIZE>(val);
 
-    // step 2: Collect per-warp particle results
+    // step 2: Collect per-warp results
     if (lane == 31) sPartials[warpid] = val;
     __syncthreads();
     // step 3: Use 1st warp to scan per-warp results
@@ -93,6 +94,36 @@ inclusive_scan_block(uint val, const unsigned int idx)
     // step 4: Accumulate results from Steps 1 and 3;
     if (warpid > 0) val += sPartials[warpid - 1];
     return val;
+}
+
+template <int logBlockSize>
+__device__ int
+exclusive_scan_block(int val, const unsigned int idx)
+{
+    const unsigned int lane   = idx & 31;
+    const unsigned int warpid = idx >> 5;
+    __shared__ int sPartials[WARP_SIZE];
+
+    // step 1: Intra-warp scan in each warp
+
+    val = inclusive_scan_warp_shfl<LOG_WARP_SIZE>(val);
+
+    // step 2: Collect per-warp results
+    if (lane == 31) sPartials[warpid] = val;
+    __syncthreads();
+    // step 3: Use 1st warp to scan per-warp results
+    if (warpid == 0) sPartials[lane] = inclusive_scan_warp_shfl<logBlockSize-LOG_WARP_SIZE>(sPartials[lane]);
+    __syncthreads();
+    // step 4: Accumulate results from Steps 1 and 3;
+    if (warpid > 0) val += sPartials[warpid - 1];
+    __syncthreads();
+    if ( lane==31 ) sPartials[warpid] = val;
+    __syncthreads();
+    val = __shfl_up(val, 1);
+    if ( lane ) {
+        return val;
+    }
+    return warpid ? sPartials[warpid-1] : 0;
 }
 
 #endif
