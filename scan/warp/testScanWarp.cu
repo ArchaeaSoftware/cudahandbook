@@ -399,7 +399,6 @@ main( int argc, char *argv[] )
 
     for ( int numThreads = 256; numThreads <= maxThreads; numThreads *= 2 ) {
         float maxElementsPerSecond = 0.0f;
-#if 0
         SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanGPU<Exclusive>, numInts, numThreads );
         printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
         maxElementsPerSecond = 0.0f;
@@ -409,26 +408,24 @@ main( int argc, char *argv[] )
         SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanExclusiveGPU2, numInts, numThreads );
         printf( "GPU2: %.2f Melements/s\n", maxElementsPerSecond );
         maxElementsPerSecond = 0.0f;
-#endif
         SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanGPUShuffle<Exclusive>, numInts, numThreads );
         printf( "Shuffle: %.2f Melements/s\n", maxElementsPerSecond );
     }
-#if 0
+
     for ( int numThreads = 256; numThreads <= maxThreads; numThreads *= 2 ) {
         float maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanInclusiveGPU, numInts, numThreads );
+        SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanGPU<Inclusive>, numInts, numThreads );
         printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
         maxElementsPerSecond = 0.0f;
         SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanInclusiveGPU_0, numInts, numThreads );
         printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
         maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanInclusiveCPUPeriodic<32>, ScanInclusiveGPU2, numInts, numThreads );
+        SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanInclusiveGPU2, numInts, numThreads );
         printf( "GPU2: %.2f Melements/s\n", maxElementsPerSecond );
         maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanInclusiveCPUPeriodic<32>, ScanInclusiveGPUShuffle, numInts, numThreads );
+        SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanGPUShuffle<Inclusive>, numInts, numThreads );
         printf( "Shuffle: %.2f Melements/s\n", maxElementsPerSecond );
     }
-#endif
 
     return 0;
 Error:
