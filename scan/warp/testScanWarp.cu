@@ -55,9 +55,6 @@ typedef unsigned int uint;
 
 #define min(a,b) ((a)<(b)?(a):(b))
 
-int *g_hostIn, *g_hostOut;
-
-
 enum ScanType {
     Inclusive, Exclusive
 };
@@ -93,11 +90,10 @@ template<ScanType scantype>
 void
 ScanCPU32( int *out, const int *in, size_t N )
 {
-    if ( scantype == Exclusive ) {
-        ScanExclusiveCPUPeriodic<32>( out, in, N );
-        return;
+    switch ( scantype ) {
+        case Exclusive: return ScanExclusiveCPUPeriodic<32>( out, in, N );
+        case Inclusive: return ScanInclusiveCPUPeriodic<32>( out, in, N );
     }
-    ScanInclusiveCPUPeriodic<32>( out, in, N );
 }
 
 void
@@ -108,8 +104,9 @@ RandomArray( int *out, size_t N, int modulus )
     }
 }
 
+template<ScanType scantype>
 __global__ void
-ScanInclusiveGPUWarp( int *out, const int *in, size_t N )
+ScanGPUWarp( int *out, const int *in, size_t N )
 {
     extern __shared__ int sPartials[];
     for ( size_t i = blockIdx.x*blockDim.x;
@@ -117,8 +114,29 @@ ScanInclusiveGPUWarp( int *out, const int *in, size_t N )
                  i += blockDim.x ) {
         sPartials[threadIdx.x] = in[i+threadIdx.x];
         __syncthreads();
-        out[i+threadIdx.x] = scanWarp<int,false>( sPartials+threadIdx.x );
+        if ( scantype == Inclusive ) {
+            out[i+threadIdx.x] = scanWarp<int,false>( sPartials+threadIdx.x );
+        }
+        else {
+            out[i+threadIdx.x] = scanWarpExclusive<int,false>( sPartials+threadIdx.x );
+        }
     }
+}
+
+template<ScanType scantype>
+void
+ScanGPU( 
+    int *out, 
+    const int *in, 
+    size_t N, 
+    int cThreads )
+{
+    int cBlocks = (int) (N/150);
+    if ( cBlocks > 150 ) {
+        cBlocks = 150;
+    }
+    ScanGPUWarp<scantype><<<cBlocks, cThreads, cThreads*sizeof(int)>>>( 
+        out, in, N );
 }
 
 __global__ void
@@ -187,21 +205,6 @@ ScanExclusiveGPU_0(
         out, in, N );
 }
 
-void
-ScanInclusiveGPU( 
-    int *out, 
-    const int *in, 
-    size_t N, 
-    int cThreads )
-{
-    int cBlocks = (int) (N/150);
-    if ( cBlocks > 150 ) {
-        cBlocks = 150;
-    }
-    ScanInclusiveGPUWarp<<<cBlocks, cThreads, cThreads*sizeof(int)>>>( 
-        out, in, N );
-}
-
 __global__ void
 ScanInclusiveGPUWarp2( int *out, const int *in, size_t N )
 {
@@ -231,18 +234,20 @@ ScanInclusiveGPU2(
 }
 
 __global__ void
-ScanInclusiveGPUWarpShuffle( int *out, const int *in, size_t N )
+ScanExclusiveGPUWarp2( int *out, const int *in, size_t N )
 {
     extern __shared__ int sPartials[];
     for ( size_t i = blockIdx.x*blockDim.x;
                  i < N;
                  i += blockDim.x ) {
-        out[i+threadIdx.x] = inclusive_scan_warp_shfl<5>( in[i+threadIdx.x] );
+        sPartials[threadIdx.x] = in[i+threadIdx.x];
+        __syncthreads();
+        out[i+threadIdx.x] = scanWarpExclusive2<int,false>( sPartials+threadIdx.x );
     }
 }
 
 void
-ScanInclusiveGPUShuffle( 
+ScanExclusiveGPU2( 
     int *out, 
     const int *in, 
     size_t N, 
@@ -252,7 +257,39 @@ ScanInclusiveGPUShuffle(
     if ( cBlocks > 150 ) {
         cBlocks = 150;
     }
-    ScanInclusiveGPUWarpShuffle<<<cBlocks, cThreads>>>( out, in, N );
+    ScanExclusiveGPUWarp2<<<cBlocks, cThreads, cThreads*sizeof(int)>>>( 
+            out, in, N );
+}
+
+template<ScanType scantype>
+__global__ void
+ScanGPUWarpShuffle( int *out, const int *in, size_t N )
+{
+    for ( size_t i = blockIdx.x*blockDim.x;
+                 i < N;
+                 i += blockDim.x ) {
+        if ( scantype == Inclusive ) {
+            out[i+threadIdx.x] = inclusive_scan_warp_shfl<5>( in[i+threadIdx.x] );
+        }
+        else {
+            out[i+threadIdx.x] = exclusive_scan_warp_shfl<5>( in[i+threadIdx.x] );
+        }
+    }
+}
+
+template<ScanType scantype>
+void
+ScanGPUShuffle( 
+    int *out, 
+    const int *in, 
+    size_t N, 
+    int cThreads )
+{
+    int cBlocks = (int) (N/150);
+    if ( cBlocks > 150 ) {
+        cBlocks = 150;
+    }
+    ScanGPUWarpShuffle<scantype><<<cBlocks, cThreads>>>( out, in, N );
 }
 
 template<class T>
@@ -293,7 +330,6 @@ for ( int i = 0; i < N; i++ ) {
 }
     
     pfnScanCPU( outCPU, inCPU, N );
-g_hostIn = inCPU;
 
     CUDART_CHECK( cudaMemcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
     CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
@@ -363,19 +399,19 @@ main( int argc, char *argv[] )
 
     for ( int numThreads = 256; numThreads <= maxThreads; numThreads *= 2 ) {
         float maxElementsPerSecond = 0.0f;
+#if 0
+        SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanGPU<Exclusive>, numInts, numThreads );
+        printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
+        maxElementsPerSecond = 0.0f;
         SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanExclusiveGPU_0, numInts, numThreads );
         printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
-#if 0
         maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanInclusiveGPU_0, numInts, numThreads );
-        printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
-        maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanInclusiveCPUPeriodic<32>, ScanInclusiveGPU2, numInts, numThreads );
+        SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanExclusiveGPU2, numInts, numThreads );
         printf( "GPU2: %.2f Melements/s\n", maxElementsPerSecond );
         maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanInclusiveCPUPeriodic<32>, ScanInclusiveGPUShuffle, numInts, numThreads );
-        printf( "Shuffle: %.2f Melements/s\n", maxElementsPerSecond );
 #endif
+        SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanGPUShuffle<Exclusive>, numInts, numThreads );
+        printf( "Shuffle: %.2f Melements/s\n", maxElementsPerSecond );
     }
 #if 0
     for ( int numThreads = 256; numThreads <= maxThreads; numThreads *= 2 ) {
