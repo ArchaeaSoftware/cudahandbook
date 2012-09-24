@@ -3,6 +3,7 @@
  * scanWarpShuffle.cuh
  *
  * Header file for shuffle-based scan (warp size).
+ * Requires gpu-architecture sm_30 or higher.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -39,10 +40,11 @@
 #define WARP_SIZE 32
 #define LOG_WARP_SIZE 5
 
-__device__ __forceinline__ uint 
-shfl_scan_add_step(uint partial, uint offset)
+__device__ __forceinline__
+int
+shfl_scan_add_step(int partial, int offset)
 {
-    uint result;
+    int result;
     asm(
         "{.reg .u32 r0;"
          ".reg .pred p;"
@@ -54,7 +56,8 @@ shfl_scan_add_step(uint partial, uint offset)
 }
 
 template <int levels>
-__device__ __forceinline__ uint
+__device__ __forceinline__
+int
 inclusive_scan_warp_shfl(int mysum)
 {
     for(int i = 0; i < levels; ++i)
@@ -63,7 +66,8 @@ inclusive_scan_warp_shfl(int mysum)
 }
 
 template <int levels>
-__device__ __forceinline__ uint 
+__device__ __forceinline__
+int 
 exclusive_scan_warp_shfl(int mysum)
 {
     const unsigned int lane   = threadIdx.x & 31;
@@ -74,7 +78,8 @@ exclusive_scan_warp_shfl(int mysum)
 }
 
 template <int logBlockSize>
-__device__ int
+__device__
+int
 inclusive_scan_block(int val, const unsigned int idx)
 {
     const unsigned int lane   = idx & 31;
@@ -97,7 +102,8 @@ inclusive_scan_block(int val, const unsigned int idx)
 }
 
 template <int logBlockSize>
-__device__ int
+__device__
+int
 exclusive_scan_block(int val, const unsigned int idx)
 {
     const unsigned int lane   = idx & 31;

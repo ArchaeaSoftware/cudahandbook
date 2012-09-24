@@ -44,8 +44,6 @@
 #include <chAssert.h>
 #include <chError.h>
 
-typedef unsigned int uint;
-
 #include "scanWarp.cuh"
 #include "scanWarp2.cuh"
 #include "scanWarpShuffle.cuh"
