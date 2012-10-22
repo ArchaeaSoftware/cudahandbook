@@ -49,6 +49,7 @@
 #include <chTimer.h>
 
 #include "bodybodyInteraction.cuh"
+#include "bodybodyInteraction_SSE.h"
 
 inline void
 randomVector( float v[3] )
@@ -113,6 +114,7 @@ relError( T a, T b )
 
 #include "nbody_CPU_AOS.h"
 #include "nbody_CPU_SOA.h"
+#include "nbody_CPU_SSE.h"
 
 void
 integrateGravitation_AOS( float *ppos, float *pvel, float *pforce, float dt, float damping, size_t N )
@@ -162,16 +164,15 @@ integrateGravitation_AOS( float *ppos, float *pvel, float *pforce, float dt, flo
 
 enum nbodyAlgorithm_enum {
     CPU_AOS,    /* This is the golden */
-    CPU_SOA
-/*
-    CPU_SSE,
+    CPU_SOA,
+    CPU_SSE/*,
     GPU_AOS,
     GPU_Shared,
     GPU_SOA,
     MultiGPU*/
 };
 
-enum nbodyAlgorithm_enum g_Algorithm = CPU_SOA;
+enum nbodyAlgorithm_enum g_Algorithm = CPU_SSE;
 bool g_bCrossCheck = true;
 
 void
@@ -208,6 +209,14 @@ ComputeGravitation(
             break;
         case CPU_SOA:
             *ms = ComputeGravitation_SOA(
+                g_hostSOA_Force,
+                g_hostSOA_Pos[0],
+                g_hostSOA_Mass,
+                g_softening*g_softening,
+                g_N );
+            break;
+        case CPU_SSE:
+            *ms = ComputeGravitation_SSE(
                 g_hostSOA_Force,
                 g_hostSOA_Pos[0],
                 g_hostSOA_Mass,
