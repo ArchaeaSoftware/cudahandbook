@@ -48,6 +48,8 @@
 #include <chError.h>
 #include <chTimer.h>
 
+#include "bodybodyInteraction.cuh"
+
 inline void
 randomVector( float v[3] )
 {
@@ -71,47 +73,33 @@ randomUnitBodies( float *pos, float *vel, size_t N )
     }
 }
 
+template<typename T>
+static float
+relError( float a, float b )
+{
+    if ( a == b ) return 0.0f;
+    return fabsf(a-b)/b;
+}
+
 float *g_hostAOS_PosMass[2];
 float *g_hostAOS_VelInvMass;
 float *g_hostAOS_Force;
 
-float *g_hostSOA_PosX[2];
-float *g_hostSOA_PosY[2];
-float *g_hostSOA_PosZ[2];
+// Buffer to hold the golden version of the forces, used for comparison
+// Along with timing results, we report the maximum relative error with 
+// respect to this array.
+float *g_hostAOS_Force_Golden;
+
+float *g_hostSOA_Pos[2][3];
+float *g_hostSOA_Force[3];
 float *g_hostSOA_Mass;
 float *g_hostSOA_InvMass;
 
 size_t g_N;
 
-
 float g_softening = 0.1f;
 float g_damping = 0.995f;
 float g_dt = 0.016f;
-
-
-template <typename T>
-__host__ __device__ void bodyBodyInteraction(
-    T accel[3], 
-    T x0, T y0, T z0,
-    T x1, T y1, T z1, T mass1, 
-    T softeningSquared)
-{
-    T dx = x1 - x0;
-    T dy = y1 - y0;
-    T dz = z1 - z0;
-
-    T distSqr = dx*dx + dy*dy + dz*dz;
-    distSqr += softeningSquared;
-
-    T invDist = (T)1.0 / (T)sqrt((double)distSqr);
-
-    T invDistCube =  invDist * invDist * invDist;
-    T s = mass1 * invDistCube;
-
-    accel[0] += dx * s;
-    accel[1] += dy * s;
-    accel[2] += dz * s;
-}
 
 template<typename T>
 static T
@@ -123,45 +111,8 @@ relError( T a, T b )
     return (relErr<0.0f) ? -relErr : relErr;
 }
 
-
-
-float
-ComputeGravitation_AOS( 
-    float *force, 
-    float *posMass,
-    float softeningSquared,
-    size_t N
-)
-{
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
-    for (size_t i = 0; i < N; i++)
-    {
-        float acc[3] = {0, 0, 0};
-        float myX = posMass[i*4+0];
-        float myY = posMass[i*4+1];
-        float myZ = posMass[i*4+2];
-
-        for ( size_t j = 0; j < N; j++ ) {
-            float bodyX = posMass[j*4+0];
-            float bodyY = posMass[j*4+1];
-            float bodyZ = posMass[j*4+2];
-            float bodyMass = posMass[j*4+3];
-
-            bodyBodyInteraction<float>(
-                acc, 
-                myX, myY, myZ,
-                bodyX, bodyY, bodyZ, bodyMass,
-                softeningSquared );
-        }
-
-        force[3*i+0] = acc[0];
-        force[3*i+1] = acc[1];
-        force[3*i+2] = acc[2];
-    }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
-}
+#include "nbody_CPU_AOS.h"
+#include "nbody_CPU_SOA.h"
 
 void
 integrateGravitation_AOS( float *ppos, float *pvel, float *pforce, float dt, float damping, size_t N )
@@ -209,6 +160,88 @@ integrateGravitation_AOS( float *ppos, float *pvel, float *pforce, float dt, flo
     }
 }
 
+enum nbodyAlgorithm_enum {
+    CPU_AOS,    /* This is the golden */
+    CPU_SOA
+/*
+    CPU_SSE,
+    GPU_AOS,
+    GPU_Shared,
+    GPU_SOA,
+    MultiGPU*/
+};
+
+enum nbodyAlgorithm_enum g_Algorithm = CPU_SOA;
+bool g_bCrossCheck = true;
+
+void
+ComputeGravitation( 
+    float *ms,
+    float *maxRelError,
+    nbodyAlgorithm_enum algorithm, 
+    bool bCrossCheck )
+{
+    if ( bCrossCheck ) {
+        ComputeGravitation_AOS( 
+            g_hostAOS_Force_Golden,
+            g_hostAOS_PosMass[0],
+            g_softening*g_softening,
+            g_N );
+    }
+
+    // AOS -> SOA data structures in case we are measuring SOA performance
+    for ( size_t i = 0; i < g_N; i++ ) {
+        g_hostSOA_Pos[0][0][i] = g_hostAOS_PosMass[0][4*i+0];
+        g_hostSOA_Pos[0][1][i] = g_hostAOS_PosMass[0][4*i+1];
+        g_hostSOA_Pos[0][2][i] = g_hostAOS_PosMass[0][4*i+2];
+        g_hostSOA_Mass[i]      = g_hostAOS_PosMass[0][4*i+3];
+        g_hostSOA_InvMass[i]   = 1.0f / g_hostSOA_Mass[i];
+    }
+
+    switch ( algorithm ) {
+        case CPU_AOS:
+            *ms = ComputeGravitation_AOS( 
+                g_hostAOS_Force,
+                g_hostAOS_PosMass[0],
+                g_softening*g_softening,
+                g_N );
+            break;
+        case CPU_SOA:
+            *ms = ComputeGravitation_SOA(
+                g_hostSOA_Force,
+                g_hostSOA_Pos[0],
+                g_hostSOA_Mass,
+                g_softening*g_softening,
+                g_N );
+            break;
+    }
+
+    // SOA -> AOS
+    for ( size_t i = 0; i < g_N; i++ ) {
+        g_hostAOS_Force[3*i+0] = g_hostSOA_Force[0][i];
+        g_hostAOS_Force[3*i+1] = g_hostSOA_Force[1][i];
+        g_hostAOS_Force[3*i+2] = g_hostSOA_Force[2][i];
+    }
+
+    if ( bCrossCheck ) {
+        float max = 0.0f;
+        for ( size_t i = 0; i < 3*g_N; i++ ) {
+            float err = relError( g_hostAOS_Force[i], g_hostAOS_Force_Golden[i] );
+            if ( err > max ) {
+                max = err;
+            }
+        }
+        *maxRelError = max;
+    }
+
+    integrateGravitation_AOS( 
+        g_hostAOS_PosMass[0],
+        g_hostAOS_VelInvMass,
+        g_hostAOS_Force,
+        g_dt,
+        g_damping,
+        g_N );
+}
 
 int
 main( int argc, char *argv[] )
@@ -225,31 +258,28 @@ main( int argc, char *argv[] )
 
     for ( int i = 0; i < 2; i++ ) {
         CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_PosMass[i], 4*g_N*sizeof(float), cudaHostAllocPortable ) );
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_PosX[i], g_N*sizeof(float), cudaHostAllocPortable ) );
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_PosY[i], g_N*sizeof(float), cudaHostAllocPortable ) );
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_PosZ[i], g_N*sizeof(float), cudaHostAllocPortable ) );
+        for ( int j = 0; j < 3; j++ ) {
+            CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Pos[i][j], g_N*sizeof(float), cudaHostAllocPortable ) );
+            CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Force[j], g_N*sizeof(float), cudaHostAllocPortable ) );
+        }
     }
     CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_Force, 3*g_N*sizeof(float), cudaHostAllocPortable ) );
+    CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_Force_Golden, 3*g_N*sizeof(float), cudaHostAllocPortable ) );
     CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_VelInvMass, 4*g_N*sizeof(float), cudaHostAllocPortable ) );
     CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Mass, g_N*sizeof(float), cudaHostAllocPortable ) );
     CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_InvMass, g_N*sizeof(float), cudaHostAllocPortable ) );
+
     randomUnitBodies( g_hostAOS_PosMass[0], g_hostAOS_VelInvMass, g_N );
+    for ( size_t i = 0; i < g_N; i++ ) {
+        g_hostSOA_Mass[i] = g_hostAOS_PosMass[0][4*i+3];
+        g_hostSOA_InvMass[i] = 1.0f / g_hostSOA_Mass[i];
+    }
 
     while ( ! kbhit() ) {
-        float ms = ComputeGravitation_AOS( 
-            g_hostAOS_Force,
-            g_hostAOS_PosMass[0],
-            g_softening*g_softening,
-            g_N );
-        integrateGravitation_AOS( 
-            g_hostAOS_PosMass[0],
-            g_hostAOS_VelInvMass,
-            g_hostAOS_Force,
-            g_dt,
-            g_damping,
-            g_N );
+        float ms, err;
+        ComputeGravitation( &ms, &err, g_Algorithm, g_bCrossCheck );
         double interactionsPerSecond = (double) g_N*g_N*1000.0f / ms;
-        printf ( "%.2f ms = %.2f Minteractions/s\n", ms, interactionsPerSecond/1e6 );
+        printf ( "%.2f ms = %.2f Minteractions/s (Max relative error: %E)\n", ms, interactionsPerSecond/1e6, err );
     }
 
     return 0;
