@@ -43,7 +43,7 @@ ComputeGravitation_AOS(
 {
     chTimerTimestamp start, end;
     chTimerGetTime( &start );
-    for (size_t i = 0; i < N; i++)
+    for ( size_t i = 0; i < N; i++ )
     {
         float acc[3] = {0, 0, 0};
         float myX = posMass[i*4+0];
