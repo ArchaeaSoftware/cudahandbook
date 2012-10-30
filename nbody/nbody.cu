@@ -120,6 +120,7 @@ relError( T a, T b )
 #include "nbody_CPU_SOA.h"
 #include "nbody_CPU_SSE.h"
 #include "nbody_GPU_AOS.cuh"
+#include "nbody_GPU_Atomic.cuh"
 
 void
 integrateGravitation_AOS( float *ppos, float *pvel, float *pforce, float dt, float damping, size_t N )
@@ -171,15 +172,16 @@ enum nbodyAlgorithm_enum {
     CPU_AOS = 0,    /* This is the golden */
     CPU_SOA,
     CPU_SSE,
-    GPU_AOS/*,
+    GPU_AOS,
+    GPU_Atomic/*,
     GPU_Shared,
     GPU_SOA,
     MultiGPU*/
 };
 
-const char *rgszAlgorithmNames[] = { "CPU_AOS", "CPU_SOA", "CPU_SSE", "GPU_AOS" };
+const char *rgszAlgorithmNames[] = { "CPU_AOS", "CPU_SOA", "CPU_SSE", "GPU_AOS", "GPU_Atomic" };
 
-enum nbodyAlgorithm_enum g_Algorithm = GPU_AOS;
+enum nbodyAlgorithm_enum g_Algorithm = GPU_Atomic;
 bool g_bCrossCheck = true;
 
 bool
@@ -240,6 +242,15 @@ ComputeGravitation(
             break;
         case GPU_AOS:
             *ms = ComputeGravitation_GPU_AOS( 
+                g_dptrAOS_Force,
+                g_dptrAOS_PosMass[0],
+                g_softening*g_softening,
+                g_N );
+            CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
+            break;
+        case GPU_Atomic:
+            cudaMemset( g_dptrAOS_Force, 0, 3*sizeof(float) );
+            *ms = ComputeGravitation_GPU_Atomic( 
                 g_dptrAOS_Force,
                 g_dptrAOS_PosMass[0],
                 g_softening*g_softening,
