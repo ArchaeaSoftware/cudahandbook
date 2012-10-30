@@ -1,8 +1,8 @@
 /*
  *
- * nbody_GPU_Atomic.h
+ * nbody_GPU_Shared.h
  *
- * CUDA implementation of the O(N^2) N-body calculation.
+ * Shared memory-based implementation of the O(N^2) N-body calculation.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -33,76 +33,36 @@
  *
  */
 
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 300
-//
-// Atomics only make sense for SM 3.x and higher
-//
-template<typename T>
 __global__ void
-ComputeNBodyGravitation_Atomic( T *force, T *posMass, size_t N, T softeningSquared )
+ComputeNBodyGravitation_Shared( float *force, float *posMass, float softeningSquared, size_t N )
 {
+    extern __shared__ float4 shPosMass[];
     for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
               i < N;
               i += blockDim.x*gridDim.x )
     {
-        float4 me = ((float4 *) posMass)[i];
-        T acc[3] = {0.0f, 0.0f, 0.0f};
-        T myX = me.x;
-        T myY = me.y;
-        T myZ = me.z;
-        for ( int j = 0; j < i; j++ ) {
-            float4 body = ((float4 *) posMass)[j];
+        float acc[3] = {0};
+        float4 myPosMass = ((float4 *) posMass)[i];
 
-            T ax, ay, az;
-            bodyBodyInteraction( ax, ay, az, myX, myY, myZ, body.x, body.y, body.z, body.w, softeningSquared);
-
-            acc[0] += ax; acc[1] += ay; acc[2] += az;
-
-            float *f = &force[3*j+0];
-            atomicAdd( f+0, -ax );
-            atomicAdd( f+1, -ay );
-            atomicAdd( f+2, -az );
-
-        }
-
-        atomicAdd( &force[3*i+0], acc[0] );
-        atomicAdd( &force[3*i+1], acc[1] );
-        atomicAdd( &force[3*i+2], acc[2] );
-    }
-}
-#else
-template<typename T>
-__global__ void
-ComputeNBodyGravitation_Atomic( T *force, T *posMass, size_t N, T softeningSquared )
-{
-    for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
-              i < N;
-              i += blockDim.x*gridDim.x )
-    {
-        T acc[3] = {0};
-        float4 me = ((float4 *) posMass)[i];
-        T myX = me.x;
-        T myY = me.y;
-        T myZ = me.z;
-        for ( int j = 0; j < N; j++ ) {
-            float4 body = ((float4 *) posMass)[j];
-            bodyBodyInteraction( acc, myX, myY, myZ, body.x, body.y, body.z, body.w, softeningSquared);
+        for ( int j = 0; j < N; j += blockDim.x ) {
+            shPosMass[threadIdx.x] = ((float4 *) posMass)[j+threadIdx.x];
+            __syncthreads();
+//#pragma unroll 32
+            for ( size_t i = 0; i < blockDim.x; i++ ) {
+                float4 bodyPosMass = shPosMass[i];
+                bodyBodyInteraction( acc, myPosMass.x, myPosMass.y, myPosMass.z, bodyPosMass.x, bodyPosMass.y, bodyPosMass.z, bodyPosMass.w, softeningSquared );
+            }
+            __syncthreads();
+            //bodyBodyInteraction(acc, &posMass[4*i], &posMass[4*j], softeningSquared);
         }
         force[3*i+0] = acc[0];
         force[3*i+1] = acc[1];
         force[3*i+2] = acc[2];
     }
 }
-#endif
-
 
 float
-ComputeGravitation_GPU_Atomic(
-    float *force, 
-    float *posMass,
-    float softeningSquared,
-    size_t N
-)
+ComputeGravitation_GPU_Shared( float *force, float *posMass, size_t N, float softeningSquared )
 {
     cudaError_t status;
     cudaEvent_t evStart = 0, evStop = 0;
@@ -110,8 +70,7 @@ ComputeGravitation_GPU_Atomic(
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
     CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
-    CUDART_CHECK( cudaMemset( force, 0, 3*N*sizeof(float) ) );
-    ComputeNBodyGravitation_Atomic<float> <<<300,256>>>( force, posMass, N, softeningSquared );
+    ComputeNBodyGravitation_Shared<<<300,256, 256*sizeof(float4)>>>( force, posMass, N, softeningSquared );
     CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );

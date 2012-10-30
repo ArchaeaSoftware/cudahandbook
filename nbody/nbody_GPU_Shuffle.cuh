@@ -1,8 +1,8 @@
 /*
  *
- * nbody_GPU_Atomic.h
+ * nbody_GPU_Shuffle.h
  *
- * CUDA implementation of the O(N^2) N-body calculation.
+ * Warp shuffle-based implementation of the O(N^2) N-body calculation.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -34,56 +34,52 @@
  */
 
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 300
-//
-// Atomics only make sense for SM 3.x and higher
-//
-template<typename T>
 __global__ void
-ComputeNBodyGravitation_Atomic( T *force, T *posMass, size_t N, T softeningSquared )
+ComputeNBodyGravitation_Shuffle( float *force, float *posMass, size_t N, float softeningSquared )
 {
     for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
               i < N;
               i += blockDim.x*gridDim.x )
     {
-        float4 me = ((float4 *) posMass)[i];
-        T acc[3] = {0.0f, 0.0f, 0.0f};
-        T myX = me.x;
-        T myY = me.y;
-        T myZ = me.z;
-        for ( int j = 0; j < i; j++ ) {
-            float4 body = ((float4 *) posMass)[j];
+        float acc[3] = {0};
+        float4 myPosMass = ((float4 *) posMass)[i];
 
-            T ax, ay, az;
-            bodyBodyInteraction( ax, ay, az, myX, myY, myZ, body.x, body.y, body.z, body.w, softeningSquared);
+        for ( int j = 0; j < N; j += 32 ) {
+            float4 shufSrcPosMass = ((float4 *) posMass)[j+(31&threadIdx.x)];
+#pragma unroll
+            for ( int k = 0; k < 32; k++ ) {
+                float4 shufDstPosMass;
 
-            acc[0] += ax; acc[1] += ay; acc[2] += az;
+                shufDstPosMass.x = __shfl( shufSrcPosMass.x, k );
+                shufDstPosMass.y = __shfl( shufSrcPosMass.y, k );
+                shufDstPosMass.z = __shfl( shufSrcPosMass.z, k );
+                shufDstPosMass.w = __shfl( shufSrcPosMass.w, k );
 
-            float *f = &force[3*j+0];
-            atomicAdd( f+0, -ax );
-            atomicAdd( f+1, -ay );
-            atomicAdd( f+2, -az );
-
+                bodyBodyInteraction(acc, myPosMass.x, myPosMass.y, myPosMass.z, shufDstPosMass.x, shufDstPosMass.y, shufDstPosMass.z, shufDstPosMass.w, softeningSquared);
+            }
         }
 
-        atomicAdd( &force[3*i+0], acc[0] );
-        atomicAdd( &force[3*i+1], acc[1] );
-        atomicAdd( &force[3*i+2], acc[2] );
+        force[3*i+0] = acc[0];
+        force[3*i+1] = acc[1];
+        force[3*i+2] = acc[2];
     }
 }
 #else
-template<typename T>
+//
+// If SM 3.x not available, use naive algorithm
+//
 __global__ void
-ComputeNBodyGravitation_Atomic( T *force, T *posMass, size_t N, T softeningSquared )
+ComputeNBodyGravitation_Shuffle( float *force, float *posMass, size_t N, float softeningSquared )
 {
     for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
               i < N;
               i += blockDim.x*gridDim.x )
     {
-        T acc[3] = {0};
+        float acc[3] = {0};
         float4 me = ((float4 *) posMass)[i];
-        T myX = me.x;
-        T myY = me.y;
-        T myZ = me.z;
+        float myX = me.x;
+        float myY = me.y;
+        float myZ = me.z;
         for ( int j = 0; j < N; j++ ) {
             float4 body = ((float4 *) posMass)[j];
             bodyBodyInteraction( acc, myX, myY, myZ, body.x, body.y, body.z, body.w, softeningSquared);
@@ -95,23 +91,16 @@ ComputeNBodyGravitation_Atomic( T *force, T *posMass, size_t N, T softeningSquar
 }
 #endif
 
-
 float
-ComputeGravitation_GPU_Atomic(
-    float *force, 
-    float *posMass,
-    float softeningSquared,
-    size_t N
-)
+ComputeGravitation_GPU_Shuffle( float *force, float *posMass, float softeningSquared, size_t N )
 {
     cudaError_t status;
     cudaEvent_t evStart = 0, evStop = 0;
-    float ms = 0.0;
+    float ms = 0.0f;
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
     CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
-    CUDART_CHECK( cudaMemset( force, 0, 3*N*sizeof(float) ) );
-    ComputeNBodyGravitation_Atomic<float> <<<300,256>>>( force, posMass, N, softeningSquared );
+    ComputeNBodyGravitation_Shuffle <<<300,256>>>( force, posMass, N, softeningSquared );
     CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );

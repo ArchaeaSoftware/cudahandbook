@@ -45,6 +45,9 @@ ComputeGravitation_SOA(
 )
 {
     chTimerTimestamp start, end;
+    memset( force[0], 0, N*sizeof(float) );
+    memset( force[1], 0, N*sizeof(float) );
+    memset( force[2], 0, N*sizeof(float) );
     chTimerGetTime( &start );
     for (size_t i = 0; i < N; i++)
     {
@@ -53,22 +56,34 @@ ComputeGravitation_SOA(
         float myY = pos[1][i];
         float myZ = pos[2][i];
 
-        for ( size_t j = 0; j < N; j++ ) {
+        for ( size_t j = 0; j < i; j++ ) {
+
+            if ( j==i ) continue;
+
             float bodyX = pos[0][j];
             float bodyY = pos[1][j];
             float bodyZ = pos[2][j];
             float bodyMass = mass[j];
 
+            float myAcc[3] = {0, 0, 0};
             bodyBodyInteraction<float>(
-                acc, 
+                myAcc, 
                 myX, myY, myZ,
                 bodyX, bodyY, bodyZ, bodyMass,
                 softeningSquared );
+
+            acc[0] += myAcc[0];
+            acc[1] += myAcc[1];
+            acc[2] += myAcc[2];
+
+            force[0][j] += -myAcc[0];
+            force[1][j] += -myAcc[1];
+            force[2][j] += -myAcc[2];
         }
 
-        force[0][i] = acc[0];
-        force[1][i] = acc[1];
-        force[2][i] = acc[2];
+        force[0][i] += acc[0];
+        force[1][i] += acc[1];
+        force[2][i] += acc[2];
     }
     chTimerGetTime( &end );
     return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
