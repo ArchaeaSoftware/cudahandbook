@@ -252,7 +252,7 @@ ComputeGravitation(
             CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
         case GPU_Atomic:
-            cudaMemset( g_dptrAOS_Force, 0, 3*sizeof(float) );
+            CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*sizeof(float) ) );
             *ms = ComputeGravitation_GPU_Atomic( 
                 g_dptrAOS_Force,
                 g_dptrAOS_PosMass,
@@ -261,6 +261,7 @@ ComputeGravitation(
             CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
         case GPU_Shared:
+            CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
             *ms = ComputeGravitation_GPU_Shared( 
                 g_dptrAOS_Force,
                 g_dptrAOS_PosMass,
@@ -269,6 +270,7 @@ ComputeGravitation(
             CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
         case GPU_Shuffle:
+            CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
             *ms = ComputeGravitation_GPU_Shuffle( 
                 g_dptrAOS_Force,
                 g_dptrAOS_PosMass,
@@ -343,23 +345,43 @@ main( int argc, char *argv[] )
         g_hostSOA_InvMass[i] = 1.0f / g_hostSOA_Mass[i];
     }
 
-    while ( ! kbhit() ) {
-        float ms, err;
-        ComputeGravitation( &ms, &err, g_Algorithm, g_bCrossCheck );
-        double interactionsPerSecond = (double) g_N*g_N*1000.0f / ms;
-        if ( interactionsPerSecond > 1e9 ) {
-            printf ( "%s: %.2f ms = %.3fx10^9 interactions/s (Rel. error: %E)\n", 
-                rgszAlgorithmNames[g_Algorithm], 
-                ms, 
-                interactionsPerSecond/1e9, 
-                err );
-        }
-        else {
-            printf ( "%s: %.2f ms = %.3fx10^6 interactions/s (Rel. error: %E)\n", 
-                rgszAlgorithmNames[g_Algorithm], 
-                ms, 
-                interactionsPerSecond/1e6, 
-                err );
+    {
+        bool bStop = false;
+        while ( ! bStop ) {
+            float ms, err;
+
+            ComputeGravitation( &ms, &err, g_Algorithm, g_bCrossCheck );
+            double interactionsPerSecond = (double) g_N*g_N*1000.0f / ms;
+            if ( interactionsPerSecond > 1e9 ) {
+                printf ( "%s: %.2f ms = %.3fx10^9 interactions/s (Rel. error: %E)\n", 
+                    rgszAlgorithmNames[g_Algorithm], 
+                    ms, 
+                    interactionsPerSecond/1e9, 
+                    err );
+            }
+            else {
+                printf ( "%s: %.2f ms = %.3fx10^6 interactions/s (Rel. error: %E)\n", 
+                    rgszAlgorithmNames[g_Algorithm], 
+                    ms, 
+                    interactionsPerSecond/1e6, 
+                    err );
+            }
+            if ( kbhit() ) {
+                char c = getch();
+                switch ( c ) {
+                    case ' ':
+                        g_Algorithm = (enum nbodyAlgorithm_enum) (g_Algorithm+1);
+                        if ( (int) g_Algorithm == (int) (sizeof(rgszAlgorithmNames)/sizeof(rgszAlgorithmNames[0])) ) {
+                            g_Algorithm = CPU_AOS;
+                        }
+                        break;
+                    case 'q':
+                    case 'Q':
+                        bStop = true;
+                        break;
+                }
+
+            }
         }
     }
 
