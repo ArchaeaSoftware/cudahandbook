@@ -35,7 +35,7 @@
 
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 300
 __global__ void
-ComputeNBodyGravitation_Shuffle( float *force, float *posMass, size_t N, float softeningSquared )
+ComputeNBodyGravitation_Shuffle( float *force, float *posMass, float softeningSquared, size_t N )
 {
     for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
               i < N;
@@ -69,7 +69,7 @@ ComputeNBodyGravitation_Shuffle( float *force, float *posMass, size_t N, float s
 // If SM 3.x not available, use naive algorithm
 //
 __global__ void
-ComputeNBodyGravitation_Shuffle( float *force, float *posMass, size_t N, float softeningSquared )
+ComputeNBodyGravitation_Shuffle( float *force, float *posMass, float softeningSquared, size_t N )
 {
     for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
               i < N;
@@ -100,7 +100,7 @@ ComputeGravitation_GPU_Shuffle( float *force, float *posMass, float softeningSqu
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
     CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
-    ComputeNBodyGravitation_Shuffle <<<300,256>>>( force, posMass, N, softeningSquared );
+    ComputeNBodyGravitation_Shuffle <<<300,256>>>( force, posMass, softeningSquared, N );
     CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );

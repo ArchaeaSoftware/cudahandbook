@@ -62,7 +62,7 @@ ComputeNBodyGravitation_Shared( float *force, float *posMass, float softeningSqu
 }
 
 float
-ComputeGravitation_GPU_Shared( float *force, float *posMass, size_t N, float softeningSquared )
+ComputeGravitation_GPU_Shared( float *force, float *posMass, float softeningSquared, size_t N )
 {
     cudaError_t status;
     cudaEvent_t evStart = 0, evStop = 0;
@@ -70,7 +70,7 @@ ComputeGravitation_GPU_Shared( float *force, float *posMass, size_t N, float sof
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
     CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
-    ComputeNBodyGravitation_Shared<<<300,256, 256*sizeof(float4)>>>( force, posMass, N, softeningSquared );
+    ComputeNBodyGravitation_Shared<<<300,256, 256*sizeof(float4)>>>( force, posMass, softeningSquared, N );
     CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
