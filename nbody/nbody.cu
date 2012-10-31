@@ -46,6 +46,7 @@
 
 #include <chCommandLine.h>
 #include <chError.h>
+#include <chThread.h>
 #include <chTimer.h>
 
 #include "bodybodyInteraction.cuh"
@@ -119,6 +120,8 @@ relError( T a, T b )
 #include "nbody_CPU_AOS.h"
 #include "nbody_CPU_SOA.h"
 #include "nbody_CPU_SSE.h"
+#include "nbody_CPU_SSE_threaded.h"
+
 #include "nbody_GPU_AOS.cuh"
 #include "nbody_GPU_Shared.cuh"
 #include "nbody_GPU_Shuffle.cuh"
@@ -174,6 +177,7 @@ enum nbodyAlgorithm_enum {
     CPU_AOS = 0,    /* This is the golden implementation */
     CPU_SOA,
     CPU_SSE,
+    CPU_SSE_threaded,
     GPU_AOS,
     GPU_Atomic,
     GPU_Shared,
@@ -182,7 +186,7 @@ enum nbodyAlgorithm_enum {
     MultiGPU*/
 };
 
-const char *rgszAlgorithmNames[] = { "CPU_AOS", "CPU_SOA", "CPU_SSE", "GPU_AOS", "GPU_Atomic", "GPU_Shared", "GPU_Shuffle" };
+const char *rgszAlgorithmNames[] = { "CPU_AOS", "CPU_SOA", "CPU_SSE", "CPU_SSE_threaded", "GPU_AOS", "GPU_Atomic", "GPU_Shared", "GPU_Shuffle" };
 
 enum nbodyAlgorithm_enum g_Algorithm = CPU_SSE;
 bool g_bCrossCheck = true;
@@ -236,6 +240,15 @@ ComputeGravitation(
             break;
         case CPU_SSE:
             *ms = ComputeGravitation_SSE(
+                g_hostSOA_Force,
+                g_hostSOA_Pos,
+                g_hostSOA_Mass,
+                g_softening*g_softening,
+                g_N );
+            bSOA = true;
+            break;
+        case CPU_SSE_threaded:
+            *ms = ComputeGravitation_SSE_threaded(
                 g_hostSOA_Force,
                 g_hostSOA_Pos,
                 g_hostSOA_Mass,
@@ -312,12 +325,27 @@ Error:
     return false;
 }
 
+workerThread *g_ThreadPool;
+size_t g_cThreads;
+
 int
 main( int argc, char *argv[] )
 {
     cudaError_t status;
     // kiloparticles
     int kParticles = 4;
+
+    {
+        g_cThreads = processorCount()/2;
+        g_ThreadPool = new workerThread[g_cThreads];
+/*
+for ( int i = 0; i < g_cThreads; i++ ) {
+            if ( ! g_ThreadPool[i].initialize() ) {
+                fprintf( stderr, "Error creating thread pool\n" );
+            }
+        }*/
+
+    }
 
     CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
 
