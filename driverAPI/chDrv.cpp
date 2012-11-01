@@ -100,6 +100,7 @@ chCUDADevice::Initialize(
         CUDA_CHECK( loadModuleFromFile( NULL, *it, numOptions, options, optionValues ) );
     }
     CUDA_CHECK( cuCtxPopCurrent( &ctx ) );
+    m_device = device;
     m_context = ctx;
     return CUDA_SUCCESS;
 Error:

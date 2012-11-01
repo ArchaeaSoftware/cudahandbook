@@ -1,15 +1,18 @@
 /*
  *
- * chDrv.h
+ * testShuffle.cu
  *
- * Header file for helper classes and functions for driver API.
+ * Microdemo to illustrate the workings of Kepler's new shuffle instruction.
+ * 
+ * Build with: nvcc -I ..\chLib <options> testShuffle.cu
+ * Requires: SM 3.0 or higher.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
-
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions 
- * are met: 
+ * are met:
  *
  * 1. Redistributions of source code must retain the above copyright 
  *    notice, this list of conditions and the following disclaimer. 
@@ -33,74 +36,50 @@
  *
  */
 
-#ifndef __CHDRV_H__
-#define __CHDRV_H__
-
-#include <cuda.h>
-
-#include <chDrv.h>
-
 #include <chError.h>
 
 #include <stdio.h>
-#include <string>
-#include <list>
-#include <map>
-#include <vector>
 
-using namespace std;
+#include <sm_30_intrinsics.h>
 
-class chCUDADevice
+__global__ void
+TestShuffle( int *out, const int *in, size_t N  )
 {
-public:
-    chCUDADevice();
-    virtual ~chCUDADevice();
+    size_t i = blockIdx.x*blockDim.x+threadIdx.x;
 
-    CUresult Initialize( 
-        int ordinal, 
-        list<string>& moduleList,
-        unsigned int Flags = 0,
-        unsigned int numOptions = 0,
-        CUjit_option *options = NULL,
-        void **optionValues = NULL );
-    CUresult loadModuleFromFile( 
-        CUmodule *pModule,
-        string fileName,
-        unsigned int numOptions = 0,
-        CUjit_option *options = NULL,
-        void **optionValues = NULL );
-
-    CUdevice device() const { return m_device; }
-    CUcontext context() const { return m_context; }
-    CUmodule module( string s ) const { return (*m_modules.find(s)).second; }
-
-private:
-    CUdevice m_device;
-    CUcontext m_context;
-    map<string, CUmodule> m_modules;
-
-};
-
-inline
-chCUDADevice::chCUDADevice()
-{
-    m_device = 0;
-    m_context = 0;
+    int value = (int) i;//in[i];
+    out[i] = __shfl_up( value, 1 );
 }
 
-inline 
-chCUDADevice::~chCUDADevice()
+cudaError_t
+PrintShuffle( int offset, size_t cInts )
 {
-    for ( map<string, CUmodule>::iterator it = m_modules.begin();
-          it != m_modules.end();
-          it ++ ) {
-        cuModuleUnload( (*it).second );
+    int *dptr = 0;
+    cudaError_t status;
+    int h[64];
+    CUDART_CHECK( cudaMalloc( &dptr, cInts*sizeof(int) ) );
+    TestShuffle<<<1,cInts>>>( dptr, dptr, cInts );
+    CUDART_CHECK( cudaMemcpy( h, dptr, cInts*sizeof(int), cudaMemcpyDeviceToHost ) );
+    for ( size_t i = 0; i < cInts; i++ ) {
+        printf( "%3x", h[i] );
+        if (31==i%32) printf("\n");
     }
-    cuCtxDestroy( m_context );
+    printf( "\n" );
+Error:
+    cudaFree( dptr );
+    return status;
 }
 
-extern vector<chCUDADevice *> g_CUDAdevices;
+int
+main( int argc, char *argv[] )
+{
+    int ret = 1;
+    int cInts = 64;
+    cudaError_t status;
 
-extern CUresult chCUDAInitialize( list<string>& moduleList );
-
-#endif
+    CUDART_CHECK( PrintShuffle( 1, cInts ) );
+    return 0;
+Error:
+    printf( "Error %d (%s)\n", status, cudaGetErrorString( status ) );
+    return ret;
+}

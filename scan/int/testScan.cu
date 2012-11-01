@@ -139,7 +139,7 @@ g_hostIn = inCPU;
         if ( hostGPU[i] != outCPU[i] ) {
             printf( "Scan failed\n" );
 #ifdef _WIN32
-            _asm int 3
+            __debugbreak();
 #else
             assert(0);
 #endif

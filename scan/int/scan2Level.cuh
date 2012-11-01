@@ -92,19 +92,21 @@ void
 scanReduceSubarrays( T *gPartials, const T *in, size_t N, int numPartials, int cBlocks, int cThreads )
 {
     switch ( cThreads ) {
-        case 128: return scanReduceSubarrays<T,128><<<cBlocks, 128, 128*sizeof(T)>>>( gPartials, in, N, numPartials );
-        case 256: return scanReduceSubarrays<T,256><<<cBlocks, 256, 256*sizeof(T)>>>( gPartials, in, N, numPartials );
-        case 512: return scanReduceSubarrays<T,512><<<cBlocks, 512, 512*sizeof(T)>>>( gPartials, in, N, numPartials );
+        case  128: return scanReduceSubarrays<T, 128><<<cBlocks,  128,  128*sizeof(T)>>>( gPartials, in, N, numPartials );
+        case  256: return scanReduceSubarrays<T, 256><<<cBlocks,  256,  256*sizeof(T)>>>( gPartials, in, N, numPartials );
+        case  512: return scanReduceSubarrays<T, 512><<<cBlocks,  512,  512*sizeof(T)>>>( gPartials, in, N, numPartials );
+        case 1024: return scanReduceSubarrays<T,1024><<<cBlocks, 1024, 1024*sizeof(T)>>>( gPartials, in, N, numPartials );
     }
 }
 
 template<class T, bool bZeroPad>
 __global__ void
-scan2Level_kernel( T *out, 
-                   const T *gBaseSums, 
-                   const T *in, 
-                   size_t N, 
-                   size_t elementsPerPartial )
+scan2Level_kernel( 
+    T *out, 
+    const T *gBaseSums, 
+    const T *in, 
+    size_t N, 
+    size_t elementsPerPartial )
 {
     extern volatile __shared__ T sPartials[];
     const int tid = threadIdx.x;

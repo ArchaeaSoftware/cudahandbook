@@ -49,6 +49,7 @@
 #include "reduction4SinglePass.cuh"
 #include "reduction5Atomics.cuh"
 #include "reduction6AnyBlockSize.cuh"
+#include "reduction7SyncThreads.cuh"
 
 typedef struct TimingResult_struct {
     double Bandwidth;
@@ -203,7 +204,7 @@ main( int argc, char *argv[] )
 
     sum = 0;
     for ( size_t i = 0; i < cInts; i++ ) {
-        int value = rand();
+        int value = rand()&1;
         sum += value;
         hostData[i] = value;
     }
@@ -221,6 +222,7 @@ main( int argc, char *argv[] )
                         { "single pass", Reduction4 },
                         { "global atomic", Reduction5 },
                         { "any block size", Reduction6 },
+                        { "syncthreads", Reduction7 }
                        };
 
         const size_t numTests = sizeof(rgTests)/sizeof(rgTests[0]);

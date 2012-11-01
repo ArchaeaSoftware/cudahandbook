@@ -86,4 +86,35 @@ scanWarp( volatile T *sPartials )
     return t;
 }
 
+/*
+ * scanWarp - bZeroPadded template parameter specifies
+ *    whether to conditionally add based on the lane ID.
+ *    If we can assume that sPartials[-1..-16] is 0,
+ *    the routine takes fewer instructions.
+ */
+template<class T, bool bZeroPadded>
+inline __device__ T
+scanWarpExclusive( volatile T *sPartials )
+{
+    T t = sPartials[0];
+    if ( bZeroPadded ) {
+        t += sPartials[- 1]; sPartials[0] = t;
+        t += sPartials[- 2]; sPartials[0] = t;
+        t += sPartials[- 4]; sPartials[0] = t;
+        t += sPartials[- 8]; sPartials[0] = t;
+        t += sPartials[-16]; sPartials[0] = t;
+    }
+    else {
+        const int tid = threadIdx.x;
+        const int lane = tid & 31;
+        if ( lane >=  1 ) { t += sPartials[- 1]; sPartials[0] = t; }
+        if ( lane >=  2 ) { t += sPartials[- 2]; sPartials[0] = t; }
+        if ( lane >=  4 ) { t += sPartials[- 4]; sPartials[0] = t; }
+        if ( lane >=  8 ) { t += sPartials[- 8]; sPartials[0] = t; }
+        if ( lane >= 16 ) { t += sPartials[-16]; sPartials[0] = t; }
+    }
+    t = (threadIdx.x&31) ? sPartials[-1] : 0;
+    return t;
+}
+
 #endif // __SCAN_WARP_CUH__
