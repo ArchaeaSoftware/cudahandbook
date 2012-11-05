@@ -8,6 +8,7 @@
  * memory bandwidth required.
  *
  * Build with: nvcc -I ../chLib <options> nbody.cu
+ *   On Linux: nvcc -I ../chLib <options> nbody.cu -lpthread -lrt
  * Requires: No minimum SM requirement.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
@@ -40,7 +41,9 @@
  */
 
 #include <stdio.h>
-#include <conio.h>
+
+// for kbhit()
+#include <ch_conio.h>
 
 #include <math.h>
 
@@ -82,6 +85,8 @@ relError( float a, float b )
     if ( a == b ) return 0.0f;
     return fabsf(a-b)/b;
 }
+
+bool g_bCUDAPresent;
 
 float *g_hostAOS_PosMass;
 float *g_hostAOS_VelInvMass;
@@ -188,7 +193,15 @@ enum nbodyAlgorithm_enum {
 
 const char *rgszAlgorithmNames[] = { "CPU_AOS", "CPU_SOA", "CPU_SSE", "CPU_SSE_threaded", "GPU_AOS", "GPU_Atomic", "GPU_Shared", "GPU_Shuffle" };
 
-enum nbodyAlgorithm_enum g_Algorithm = CPU_SSE;
+enum nbodyAlgorithm_enum g_Algorithm = CPU_SSE_threaded;
+
+//
+// g_maxAlgorithm is used to determine when to rotate g_Algorithm back to CPU_AOS
+// If CUDA is present, it is CPU_SSE_threaded, otherwise GPU_Shuffle
+// The CPU and GPU algorithms must be contiguous, and the logic in main() to
+// initialize this value must be modified if any new algorithms are added.
+//
+enum nbodyAlgorithm_enum g_maxAlgorithm;
 bool g_bCrossCheck = true;
 
 bool
@@ -219,7 +232,9 @@ ComputeGravitation(
     }
 
     // CPU->GPU copies in case we are measuring GPU performance
-    CUDART_CHECK( cudaMemcpyAsync( g_dptrAOS_PosMass, g_hostAOS_PosMass, 4*g_N*sizeof(float), cudaMemcpyHostToDevice ) );
+    if ( g_bCUDAPresent ) {
+        CUDART_CHECK( cudaMemcpyAsync( g_dptrAOS_PosMass, g_hostAOS_PosMass, 4*g_N*sizeof(float), cudaMemcpyHostToDevice ) );
+    }
 
     switch ( algorithm ) {
         case CPU_AOS:
@@ -338,6 +353,12 @@ main( int argc, char *argv[] )
     {
         g_cThreads = processorCount()/2;
         g_ThreadPool = new workerThread[g_cThreads];
+        for ( size_t i = 0; i < g_cThreads; i++ ) {
+            if ( ! g_ThreadPool[i].initialize( ) ) {
+                fprintf( stderr, "Error initializing thread pool\n" );
+                return 1;
+            }
+        }
 /*
 for ( int i = 0; i < g_cThreads; i++ ) {
             if ( ! g_ThreadPool[i].initialize() ) {
@@ -347,25 +368,45 @@ for ( int i = 0; i < g_cThreads; i++ ) {
 
     }
 
-    CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
-
     chCommandLineGet( &kParticles, "numbodies", argc, argv );
     g_N = kParticles*1024;
     printf( "Running simulation with %d particles\n", (int) g_N );
 
-    CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_PosMass, 4*g_N*sizeof(float), cudaHostAllocPortable ) );
-    for ( int i = 0; i < 3; i++ ) {
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Pos[i], g_N*sizeof(float), cudaHostAllocPortable ) );
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Force[i], g_N*sizeof(float), cudaHostAllocPortable ) );
-    }
-    CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_Force, 3*g_N*sizeof(float), cudaHostAllocPortable ) );
-    CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_Force_Golden, 3*g_N*sizeof(float), cudaHostAllocPortable ) );
-    CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_VelInvMass, 4*g_N*sizeof(float), cudaHostAllocPortable ) );
-    CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Mass, g_N*sizeof(float), cudaHostAllocPortable ) );
-    CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_InvMass, g_N*sizeof(float), cudaHostAllocPortable ) );
+    status = cudaSetDeviceFlags( cudaDeviceMapHost );
+    g_bCUDAPresent = (cudaSuccess == status);
+    g_maxAlgorithm = g_bCUDAPresent ? GPU_Shuffle : CPU_SSE_threaded;
 
-    CUDART_CHECK( cudaMalloc( &g_dptrAOS_PosMass, 4*g_N*sizeof(float) ) );
-    CUDART_CHECK( cudaMalloc( (void **) &g_dptrAOS_Force, 3*g_N*sizeof(float) ) );
+    if ( g_bCUDAPresent ) {
+
+        CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
+
+        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_PosMass, 4*g_N*sizeof(float), cudaHostAllocPortable ) );
+        for ( int i = 0; i < 3; i++ ) {
+            CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Pos[i], g_N*sizeof(float), cudaHostAllocPortable ) );
+            CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Force[i], g_N*sizeof(float), cudaHostAllocPortable ) );
+        }
+        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_Force, 3*g_N*sizeof(float), cudaHostAllocPortable ) );
+        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_Force_Golden, 3*g_N*sizeof(float), cudaHostAllocPortable ) );
+        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_VelInvMass, 4*g_N*sizeof(float), cudaHostAllocPortable ) );
+        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Mass, g_N*sizeof(float), cudaHostAllocPortable ) );
+        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_InvMass, g_N*sizeof(float), cudaHostAllocPortable ) );
+
+        CUDART_CHECK( cudaMalloc( &g_dptrAOS_PosMass, 4*g_N*sizeof(float) ) );
+        CUDART_CHECK( cudaMalloc( (void **) &g_dptrAOS_Force, 3*g_N*sizeof(float) ) );
+    }
+    else {
+        g_hostAOS_PosMass = new float[4*g_N];
+        for ( int i = 0; i < 3; i++ ) {
+            g_hostSOA_Pos[i] = new float[g_N];
+            g_hostSOA_Force[i] = new float[g_N];
+        }
+        g_hostSOA_Mass = new float[g_N];
+        g_hostAOS_Force = new float[3*g_N];
+        g_hostAOS_Force_Golden = new float[3*g_N];
+        g_hostAOS_VelInvMass = new float[4*g_N];
+        g_hostSOA_Mass = new float[g_N];
+        g_hostSOA_InvMass = new float[g_N];
+    }
 
     randomUnitBodies( g_hostAOS_PosMass, g_hostAOS_VelInvMass, g_N );
     for ( size_t i = 0; i < g_N; i++ ) {
@@ -398,9 +439,11 @@ for ( int i = 0; i < g_cThreads; i++ ) {
                 char c = getch();
                 switch ( c ) {
                     case ' ':
-                        g_Algorithm = (enum nbodyAlgorithm_enum) (g_Algorithm+1);
-                        if ( (int) g_Algorithm == (int) (sizeof(rgszAlgorithmNames)/sizeof(rgszAlgorithmNames[0])) ) {
+                        if ( g_Algorithm == g_maxAlgorithm ) {
                             g_Algorithm = CPU_AOS;
+                        }
+                        else {
+                            g_Algorithm = (enum nbodyAlgorithm_enum) (g_Algorithm+1);
                         }
                         break;
                     case 'q':

@@ -37,7 +37,7 @@
 
 //#include "bodybodyInteraction_SSE.h"
 
-using namespace cudahandbook::thread;
+using namespace cudahandbook::threading;
 
 extern workerThread *g_ThreadPool;
 extern size_t g_cThreads;
