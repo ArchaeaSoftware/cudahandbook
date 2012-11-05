@@ -36,8 +36,6 @@
 #ifndef __CHDRV_H__
 #define __CHDRV_H__
 
-using namespace std;
-
 #include <cuda.h>
 
 #include <chDrv.h>
@@ -49,6 +47,8 @@ using namespace std;
 #include <list>
 #include <map>
 #include <vector>
+
+using namespace std;
 
 class chCUDADevice
 {

@@ -57,6 +57,12 @@ enum ScanType {
     Inclusive, Exclusive
 };
 
+#include "scanFan.cuh"
+#include "scanReduceThenScan.cuh"
+#include "scanReduceThenScan_0.cuh"
+#include "scan2Level.cuh"
+#include "ScanThrust.cuh"
+
 template<int period>
 void
 ScanExclusiveCPUPeriodic( int *out, const int *in, size_t N )
@@ -368,7 +374,6 @@ main( int argc, char *argv[] )
 {
     cudaError_t status;
     int maxThreads;
-    int numInts = 32*1048576;
 
     CUDART_CHECK( cudaSetDevice( 0 ) );
     CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
