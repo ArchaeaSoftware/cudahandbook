@@ -52,9 +52,6 @@
 
 #define min(a,b) ((a)<(b)?(a):(b))
 
-int *g_hostIn, *g_hostOut;
-
-
 enum ScanType {
     Inclusive, Exclusive
 };
@@ -130,7 +127,6 @@ for ( int i = 0; i < N; i++ ) {
 }
     
     ScanInclusiveCPU( outCPU, inCPU, N );
-g_hostIn = inCPU;
 
     CUDART_CHECK( cudaMemcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
     pfnScanGPU( outGPU, inGPU, N, numThreads );
