@@ -53,7 +53,8 @@
 #include <chTimer.h>
 
 #include "bodybodyInteraction.cuh"
-#include "bodybodyInteraction_SSE.h"
+
+using namespace cudahandbook::threading;
 
 inline void
 randomVector( float v[3] )

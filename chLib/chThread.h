@@ -44,6 +44,8 @@
 #include <semaphore.h>
 #endif
 
+#include <string.h>
+
 #include <new>
 #include <memory>
 #include <vector>
@@ -196,7 +198,7 @@ private:
 };
 
 #ifdef _WIN32
-DWORD __stdcall
+inline DWORD __stdcall
 workerThread::threadRoutine( void *_p )
 {
     workerThread *p = (workerThread *) _p;
@@ -215,7 +217,7 @@ workerThread::threadRoutine( void *_p )
     return 0;
 }
 #else
-void *
+inline void *
 workerThread::threadRoutine( void *_p )
 {
     workerThread *p = (workerThread *) _p;

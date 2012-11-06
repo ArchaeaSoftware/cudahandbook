@@ -35,62 +35,7 @@
  *
  */
 
-//#include "bodybodyInteraction_SSE.h"
-
-using namespace cudahandbook::threading;
-
-extern workerThread *g_ThreadPool;
-extern size_t g_cThreads;
-
-struct sseDelegation {
-    size_t i;   // base offset for this thread to process
-    size_t n;   // size of this thread's problem
-    size_t N;   // total number of bodies
-
-    float *hostPosSOA[3];
-    float *hostMassSOA;
-    float *hostForceSOA[3];
-    float softeningSquared;
-
-};
-
-void
-sseWorkerThread( void *_p )
-{
-    sseDelegation *p = (sseDelegation *) _p;
-    for (int k = 0; k < p->n; k++)
-    {
-        int i = p->i + k;
-        __m128 ax = _mm_setzero_ps();
-        __m128 ay = _mm_setzero_ps();
-        __m128 az = _mm_setzero_ps();
-        __m128 *px = (__m128 *) p->hostPosSOA[0];
-        __m128 *py = (__m128 *) p->hostPosSOA[1];
-        __m128 *pz = (__m128 *) p->hostPosSOA[2];
-        __m128 *pmass = (__m128 *) p->hostMassSOA;
-        __m128 x0 = _mm_set_ps1( p->hostPosSOA[0][i] );
-        __m128 y0 = _mm_set_ps1( p->hostPosSOA[1][i] );
-        __m128 z0 = _mm_set_ps1( p->hostPosSOA[2][i] );
-
-        for ( int j = 0; j < p->N/4; j++ ) {
-            
-            bodyBodyInteraction( 
-                ax, ay, az,
-                x0, y0, z0, 
-                px[j], py[j], pz[j], pmass[j], 
-                _mm_set_ps1( p->softeningSquared ) );
-
-        }
-        // Accumulate sum of four floats in the SSE register
-        ax = horizontal_sum_ps( ax );
-        ay = horizontal_sum_ps( ay );
-        az = horizontal_sum_ps( az );
-
-        _mm_store_ss( (float *) &p->hostForceSOA[0][i], ax );
-        _mm_store_ss( (float *) &p->hostForceSOA[1][i], ay );
-        _mm_store_ss( (float *) &p->hostForceSOA[2][i], az );
-    }
-}
+void sseWorkerThread( void *_p );
 
 float
 ComputeGravitation_SSE_threaded( 
@@ -99,37 +44,4 @@ ComputeGravitation_SSE_threaded(
     float *mass,
     float softeningSquared,
     size_t N
-)
-{
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
-
-    {
-        sseDelegation *psse = new sseDelegation[g_cThreads];
-        size_t bodiesPerCore = N / g_cThreads;
-        if ( N % g_cThreads ) {
-            return 0.0f;
-        }
-        for ( size_t i = 0; i < g_cThreads; i++ ) {
-            psse[i].hostPosSOA[0] = pos[0];
-            psse[i].hostPosSOA[1] = pos[1];
-            psse[i].hostPosSOA[2] = pos[2];
-            psse[i].hostMassSOA = mass;
-            psse[i].hostForceSOA[0] = force[0];
-            psse[i].hostForceSOA[1] = force[1];
-            psse[i].hostForceSOA[2] = force[2];
-            psse[i].softeningSquared = softeningSquared;
-
-            psse[i].i = bodiesPerCore*i;
-            psse[i].n = bodiesPerCore;
-            psse[i].N = N;
-
-            g_ThreadPool[i].delegateAsynchronous( sseWorkerThread, &psse[i] );
-        }
-        workerThread::waitAll( g_ThreadPool, g_cThreads );
-    }
-
-    chTimerGetTime( &end );
-
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
-}
+);

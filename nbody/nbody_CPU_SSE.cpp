@@ -1,6 +1,6 @@
 /*
  *
- * nbody_CPU_SSE.h
+ * nbody_CPU_SSE.cpp
  *
  * SSE CPU implementation of the O(N^2) N-body calculation.
  * Uses SOA (structure of arrays) representation because it is a much
@@ -35,6 +35,13 @@
  *
  */
 
+#include <xmmintrin.h>
+
+#include <chTimer.h>
+
+#include "bodybodyInteraction_SSE.h"
+#include "nbody_CPU_SSE.h"
+
 float
 ComputeGravitation_SSE( 
     float *force[3], 
@@ -42,4 +49,42 @@ ComputeGravitation_SSE(
     float *mass,
     float softeningSquared,
     size_t N
-);
+)
+{
+    chTimerTimestamp start, end;
+    chTimerGetTime( &start );
+
+    for (int i = 0; i < N; i++)
+    {
+        __m128 ax = _mm_setzero_ps();
+        __m128 ay = _mm_setzero_ps();
+        __m128 az = _mm_setzero_ps();
+        __m128 *px = (__m128 *) pos[0];
+        __m128 *py = (__m128 *) pos[1];
+        __m128 *pz = (__m128 *) pos[2];
+        __m128 *pmass = (__m128 *) mass;
+        __m128 x0 = _mm_set_ps1( pos[0][i] );
+        __m128 y0 = _mm_set_ps1( pos[1][i] );
+        __m128 z0 = _mm_set_ps1( pos[2][i] );
+
+        for ( int j = 0; j < N/4; j++ ) {
+            
+            bodyBodyInteraction( 
+                ax, ay, az,
+                x0, y0, z0, 
+                px[j], py[j], pz[j], pmass[j], 
+                _mm_set_ps1( softeningSquared ) );
+
+        }
+        // Accumulate sum of four floats in the SSE register
+        ax = horizontal_sum_ps( ax );
+        ay = horizontal_sum_ps( ay );
+        az = horizontal_sum_ps( az );
+
+        _mm_store_ss( (float *) &force[0][i], ax );
+        _mm_store_ss( (float *) &force[1][i], ay );
+        _mm_store_ss( (float *) &force[2][i], az );
+    }
+    chTimerGetTime( &end );
+    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+}
