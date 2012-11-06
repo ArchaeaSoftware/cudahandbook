@@ -352,7 +352,7 @@ main( int argc, char *argv[] )
     int kParticles = 4;
 
     {
-        g_cThreads = processorCount()/2;
+        g_cThreads = processorCount();
         g_ThreadPool = new workerThread[g_cThreads];
         for ( size_t i = 0; i < g_cThreads; i++ ) {
             if ( ! g_ThreadPool[i].initialize( ) ) {

@@ -94,7 +94,7 @@ public:
         return false;
     }
 
-    static DWORD __stdcall threadRoutine( LPVOID );
+    static void *threadRoutine( void * );
 
     //
     // call this from your app thread to delegate to the worker.
