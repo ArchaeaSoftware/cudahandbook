@@ -7,8 +7,8 @@
  * parallelizable, with lots of FLOPS per unit of external 
  * memory bandwidth required.
  *
- * Build with: nvcc -I ../chLib <options> nbody.cu
- *   On Linux: nvcc -I ../chLib <options> nbody.cu -lpthread -lrt
+ * Build with: nvcc -I ../chLib <options> nbody.cu nbody_CPU_SSE.cpp nbody_CPU_SSE_threaded.cpp
+ *   On Linux: nvcc -I ../chLib <options> nbody.cu nbody_CPU_SSE.cpp nbody_CPU_SSE_threaded.cpp -lpthread -lrt
  * Requires: No minimum SM requirement.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
@@ -194,7 +194,7 @@ enum nbodyAlgorithm_enum {
 
 const char *rgszAlgorithmNames[] = { "CPU_AOS", "CPU_SOA", "CPU_SSE", "CPU_SSE_threaded", "GPU_AOS", "GPU_Atomic", "GPU_Shared", "GPU_Shuffle" };
 
-enum nbodyAlgorithm_enum g_Algorithm = CPU_SSE_threaded;
+enum nbodyAlgorithm_enum g_Algorithm;
 
 //
 // g_maxAlgorithm is used to determine when to rotate g_Algorithm back to CPU_AOS
@@ -204,6 +204,7 @@ enum nbodyAlgorithm_enum g_Algorithm = CPU_SSE_threaded;
 //
 enum nbodyAlgorithm_enum g_maxAlgorithm;
 bool g_bCrossCheck = true;
+bool g_bNoCPU = false;
 
 bool
 ComputeGravitation( 
@@ -360,22 +361,25 @@ main( int argc, char *argv[] )
                 return 1;
             }
         }
-/*
-for ( int i = 0; i < g_cThreads; i++ ) {
-            if ( ! g_ThreadPool[i].initialize() ) {
-                fprintf( stderr, "Error creating thread pool\n" );
-            }
-        }*/
-
     }
 
+    g_bCrossCheck = ! chCommandLineGetBool( "nocrosscheck", argc, argv );
+    g_bNoCPU = chCommandLineGetBool( "nocpu", argc, argv );
+    if ( g_bNoCPU ) {
+        g_bCrossCheck = false;
+    }
     chCommandLineGet( &kParticles, "numbodies", argc, argv );
     g_N = kParticles*1024;
     printf( "Running simulation with %d particles\n", (int) g_N );
 
     status = cudaSetDeviceFlags( cudaDeviceMapHost );
     g_bCUDAPresent = (cudaSuccess == status);
-    g_maxAlgorithm = g_bCUDAPresent ? GPU_Shuffle : CPU_SSE_threaded;
+    if ( g_bNoCPU && ! g_bCUDAPresent ) {
+        printf( "--nocpu specified, but no CUDA present...exiting\n" );
+        exit(1);
+    }
+    g_Algorithm = g_bCUDAPresent ? GPU_AOS : CPU_SSE_threaded;
+    g_maxAlgorithm = (g_bCUDAPresent || g_bNoCPU) ? GPU_Shuffle : CPU_SSE_threaded;
 
     if ( g_bCUDAPresent ) {
 
@@ -441,7 +445,7 @@ for ( int i = 0; i < g_cThreads; i++ ) {
                 switch ( c ) {
                     case ' ':
                         if ( g_Algorithm == g_maxAlgorithm ) {
-                            g_Algorithm = CPU_AOS;
+                            g_Algorithm = g_bNoCPU ? GPU_AOS : CPU_AOS;
                         }
                         else {
                             g_Algorithm = (enum nbodyAlgorithm_enum) (g_Algorithm+1);

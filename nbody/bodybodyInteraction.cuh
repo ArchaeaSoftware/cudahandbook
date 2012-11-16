@@ -48,7 +48,7 @@ __host__ __device__ void bodyBodyInteraction(
     T distSqr = dx*dx + dy*dy + dz*dz;
     distSqr += softeningSquared;
 
-    T invDist = (T)1.0 / (T)sqrt((double)distSqr);
+    T invDist = (T)1.0 / (T)sqrt(distSqr);
 
     T invDistCube =  invDist * invDist * invDist;
     T s = mass1 * invDistCube;
