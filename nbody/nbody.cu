@@ -124,6 +124,7 @@ relError( T a, T b )
 }
 
 #include "nbody_CPU_AOS.h"
+#include "nbody_CPU_AOS_tiled.h"
 #include "nbody_CPU_SOA.h"
 #include "nbody_CPU_SSE.h"
 #include "nbody_CPU_SSE_threaded.h"
@@ -181,6 +182,7 @@ integrateGravitation_AOS( float *ppos, float *pvel, float *pforce, float dt, flo
 
 enum nbodyAlgorithm_enum {
     CPU_AOS = 0,    /* This is the golden implementation */
+    CPU_AOS_tiled,
     CPU_SOA,
     CPU_SSE,
     CPU_SSE_threaded,
@@ -192,7 +194,17 @@ enum nbodyAlgorithm_enum {
     MultiGPU*/
 };
 
-const char *rgszAlgorithmNames[] = { "CPU_AOS", "CPU_SOA", "CPU_SSE", "CPU_SSE_threaded", "GPU_AOS", "GPU_Atomic", "GPU_Shared", "GPU_Shuffle" };
+const char *rgszAlgorithmNames[] = { 
+    "CPU_AOS", 
+    "CPU_AOS_tiled", 
+    "CPU_SOA", 
+    "CPU_SSE", 
+    "CPU_SSE_threaded", 
+    "GPU_AOS", 
+    "GPU_Atomic", 
+    "GPU_Shared", 
+    "GPU_Shuffle"
+};
 
 enum nbodyAlgorithm_enum g_Algorithm;
 
@@ -241,6 +253,13 @@ ComputeGravitation(
     switch ( algorithm ) {
         case CPU_AOS:
             *ms = ComputeGravitation_AOS( 
+                g_hostAOS_Force,
+                g_hostAOS_PosMass,
+                g_softening*g_softening,
+                g_N );
+            break;
+        case CPU_AOS_tiled:
+            *ms = ComputeGravitation_AOS_tiled( 
                 g_hostAOS_Force,
                 g_hostAOS_PosMass,
                 g_softening*g_softening,
