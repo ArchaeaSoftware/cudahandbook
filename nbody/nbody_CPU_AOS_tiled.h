@@ -85,6 +85,8 @@ DoNondiagonalTile(
     size_t iTile, size_t jTile
 )
 {
+    float symmetricForce[3*nTile];
+
     for ( size_t _i = 0; _i < nTile; _i++ )
     {
         size_t i = iTile*nTile+_i;
@@ -92,7 +94,8 @@ DoNondiagonalTile(
         float myX = posMass[i*4+0];
         float myY = posMass[i*4+1];
         float myZ = posMass[i*4+2];
-        //float fTranspose[3][nTile];
+
+        memset( symmetricForce, 0, sizeof(symmetricForce) );
 
         for ( size_t _j = 0; _j < nTile; _j++ ) {
             size_t j = jTile*nTile+_j;
@@ -113,39 +116,24 @@ DoNondiagonalTile(
             ay += fy;
             az += fz;
 
-            force[3*j+0] -= fx;
-            force[3*j+1] -= fy;
-            force[3*j+2] -= fz;
-#if 0
-            fTranspose[0][_j] = -fx;
-            fTranspose[1][_j] = -fy;
-            fTranspose[2][_j] = -fz;
-#endif
+            symmetricForce[3*_j+0] -= fx;
+            symmetricForce[3*_j+1] -= fy;
+            symmetricForce[3*_j+2] -= fz;
+
         }
 
         force[3*i+0] += ax;
         force[3*i+1] += ay;
         force[3*i+2] += az;
 
-#if 0
-        ax = ay = az = 0.0f;
-
-        for ( int k = 0; k < nTile; k++ ) {
-            ax += fTranspose[0][k];
-            ay += fTranspose[1][k];
-            az += fTranspose[2][k];
+        for ( size_t _j = 0; _j < nTile; _j++ ) {
+            size_t j = jTile*nTile+_j;
+            force[3*j+0] += symmetricForce[3*_j+0];
+            force[3*j+1] += symmetricForce[3*_j+1];
+            force[3*j+2] += symmetricForce[3*_j+2];
         }
-
-        {
-            size_t j = jTile*nTile+_i;
-
-            force[3*j+0] += ax;
-            force[3*j+1] += ay;
-            force[3*j+2] += az;
-
-        }
-#endif
     }
+
 }
 
 template<int nTile>
@@ -160,17 +148,9 @@ ComputeGravitation_AOS_tiled(
     memset( force, 0, 3*N*sizeof(float) );
     chTimerTimestamp start, end;
     chTimerGetTime( &start );
-    for ( size_t iTile = 0; iTile < N/nTile; iTile++ )
-    {
+    for ( size_t iTile = 0; iTile < N/nTile; iTile++ ) {
         for ( size_t jTile = 0; jTile <= iTile; jTile++ ) {
-            if ( iTile == jTile ) {
-                DoDiagonalTile<nTile>( 
-                    force,
-                    posMass,
-                    softeningSquared,
-                    iTile, jTile );
-            }
-            else {
+            if ( iTile != jTile ) {
                 DoNondiagonalTile<nTile>( 
                     force,
                     posMass,
@@ -178,6 +158,13 @@ ComputeGravitation_AOS_tiled(
                     iTile, jTile );
             }
         }
+    }
+    for ( size_t iTile = 0; iTile < N/nTile; iTile++ ) {
+        DoDiagonalTile<nTile>(
+            force,
+            posMass,
+            softeningSquared,
+            iTile, iTile );
     }
     chTimerGetTime( &end );
     return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
