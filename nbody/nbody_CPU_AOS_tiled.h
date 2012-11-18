@@ -89,6 +89,10 @@ DoNondiagonalTile(
     float symmetricY[nTile];
     float symmetricZ[nTile];
 
+    memset( symmetricX, 0, sizeof(symmetricX) );
+    memset( symmetricY, 0, sizeof(symmetricY) );
+    memset( symmetricZ, 0, sizeof(symmetricZ) );
+
     for ( size_t _i = 0; _i < nTile; _i++ )
     {
         size_t i = iTile*nTile+_i;
@@ -96,10 +100,6 @@ DoNondiagonalTile(
         float myX = posMass[i*4+0];
         float myY = posMass[i*4+1];
         float myZ = posMass[i*4+2];
-
-        memset( symmetricX, 0, sizeof(symmetricX) );
-        memset( symmetricY, 0, sizeof(symmetricY) );
-        memset( symmetricZ, 0, sizeof(symmetricZ) );
 
         for ( size_t _j = 0; _j < nTile; _j++ ) {
             size_t j = jTile*nTile+_j;
@@ -130,14 +130,14 @@ DoNondiagonalTile(
         force[3*i+1] += ay;
         force[3*i+2] += az;
 
-        for ( size_t _j = 0; _j < nTile; _j++ ) {
-            size_t j = jTile*nTile+_j;
-            force[3*j+0] += symmetricX[_j];
-            force[3*j+1] += symmetricY[_j];
-            force[3*j+2] += symmetricZ[_j];
-        }
     }
 
+    for ( size_t _j = 0; _j < nTile; _j++ ) {
+        size_t j = jTile*nTile+_j;
+        force[3*j+0] += symmetricX[_j];
+        force[3*j+1] += symmetricY[_j];
+        force[3*j+2] += symmetricZ[_j];
+    }
 }
 
 template<int nTile>
