@@ -36,7 +36,7 @@
 
 template <typename T>
 __host__ __device__ void bodyBodyInteraction(
-    T accel[3], 
+    T& fx, T& fy, T& fz, 
     T x0, T y0, T z0,
     T x1, T y1, T z1, T mass1, 
     T softeningSquared)
@@ -53,31 +53,7 @@ __host__ __device__ void bodyBodyInteraction(
     T invDistCube =  invDist * invDist * invDist;
     T s = mass1 * invDistCube;
 
-    accel[0] += dx * s;
-    accel[1] += dy * s;
-    accel[2] += dz * s;
-}
-
-template <typename T>
-__host__ __device__ void bodyBodyInteraction(
-    T& ax, T& ay, T& az, 
-    T x0, T y0, T z0,
-    T x1, T y1, T z1, T mass1, 
-    T softeningSquared)
-{
-    T dx = x1 - x0;
-    T dy = y1 - y0;
-    T dz = z1 - z0;
-
-    T distSqr = dx*dx + dy*dy + dz*dz;
-    distSqr += softeningSquared;
-
-    T invDist = (T)1.0 / (T)sqrt(distSqr);
-
-    T invDistCube =  invDist * invDist * invDist;
-    T s = mass1 * invDistCube;
-
-    ax = dx * s;
-    ay = dy * s;
-    az = dz * s;
+    fx = dx * s;
+    fy = dy * s;
+    fz = dz * s;
 }

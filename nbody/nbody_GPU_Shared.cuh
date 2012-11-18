@@ -49,11 +49,15 @@ ComputeNBodyGravitation_Shared( float *force, float *posMass, float softeningSqu
             __syncthreads();
 //#pragma unroll 32
             for ( size_t i = 0; i < blockDim.x; i++ ) {
+                float fx, fy, fz;
                 float4 bodyPosMass = shPosMass[i];
-                bodyBodyInteraction( acc, myPosMass.x, myPosMass.y, myPosMass.z, bodyPosMass.x, bodyPosMass.y, bodyPosMass.z, bodyPosMass.w, softeningSquared );
+
+                bodyBodyInteraction( fx, fy, fz, myPosMass.x, myPosMass.y, myPosMass.z, bodyPosMass.x, bodyPosMass.y, bodyPosMass.z, bodyPosMass.w, softeningSquared );
+                acc[0] += fx;
+                acc[1] += fy;
+                acc[2] += fz;
             }
             __syncthreads();
-            //bodyBodyInteraction(acc, &posMass[4*i], &posMass[4*j], softeningSquared);
         }
         force[3*i+0] = acc[0];
         force[3*i+1] = acc[1];

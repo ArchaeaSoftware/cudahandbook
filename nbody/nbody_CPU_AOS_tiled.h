@@ -54,16 +54,20 @@ ComputeGravitation_AOS_tiled(
         for ( size_t _j = 0; _j < nTile; _j++ ) {
             size_t j = jTile*nTile+_j;
 
+            float fx, fy, fz;
             float bodyX = posMass[j*4+0];
             float bodyY = posMass[j*4+1];
             float bodyZ = posMass[j*4+2];
             float bodyMass = posMass[j*4+3];
 
             bodyBodyInteraction<float>(
-                acc, 
+                fx, fy, fz,
                 myX, myY, myZ,
                 bodyX, bodyY, bodyZ, bodyMass,
                 softeningSquared );
+            acc[0] += fx;
+            acc[1] += fy;
+            acc[2] += fz;
         }
 
         force[3*i+0] += acc[0];

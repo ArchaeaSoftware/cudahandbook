@@ -48,6 +48,7 @@ ComputeNBodyGravitation_Shuffle( float *force, float *posMass, float softeningSq
             float4 shufSrcPosMass = ((float4 *) posMass)[j+(31&threadIdx.x)];
 #pragma unroll
             for ( int k = 0; k < 32; k++ ) {
+                float fx, fy, fz;
                 float4 shufDstPosMass;
 
                 shufDstPosMass.x = __shfl( shufSrcPosMass.x, k );
@@ -55,7 +56,13 @@ ComputeNBodyGravitation_Shuffle( float *force, float *posMass, float softeningSq
                 shufDstPosMass.z = __shfl( shufSrcPosMass.z, k );
                 shufDstPosMass.w = __shfl( shufSrcPosMass.w, k );
 
-                bodyBodyInteraction(acc, myPosMass.x, myPosMass.y, myPosMass.z, shufDstPosMass.x, shufDstPosMass.y, shufDstPosMass.z, shufDstPosMass.w, softeningSquared);
+                bodyBodyInteraction(
+                    fx, fy, fz, 
+                    myPosMass.x, myPosMass.y, myPosMass.z, 
+                    shufDstPosMass.x, shufDstPosMass.y, shufDstPosMass.z, shufDstPosMass.w, softeningSquared);
+                acc[0] += fx;
+                acc[1] += fy;
+                acc[2] += fz;
             }
         }
 
@@ -81,8 +88,12 @@ ComputeNBodyGravitation_Shuffle( float *force, float *posMass, float softeningSq
         float myY = me.y;
         float myZ = me.z;
         for ( int j = 0; j < N; j++ ) {
+            float fx, fy, fz;
             float4 body = ((float4 *) posMass)[j];
-            bodyBodyInteraction( acc, myX, myY, myZ, body.x, body.y, body.z, body.w, softeningSquared);
+            bodyBodyInteraction( fx, fy, fz, myX, myY, myZ, body.x, body.y, body.z, body.w, softeningSquared);
+            acc[0] += fx;
+            acc[1] += fy;
+            acc[2] += fz;
         }
         force[3*i+0] = acc[0];
         force[3*i+1] = acc[1];
