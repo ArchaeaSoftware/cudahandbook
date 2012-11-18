@@ -36,7 +36,7 @@
 
 template<int nTile>
 void
-ComputeGravitation_AOS_tiled( 
+DoDiagonalTile( 
     float *force, 
     float *posMass,
     float softeningSquared,
@@ -77,6 +77,78 @@ ComputeGravitation_AOS_tiled(
 }
 
 template<int nTile>
+void
+DoNondiagonalTile( 
+    float *force, 
+    float *posMass,
+    float softeningSquared,
+    size_t iTile, size_t jTile
+)
+{
+    for ( size_t _i = 0; _i < nTile; _i++ )
+    {
+        size_t i = iTile*nTile+_i;
+        float ax = 0.0f, ay = 0.0f, az = 0.0f;
+        float myX = posMass[i*4+0];
+        float myY = posMass[i*4+1];
+        float myZ = posMass[i*4+2];
+        //float fTranspose[3][nTile];
+
+        for ( size_t _j = 0; _j < nTile; _j++ ) {
+            size_t j = jTile*nTile+_j;
+
+            float fx, fy, fz;
+            float bodyX = posMass[j*4+0];
+            float bodyY = posMass[j*4+1];
+            float bodyZ = posMass[j*4+2];
+            float bodyMass = posMass[j*4+3];
+
+            bodyBodyInteraction<float>(
+                &fx, &fy, &fz, 
+                myX, myY, myZ,
+                bodyX, bodyY, bodyZ, bodyMass,
+                softeningSquared );
+
+            ax += fx;
+            ay += fy;
+            az += fz;
+
+            force[3*j+0] -= fx;
+            force[3*j+1] -= fy;
+            force[3*j+2] -= fz;
+#if 0
+            fTranspose[0][_j] = -fx;
+            fTranspose[1][_j] = -fy;
+            fTranspose[2][_j] = -fz;
+#endif
+        }
+
+        force[3*i+0] += ax;
+        force[3*i+1] += ay;
+        force[3*i+2] += az;
+
+#if 0
+        ax = ay = az = 0.0f;
+
+        for ( int k = 0; k < nTile; k++ ) {
+            ax += fTranspose[0][k];
+            ay += fTranspose[1][k];
+            az += fTranspose[2][k];
+        }
+
+        {
+            size_t j = jTile*nTile+_i;
+
+            force[3*j+0] += ax;
+            force[3*j+1] += ay;
+            force[3*j+2] += az;
+
+        }
+#endif
+    }
+}
+
+template<int nTile>
 float
 ComputeGravitation_AOS_tiled( 
     float *force, 
@@ -90,12 +162,21 @@ ComputeGravitation_AOS_tiled(
     chTimerGetTime( &start );
     for ( size_t iTile = 0; iTile < N/nTile; iTile++ )
     {
-        for ( size_t jTile = 0; jTile < N/nTile; jTile++ ) {
-            ComputeGravitation_AOS_tiled<nTile>( 
-                force,
-                posMass,
-                softeningSquared,
-                iTile, jTile );
+        for ( size_t jTile = 0; jTile <= iTile; jTile++ ) {
+            if ( iTile == jTile ) {
+                DoDiagonalTile<nTile>( 
+                    force,
+                    posMass,
+                    softeningSquared,
+                    iTile, jTile );
+            }
+            else {
+                DoNondiagonalTile<nTile>( 
+                    force,
+                    posMass,
+                    softeningSquared,
+                    iTile, jTile );
+            }
         }
     }
     chTimerGetTime( &end );
