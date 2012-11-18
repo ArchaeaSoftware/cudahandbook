@@ -52,7 +52,7 @@ ComputeNBodyGravitation_Shared( float *force, float *posMass, float softeningSqu
                 float fx, fy, fz;
                 float4 bodyPosMass = shPosMass[i];
 
-                bodyBodyInteraction( fx, fy, fz, myPosMass.x, myPosMass.y, myPosMass.z, bodyPosMass.x, bodyPosMass.y, bodyPosMass.z, bodyPosMass.w, softeningSquared );
+                bodyBodyInteraction( &fx, &fy, &fz, myPosMass.x, myPosMass.y, myPosMass.z, bodyPosMass.x, bodyPosMass.y, bodyPosMass.z, bodyPosMass.w, softeningSquared );
                 acc[0] += fx;
                 acc[1] += fy;
                 acc[2] += fz;

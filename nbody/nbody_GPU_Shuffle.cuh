@@ -57,7 +57,7 @@ ComputeNBodyGravitation_Shuffle( float *force, float *posMass, float softeningSq
                 shufDstPosMass.w = __shfl( shufSrcPosMass.w, k );
 
                 bodyBodyInteraction(
-                    fx, fy, fz, 
+                    &fx, &fy, &fz, 
                     myPosMass.x, myPosMass.y, myPosMass.z, 
                     shufDstPosMass.x, shufDstPosMass.y, shufDstPosMass.z, shufDstPosMass.w, softeningSquared);
                 acc[0] += fx;
@@ -90,7 +90,7 @@ ComputeNBodyGravitation_Shuffle( float *force, float *posMass, float softeningSq
         for ( int j = 0; j < N; j++ ) {
             float fx, fy, fz;
             float4 body = ((float4 *) posMass)[j];
-            bodyBodyInteraction( fx, fy, fz, myX, myY, myZ, body.x, body.y, body.z, body.w, softeningSquared);
+            bodyBodyInteraction( &fx, &fy, &fz, myX, myY, myZ, body.x, body.y, body.z, body.w, softeningSquared);
             acc[0] += fx;
             acc[1] += fy;
             acc[2] += fz;

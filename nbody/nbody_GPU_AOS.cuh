@@ -49,7 +49,7 @@ ComputeNBodyGravitation( T *force, T *posMass, size_t N, T softeningSquared )
         for ( int j = 0; j < N; j++ ) {
             float4 body = ((float4 *) posMass)[j];
             float fx, fy, fz;
-            bodyBodyInteraction( fx, fy, fz, myX, myY, myZ, body.x, body.y, body.z, body.w, softeningSquared);
+            bodyBodyInteraction( &fx, &fy, &fz, myX, myY, myZ, body.x, body.y, body.z, body.w, softeningSquared);
             acc[0] += fx;
             acc[1] += fy;
             acc[2] += fz;

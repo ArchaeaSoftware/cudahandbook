@@ -61,7 +61,7 @@ ComputeGravitation_AOS_tiled(
             float bodyMass = posMass[j*4+3];
 
             bodyBodyInteraction<float>(
-                fx, fy, fz,
+                &fx, &fy, &fz,
                 myX, myY, myZ,
                 bodyX, bodyY, bodyZ, bodyMass,
                 softeningSquared );

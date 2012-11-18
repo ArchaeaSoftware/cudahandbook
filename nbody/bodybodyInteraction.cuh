@@ -36,7 +36,7 @@
 
 template <typename T>
 __host__ __device__ void bodyBodyInteraction(
-    T& fx, T& fy, T& fz, 
+    T *fx, T *fy, T *fz, 
     T x0, T y0, T z0,
     T x1, T y1, T z1, T mass1, 
     T softeningSquared)
@@ -53,7 +53,7 @@ __host__ __device__ void bodyBodyInteraction(
     T invDistCube =  invDist * invDist * invDist;
     T s = mass1 * invDistCube;
 
-    fx = dx * s;
-    fy = dy * s;
-    fz = dz * s;
+    *fx = dx * s;
+    *fy = dy * s;
+    *fz = dz * s;
 }
