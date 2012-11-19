@@ -54,16 +54,20 @@ ComputeNBodyGravitation_Atomic( T *force, T *posMass, size_t N, T softeningSquar
             float4 body = ((float4 *) posMass)[j];
 
             T fx, fy, fz;
-            bodyBodyInteraction( &ax, &ay, &az, myX, myY, myZ, body.x, body.y, body.z, body.w, softeningSquared);
+            bodyBodyInteraction( 
+                &fx, &fy, &fz, 
+                myX, myY, myZ, 
+                body.x, body.y, body.z, body.w, 
+                softeningSquared );
 
-            acc[0] += ax; 
-            acc[1] += ay; 
-            acc[2] += az;
+            acc[0] += fx; 
+            acc[1] += fy; 
+            acc[2] += fz;
 
             float *f = &force[3*j+0];
-            atomicAdd( f+0, -ax );
-            atomicAdd( f+1, -ay );
-            atomicAdd( f+2, -az );
+            atomicAdd( f+0, -fx );
+            atomicAdd( f+1, -fy );
+            atomicAdd( f+2, -fz );
 
         }
 

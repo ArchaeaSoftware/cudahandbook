@@ -52,6 +52,8 @@
 #include <chThread.h>
 #include <chTimer.h>
 
+#include "nbody.h"
+
 #include "bodybodyInteraction.cuh"
 
 using namespace cudahandbook::threading;
@@ -130,7 +132,6 @@ relError( T a, T b )
 #include "nbody_CPU_SSE_threaded.h"
 
 #include "nbody_GPU_AOS.cuh"
-#include "nbody_GPU_Shared.cuh"
 #include "nbody_GPU_Shuffle.cuh"
 #include "nbody_GPU_Atomic.cuh"
 
@@ -180,20 +181,6 @@ integrateGravitation_AOS( float *ppos, float *pvel, float *pforce, float dt, flo
     }
 }
 
-enum nbodyAlgorithm_enum {
-    CPU_AOS = 0,    /* This is the golden implementation */
-    CPU_AOS_tiled,
-    CPU_SOA,
-    CPU_SSE,
-    CPU_SSE_threaded,
-    GPU_AOS,
-    GPU_Atomic,
-    GPU_Shared,
-    GPU_Shuffle/*,
-    GPU_SOA,
-    MultiGPU*/
-};
-
 const char *rgszAlgorithmNames[] = { 
     "CPU_AOS", 
     "CPU_AOS_tiled", 
@@ -203,7 +190,8 @@ const char *rgszAlgorithmNames[] = {
     "GPU_AOS", 
     "GPU_Atomic", 
     "GPU_Shared", 
-    "GPU_Shuffle"
+    "GPU_Shuffle",
+    "multiGPU_Shared"
 };
 
 enum nbodyAlgorithm_enum g_Algorithm;
@@ -327,6 +315,18 @@ ComputeGravitation(
                 g_N );
             CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
+        case multiGPU_Shared:
+            // 
+            // Inputs and outputs are done using portable, mapped pinned memory.
+            // So there is no need to copy device->host at the end.
+            //
+            CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
+            *ms = ComputeGravitation_multiGPU_threaded( 
+                g_hostAOS_Force,
+                g_hostAOS_PosMass,
+                g_softening*g_softening,
+                g_N );
+            break;
     }
 
     // SOA -> AOS
@@ -362,7 +362,30 @@ Error:
 }
 
 workerThread *g_ThreadPool;
-size_t g_cThreads;
+size_t g_numThreads;
+
+int g_numCPUCores;
+int g_numGPUs;
+
+struct gpuInit_struct
+{
+    int iGPU;
+
+    cudaError_t status;
+};
+
+void
+initializeGPU( void *_p )
+{
+    cudaError_t status;
+
+    gpuInit_struct *p = (gpuInit_struct *) _p;
+    CUDART_CHECK( cudaSetDevice( p->iGPU ) );
+    CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
+    CUDART_CHECK( cudaFree(0) );
+Error:
+    p->status = status;    
+}
 
 int
 main( int argc, char *argv[] )
@@ -371,12 +394,36 @@ main( int argc, char *argv[] )
     // kiloparticles
     int kParticles = 4;
 
+    status = cudaGetDeviceCount( &g_numGPUs );
+    g_bCUDAPresent = (cudaSuccess == status) && (g_numGPUs > 0);
+    if ( g_bNoCPU && ! g_bCUDAPresent ) {
+        printf( "--nocpu specified, but no CUDA present...exiting\n" );
+        exit(1);
+    }
+
+    //
+    // Create enough CPU threads to drive all CPU cores and GPUs
+    //
+    // Both the multithreaded formulation of the SSE implementation
+    // and the multithreaded formulation of the multi-GPU implementation
+    // delegate to the same set of threads.
+    //
     {
-        g_cThreads = processorCount();
-        g_ThreadPool = new workerThread[g_cThreads];
-        for ( size_t i = 0; i < g_cThreads; i++ ) {
+        g_numCPUCores = processorCount();
+        g_numThreads = max( g_numCPUCores, g_numGPUs );
+        g_ThreadPool = new workerThread[g_numThreads];
+        for ( size_t i = 0; i < g_numThreads; i++ ) {
             if ( ! g_ThreadPool[i].initialize( ) ) {
                 fprintf( stderr, "Error initializing thread pool\n" );
+                return 1;
+            }
+        }
+        for ( int i = 0; i < g_numGPUs; i++ ) {
+            gpuInit_struct initGPU = {i};
+            g_ThreadPool[i].delegateSynchronous( initializeGPU, &initGPU );
+            if ( cudaSuccess != initGPU.status ) {
+                fprintf( stderr, "Initializing GPU %d failed with %d (%s)\n",
+                    i, initGPU.status, cudaGetErrorString( initGPU.status ) );
                 return 1;
             }
         }
@@ -391,29 +438,23 @@ main( int argc, char *argv[] )
     g_N = kParticles*1024;
     printf( "Running simulation with %d particles\n", (int) g_N );
 
-    status = cudaSetDeviceFlags( cudaDeviceMapHost );
-    g_bCUDAPresent = (cudaSuccess == status);
-    if ( g_bNoCPU && ! g_bCUDAPresent ) {
-        printf( "--nocpu specified, but no CUDA present...exiting\n" );
-        exit(1);
-    }
     g_Algorithm = g_bCUDAPresent ? GPU_AOS : CPU_SSE_threaded;
-    g_maxAlgorithm = (g_bCUDAPresent || g_bNoCPU) ? GPU_Shuffle : CPU_SSE_threaded;
+    g_maxAlgorithm = (g_bCUDAPresent || g_bNoCPU) ? multiGPU_Shared : CPU_SSE_threaded;
 
     if ( g_bCUDAPresent ) {
 
         CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
 
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_PosMass, 4*g_N*sizeof(float), cudaHostAllocPortable ) );
+        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_PosMass, 4*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
         for ( int i = 0; i < 3; i++ ) {
-            CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Pos[i], g_N*sizeof(float), cudaHostAllocPortable ) );
-            CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Force[i], g_N*sizeof(float), cudaHostAllocPortable ) );
+            CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Pos[i], g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+            CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Force[i], g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
         }
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_Force, 3*g_N*sizeof(float), cudaHostAllocPortable ) );
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_Force_Golden, 3*g_N*sizeof(float), cudaHostAllocPortable ) );
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_VelInvMass, 4*g_N*sizeof(float), cudaHostAllocPortable ) );
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Mass, g_N*sizeof(float), cudaHostAllocPortable ) );
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_InvMass, g_N*sizeof(float), cudaHostAllocPortable ) );
+        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_Force, 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_Force_Golden, 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_VelInvMass, 4*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Mass, g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_InvMass, g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
 
         CUDART_CHECK( cudaMalloc( &g_dptrAOS_PosMass, 4*g_N*sizeof(float) ) );
         CUDART_CHECK( cudaMalloc( (void **) &g_dptrAOS_Force, 3*g_N*sizeof(float) ) );

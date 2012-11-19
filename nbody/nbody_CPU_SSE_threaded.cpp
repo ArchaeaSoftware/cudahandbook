@@ -40,14 +40,11 @@
 #include <chTimer.h>
 #include <chThread.h>
 
+#include "nbody.h"
 #include "bodybodyInteraction_SSE.h"
 #include "nbody_CPU_SSE.h"
 
-
 using namespace cudahandbook::threading;
-
-extern workerThread *g_ThreadPool;
-extern size_t g_cThreads;
 
 struct sseDelegation {
     size_t i;   // base offset for this thread to process
@@ -112,12 +109,12 @@ ComputeGravitation_SSE_threaded(
     chTimerGetTime( &start );
 
     {
-        sseDelegation *psse = new sseDelegation[g_cThreads];
-        size_t bodiesPerCore = N / g_cThreads;
-        if ( N % g_cThreads ) {
+        sseDelegation *psse = new sseDelegation[g_numThreads];
+        size_t bodiesPerCore = N / g_numThreads;
+        if ( N % g_numThreads ) {
             return 0.0f;
         }
-        for ( size_t i = 0; i < g_cThreads; i++ ) {
+        for ( size_t i = 0; i < g_numThreads; i++ ) {
             psse[i].hostPosSOA[0] = pos[0];
             psse[i].hostPosSOA[1] = pos[1];
             psse[i].hostPosSOA[2] = pos[2];
@@ -133,7 +130,7 @@ ComputeGravitation_SSE_threaded(
 
             g_ThreadPool[i].delegateAsynchronous( sseWorkerThread, &psse[i] );
         }
-        workerThread::waitAll( g_ThreadPool, g_cThreads );
+        workerThread::waitAll( g_ThreadPool, g_numThreads );
         delete[] psse;
     }
 

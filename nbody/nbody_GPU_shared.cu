@@ -1,6 +1,6 @@
 /*
  *
- * nbody_GPU_Shared.h
+ * nbody_GPU_Shared.cu
  *
  * Shared memory-based implementation of the O(N^2) N-body calculation.
  *
@@ -33,6 +33,10 @@
  *
  */
 
+#include <chError.h>
+
+#include "bodyBodyInteraction.cuh"
+
 __global__ void
 ComputeNBodyGravitation_Shared( float *force, float *posMass, float softeningSquared, size_t N )
 {
@@ -47,10 +51,9 @@ ComputeNBodyGravitation_Shared( float *force, float *posMass, float softeningSqu
         for ( int j = 0; j < N; j += blockDim.x ) {
             shPosMass[threadIdx.x] = ((float4 *) posMass)[j+threadIdx.x];
             __syncthreads();
-//#pragma unroll 32
-            for ( size_t i = 0; i < blockDim.x; i++ ) {
+            for ( size_t k = 0; k < blockDim.x; k++ ) {
                 float fx, fy, fz;
-                float4 bodyPosMass = shPosMass[i];
+                float4 bodyPosMass = shPosMass[k];
 
                 bodyBodyInteraction( &fx, &fy, &fz, myPosMass.x, myPosMass.y, myPosMass.z, bodyPosMass.x, bodyPosMass.y, bodyPosMass.z, bodyPosMass.w, softeningSquared );
                 acc[0] += fx;
