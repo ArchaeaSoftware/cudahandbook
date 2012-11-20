@@ -33,6 +33,8 @@
  *
  */
 
+#include <stdio.h>
+
 #include <chError.h>
 #include <chTimer.h>
 #include <chThread.h>
@@ -57,21 +59,24 @@ ComputeNBodyGravitation_multiGPU( float *force, float *posMass, float softeningS
         for ( int j = 0; j < N; j += blockDim.x ) {
             shPosMass[threadIdx.x] = ((float4 *) posMass)[j+threadIdx.x];
             __syncthreads();
-//#pragma unroll 32
             for ( size_t i = 0; i < blockDim.x; i++ ) {
                 float fx, fy, fz;
                 float4 bodyPosMass = shPosMass[i];
 
-                bodyBodyInteraction( &fx, &fy, &fz, myPosMass.x, myPosMass.y, myPosMass.z, bodyPosMass.x, bodyPosMass.y, bodyPosMass.z, bodyPosMass.w, softeningSquared );
+                bodyBodyInteraction( 
+                    &fx, &fy, &fz, 
+                    myPosMass.x, myPosMass.y, myPosMass.z, 
+                    bodyPosMass.x, bodyPosMass.y, bodyPosMass.z, bodyPosMass.w, 
+                    softeningSquared );
                 acc[0] += fx;
                 acc[1] += fy;
                 acc[2] += fz;
             }
             __syncthreads();
         }
-        force[3*myIndex+0] = acc[0];
-        force[3*myIndex+1] = acc[1];
-        force[3*myIndex+2] = acc[2];
+        force[3*i+0] = acc[0];
+        force[3*i+1] = acc[1];
+        force[3*i+2] = acc[2];
     }
 }
 
@@ -108,9 +113,8 @@ gpuWorkerThread( void *_p )
         p->i,
         p->n,
         p->N );
-    // synchronous memcpy ensures that device is done
-    CUDART_CHECK( cudaMemcpy( p->hostForce+3*p->i*p->n, dptrForce, 3*p->n*sizeof(float), cudaMemcpyDeviceToHost ) );
-    //CUDART_CHECK( cudaDeviceSynchronize() );
+    // NOTE: synchronous memcpy, so no need for further synchronization with device
+    CUDART_CHECK( cudaMemcpy( p->hostForce+3*p->i, dptrForce, 3*p->n*sizeof(float), cudaMemcpyDeviceToHost ) );
 Error:
     cudaFree( dptrPosMass );
     cudaFree( dptrForce );
