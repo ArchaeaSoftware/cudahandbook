@@ -321,6 +321,7 @@ ComputeGravitation(
             // So there is no need to copy device->host at the end.
             //
             CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
+            memset( g_hostAOS_Force, 0, 3*g_N*sizeof(float) );
             *ms = ComputeGravitation_multiGPU_threaded( 
                 g_hostAOS_Force,
                 g_hostAOS_PosMass,

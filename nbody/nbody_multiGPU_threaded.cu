@@ -92,14 +92,15 @@ gpuWorkerThread( void *_p )
 {
     cudaError_t status;
     gpuDelegation *p = (gpuDelegation *) _p;
-    float *dptrPosMass;
-    float *dptrForce;
+    float *dptrPosMass = 0;
+    float *dptrForce = 0;
 
     //
     // Each GPU has its own device pointer to the host pointer.
     //
-    CUDART_CHECK( cudaHostGetDevicePointer( &dptrPosMass, p->hostPosMass, 0 ) );
-    CUDART_CHECK( cudaHostGetDevicePointer( &dptrForce, p->hostForce, 0 ) );
+    CUDART_CHECK( cudaMalloc( &dptrPosMass, 4*p->N*sizeof(float) ) );
+    CUDART_CHECK( cudaMalloc( &dptrForce, 3*p->n*sizeof(float) ) );
+    CUDART_CHECK( cudaMemcpyAsync( dptrPosMass, p->hostPosMass, 4*p->N*sizeof(float), cudaMemcpyHostToDevice ) );
     ComputeNBodyGravitation_multiGPU<<<300,256,256*sizeof(float4)>>>( 
         dptrForce,
         dptrPosMass,
@@ -107,8 +108,12 @@ gpuWorkerThread( void *_p )
         p->i,
         p->n,
         p->N );
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    // synchronous memcpy ensures that device is done
+    CUDART_CHECK( cudaMemcpy( p->hostForce+3*p->i*p->n, dptrForce, 3*p->n*sizeof(float), cudaMemcpyDeviceToHost ) );
+    //CUDART_CHECK( cudaDeviceSynchronize() );
 Error:
+    cudaFree( dptrPosMass );
+    cudaFree( dptrForce );
     p->status = status;
 }
 
@@ -124,7 +129,7 @@ ComputeGravitation_multiGPU_threaded(
     chTimerGetTime( &start );
     {
         gpuDelegation *pgpu = new gpuDelegation[g_numGPUs];
-        size_t bodiesPerCore = N / g_numGPUs;
+        size_t bodiesPerGPU = N / g_numGPUs;
         if ( N % g_numThreads ) {
             return 0.0f;
         }
@@ -136,8 +141,8 @@ ComputeGravitation_multiGPU_threaded(
 
             pgpu[i].softeningSquared = softeningSquared;
 
-            pgpu[i].i = bodiesPerCore*i;
-            pgpu[i].n = bodiesPerCore;
+            pgpu[i].i = bodiesPerGPU*i;
+            pgpu[i].n = bodiesPerGPU;
             pgpu[i].N = N;
 
             g_ThreadPool[i].delegateAsynchronous( gpuWorkerThread, &pgpu[i] );
