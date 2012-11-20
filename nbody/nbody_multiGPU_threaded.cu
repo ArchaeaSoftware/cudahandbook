@@ -134,7 +134,7 @@ ComputeGravitation_multiGPU_threaded(
     {
         gpuDelegation *pgpu = new gpuDelegation[g_numGPUs];
         size_t bodiesPerGPU = N / g_numGPUs;
-        if ( N % g_numThreads ) {
+        if ( N % g_numGPUs ) {
             return 0.0f;
         }
 
@@ -149,9 +149,9 @@ ComputeGravitation_multiGPU_threaded(
             pgpu[i].n = bodiesPerGPU;
             pgpu[i].N = N;
 
-            g_ThreadPool[i].delegateAsynchronous( gpuWorkerThread, &pgpu[i] );
+            g_GPUThreadPool[i].delegateAsynchronous( gpuWorkerThread, &pgpu[i] );
         }
-        workerThread::waitAll( g_ThreadPool, g_numGPUs );
+        workerThread::waitAll( g_GPUThreadPool, g_numGPUs );
         delete[] pgpu;
     }
 

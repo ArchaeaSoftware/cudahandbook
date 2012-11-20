@@ -109,12 +109,12 @@ ComputeGravitation_SSE_threaded(
     chTimerGetTime( &start );
 
     {
-        sseDelegation *psse = new sseDelegation[g_numThreads];
-        size_t bodiesPerCore = N / g_numThreads;
-        if ( N % g_numThreads ) {
+        sseDelegation *psse = new sseDelegation[g_numCPUCores];
+        size_t bodiesPerCore = N / g_numCPUCores;
+        if ( N % g_numCPUCores ) {
             return 0.0f;
         }
-        for ( size_t i = 0; i < g_numThreads; i++ ) {
+        for ( size_t i = 0; i < g_numCPUCores; i++ ) {
             psse[i].hostPosSOA[0] = pos[0];
             psse[i].hostPosSOA[1] = pos[1];
             psse[i].hostPosSOA[2] = pos[2];
@@ -128,9 +128,9 @@ ComputeGravitation_SSE_threaded(
             psse[i].n = bodiesPerCore;
             psse[i].N = N;
 
-            g_ThreadPool[i].delegateAsynchronous( sseWorkerThread, &psse[i] );
+            g_CPUThreadPool[i].delegateAsynchronous( sseWorkerThread, &psse[i] );
         }
-        workerThread::waitAll( g_ThreadPool, g_numThreads );
+        workerThread::waitAll( g_CPUThreadPool, g_numCPUCores );
         delete[] psse;
     }
 

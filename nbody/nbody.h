@@ -94,12 +94,11 @@ extern enum nbodyAlgorithm_enum g_maxAlgorithm;
 extern bool g_bCrossCheck;
 extern bool g_bNoCPU;
 
-extern cudahandbook::threading::workerThread *g_ThreadPool;
-
-extern size_t g_numThreads;
-
+extern cudahandbook::threading::workerThread *g_CPUThreadPool;
 extern int g_numCPUCores;
+
 extern int g_numGPUs;
+extern cudahandbook::threading::workerThread *g_GPUThreadPool;
 
 extern float ComputeGravitation_GPU_Shared       ( float *force, float *posMass, float softeningSquared, size_t N );
 extern float ComputeGravitation_multiGPU_threaded( float *force, float *posMass, float softeningSquared, size_t N );

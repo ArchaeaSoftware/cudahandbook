@@ -362,10 +362,10 @@ Error:
     return false;
 }
 
-workerThread *g_ThreadPool;
-size_t g_numThreads;
-
+workerThread *g_CPUThreadPool;
 int g_numCPUCores;
+
+workerThread *g_GPUThreadPool;
 int g_numGPUs;
 
 struct gpuInit_struct
@@ -395,6 +395,17 @@ main( int argc, char *argv[] )
     // kiloparticles
     int kParticles = 4;
 
+    {
+        g_numCPUCores = processorCount();
+        g_CPUThreadPool = new workerThread[g_numCPUCores];
+        for ( size_t i = 0; i < g_numCPUCores; i++ ) {
+            if ( ! g_CPUThreadPool[i].initialize( ) ) {
+                fprintf( stderr, "Error initializing thread pool\n" );
+                return 1;
+            }
+        }
+    }
+
     status = cudaGetDeviceCount( &g_numGPUs );
     g_bCUDAPresent = (cudaSuccess == status) && (g_numGPUs > 0);
     if ( g_bNoCPU && ! g_bCUDAPresent ) {
@@ -402,26 +413,17 @@ main( int argc, char *argv[] )
         exit(1);
     }
 
-    //
-    // Create enough CPU threads to drive all CPU cores and GPUs
-    //
-    // Both the multithreaded formulation of the SSE implementation
-    // and the multithreaded formulation of the multi-GPU implementation
-    // delegate to the same set of threads.
-    //
-    {
-        g_numCPUCores = processorCount();
-        g_numThreads = max( g_numCPUCores, g_numGPUs );
-        g_ThreadPool = new workerThread[g_numThreads];
-        for ( size_t i = 0; i < g_numThreads; i++ ) {
-            if ( ! g_ThreadPool[i].initialize( ) ) {
+    if ( g_numGPUs ) {
+        g_GPUThreadPool = new workerThread[g_numGPUs];
+        for ( size_t i = 0; i < g_numGPUs; i++ ) {
+            if ( ! g_GPUThreadPool[i].initialize( ) ) {
                 fprintf( stderr, "Error initializing thread pool\n" );
                 return 1;
             }
         }
         for ( int i = 0; i < g_numGPUs; i++ ) {
             gpuInit_struct initGPU = {i};
-            g_ThreadPool[i].delegateSynchronous( initializeGPU, &initGPU );
+            g_GPUThreadPool[i].delegateSynchronous( initializeGPU, &initGPU );
             if ( cudaSuccess != initGPU.status ) {
                 fprintf( stderr, "Initializing GPU %d failed with %d (%s)\n",
                     i, initGPU.status, cudaGetErrorString( initGPU.status ) );
