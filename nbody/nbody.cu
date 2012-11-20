@@ -395,6 +395,16 @@ main( int argc, char *argv[] )
     // kiloparticles
     int kParticles = 4;
 
+    if ( 1 == argc ) {
+        printf( "Usage: nbody --numbodies <N> [--nocpu] [--nocrosscheck]\n" );
+        printf( "    --numbodies is multiplied by 1024 (default is 4)\n" );
+        printf( "    By default, the app checks results against a CPU implementation; \n" );
+        printf( "    disable this behavior with --nocrosscheck.\n" );
+        printf( "    For larger N (say 64 and higher), the CPU implementation is\n" );
+        printf( "    prohibitively slow; disable it with --nocpu.\n" );
+        printf( "    --nocpu implies --nocrosscheck.\n" );
+    }
+
     {
         g_numCPUCores = processorCount();
         g_CPUThreadPool = new workerThread[g_numCPUCores];
@@ -439,10 +449,11 @@ main( int argc, char *argv[] )
     }
     chCommandLineGet( &kParticles, "numbodies", argc, argv );
     g_N = kParticles*1024;
-    printf( "Running simulation with %d particles\n", (int) g_N );
+    printf( "Running simulation with %d particles, crosscheck %s, CPU %s\n", (int) g_N,
+        g_bCrossCheck ? "enabled" : "disabled",
+        g_bNoCPU ? "disabled" : "enabled" );
 
     g_Algorithm = g_bCUDAPresent ? GPU_AOS : CPU_SSE_threaded;
-g_Algorithm = multiGPU_Shared;
     g_maxAlgorithm = (g_bCUDAPresent || g_bNoCPU) ? multiGPU_Shared : CPU_SSE_threaded;
 
     if ( g_bCUDAPresent ) {
