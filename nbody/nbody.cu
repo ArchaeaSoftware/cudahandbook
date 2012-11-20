@@ -440,6 +440,7 @@ main( int argc, char *argv[] )
     printf( "Running simulation with %d particles\n", (int) g_N );
 
     g_Algorithm = g_bCUDAPresent ? GPU_AOS : CPU_SSE_threaded;
+g_Algorithm = multiGPU_Shared;
     g_maxAlgorithm = (g_bCUDAPresent || g_bNoCPU) ? multiGPU_Shared : CPU_SSE_threaded;
 
     if ( g_bCUDAPresent ) {

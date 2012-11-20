@@ -35,7 +35,7 @@
 
 #include <chError.h>
 
-#include "bodyBodyInteraction.cuh"
+#include "bodybodyInteraction.cuh"
 
 __global__ void
 ComputeNBodyGravitation_Shared( float *force, float *posMass, float softeningSquared, size_t N )

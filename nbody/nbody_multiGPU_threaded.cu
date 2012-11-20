@@ -38,7 +38,7 @@
 #include <chThread.h>
 
 #include "nbody.h"
-#include "bodyBodyInteraction.cuh"
+#include "bodybodyInteraction.cuh"
 
 using namespace cudahandbook::threading;
 
