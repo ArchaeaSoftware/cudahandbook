@@ -191,7 +191,8 @@ const char *rgszAlgorithmNames[] = {
     "GPU_Atomic", 
     "GPU_Shared", 
     "GPU_Shuffle",
-    "multiGPU_Shared"
+    "multiGPU_SingleCPUThread",
+    "multiGPU_MultiCPUThread"
 };
 
 enum nbodyAlgorithm_enum g_Algorithm;
@@ -315,11 +316,16 @@ ComputeGravitation(
                 g_N );
             CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
-        case multiGPU_Shared:
-            // 
-            // Inputs and outputs are done using portable, mapped pinned memory.
-            // So there is no need to copy device->host at the end.
-            //
+        case multiGPU_SingleCPUThread:
+            CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
+            memset( g_hostAOS_Force, 0, 3*g_N*sizeof(float) );
+            *ms = ComputeGravitation_multiGPU_threaded( 
+                g_hostAOS_Force,
+                g_hostAOS_PosMass,
+                g_softening*g_softening,
+                g_N );
+            break;
+        case multiGPU_MultiCPUThread:
             CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
             memset( g_hostAOS_Force, 0, 3*g_N*sizeof(float) );
             *ms = ComputeGravitation_multiGPU_threaded( 
@@ -454,7 +460,7 @@ main( int argc, char *argv[] )
         g_bNoCPU ? "disabled" : "enabled" );
 
     g_Algorithm = g_bCUDAPresent ? GPU_AOS : CPU_SSE_threaded;
-    g_maxAlgorithm = (g_bCUDAPresent || g_bNoCPU) ? multiGPU_Shared : CPU_SSE_threaded;
+    g_maxAlgorithm = (g_bCUDAPresent || g_bNoCPU) ? multiGPU_MultiCPUThread : CPU_SSE_threaded;
 
     if ( g_bCUDAPresent ) {
 

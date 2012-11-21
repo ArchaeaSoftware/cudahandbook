@@ -74,7 +74,8 @@ enum nbodyAlgorithm_enum {
     GPU_Atomic,
     GPU_Shared,
     GPU_Shuffle,
-    multiGPU_Shared,
+    multiGPU_SingleCPUThread,
+    multiGPU_MultiCPUThread
     /*,
     GPU_SOA,
     MultiGPU*/
@@ -100,8 +101,9 @@ extern int g_numCPUCores;
 extern int g_numGPUs;
 extern cudahandbook::threading::workerThread *g_GPUThreadPool;
 
-extern float ComputeGravitation_GPU_Shared       ( float *force, float *posMass, float softeningSquared, size_t N );
-extern float ComputeGravitation_multiGPU_threaded( float *force, float *posMass, float softeningSquared, size_t N );
+extern float ComputeGravitation_GPU_Shared           ( float *force, float *posMass, float softeningSquared, size_t N );
+extern float ComputeGravitation_multiGPU_singlethread( float *force, float *posMass, float softeningSquared, size_t N );
+extern float ComputeGravitation_multiGPU_threaded    ( float *force, float *posMass, float softeningSquared, size_t N );
 
 
 #endif
