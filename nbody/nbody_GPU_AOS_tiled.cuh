@@ -50,8 +50,6 @@ DoDiagonalTile_GPU(
     float myY = posMass[i*4+1];
     float myZ = posMass[i*4+2];
 
-if ( 0 == threadIdx.x ) printf( "Computing tile %d (%d..%d)\n", i, i+blockDim.x);
-
     for ( size_t _j = 0; _j < nTile; _j++ ) {
         size_t j = jTile*nTile+_j;
 
@@ -82,17 +80,27 @@ template<int nTile, typename T>
 __global__ void
 ComputeNBodyGravitation_GPU_tiled( T *force, T *posMass, size_t N, T softeningSquared )
 {
-    for ( int iTile = blockIdx.x*blockDim.x;
+#if 1
+    if ( blockIdx.x == 0 ) {
+        for ( int iTile = 0; iTile < N/nTile; iTile += 1 ) {
+            for ( int jTile = 0; jTile < N/nTile; jTile += 1 ) {
+                DoDiagonalTile_GPU<32,T>( force, posMass, softeningSquared, iTile, jTile );
+            }
+        }
+    }
+#else
+    for ( int iTile = blockIdx.x*gridDim.x;
               iTile < N/nTile;
-              iTile += blockDim.x*gridDim.x )
+              iTile += gridDim.x )
     {
-        for ( int jTile = blockIdx.x*blockDim.x;
+        for ( int jTile = 0;
                   jTile < N/nTile;
-                  jTile += blockDim.x*gridDim.x )
+                  jTile += 1 )
         {
             DoDiagonalTile_GPU<32,T>( force, posMass, softeningSquared, iTile, jTile );
         }
     }
+#endif
 }
 
 float
@@ -106,7 +114,6 @@ ComputeGravitation_GPU_AOS_tiled(
     cudaError_t status;
     cudaEvent_t evStart = 0, evStop = 0;
     float ms = 0.0;
-    cudaPrintfInit();
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
     CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
@@ -118,7 +125,6 @@ ComputeGravitation_GPU_AOS_tiled(
 Error:
     CUDART_CHECK( cudaEventDestroy( evStop ) );
     CUDART_CHECK( cudaEventDestroy( evStart ) );
-    cudaPrintfDisplay();
     return ms;
 }
 
