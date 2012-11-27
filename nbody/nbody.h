@@ -71,6 +71,7 @@ enum nbodyAlgorithm_enum {
     CPU_SSE,
     CPU_SSE_threaded,
     GPU_AOS,
+    GPU_AOS_tiled,
     GPU_Atomic,
     GPU_Shared,
     GPU_Shuffle,

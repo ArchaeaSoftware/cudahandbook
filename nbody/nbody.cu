@@ -7,9 +7,11 @@
  * parallelizable, with lots of FLOPS per unit of external 
  * memory bandwidth required.
  *
- * Build with: nvcc -I ../chLib <options> nbody.cu nbody_CPU_SSE.cpp nbody_CPU_SSE_threaded.cpp
- *   On Linux: nvcc -I ../chLib <options> nbody.cu nbody_CPU_SSE.cpp nbody_CPU_SSE_threaded.cpp -lpthread -lrt
- * Requires: No minimum SM requirement.
+ * Build with: nvcc -I ../chLib <options> nbody.cu nbody_CPU_SSE.cpp nbody_CPU_SSE_threaded.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu
+ *   On Linux: nvcc -I ../chLib <options> nbody.cu nbody_CPU_SSE.cpp nbody_CPU_SSE_threaded.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu -lpthread -lrt
+ * Requires: No minimum SM requirement.  If SM 3.x is not available,
+ * this application quietly replaces the shuffle and fast-atomic
+ * implemnetations with the shared memory implementation.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -132,6 +134,7 @@ relError( T a, T b )
 #include "nbody_CPU_SSE_threaded.h"
 
 #include "nbody_GPU_AOS.cuh"
+#include "nbody_GPU_AOS_tiled.cuh"
 #include "nbody_GPU_Shuffle.cuh"
 #include "nbody_GPU_Atomic.cuh"
 
@@ -188,6 +191,7 @@ const char *rgszAlgorithmNames[] = {
     "CPU_SSE", 
     "CPU_SSE_threaded", 
     "GPU_AOS", 
+    "GPU_AOS_tiled",
     "GPU_Atomic", 
     "GPU_Shared", 
     "GPU_Shuffle",
@@ -283,6 +287,14 @@ ComputeGravitation(
             break;
         case GPU_AOS:
             *ms = ComputeGravitation_GPU_AOS( 
+                g_dptrAOS_Force,
+                g_dptrAOS_PosMass,
+                g_softening*g_softening,
+                g_N );
+            CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
+            break;
+        case GPU_AOS_tiled:
+            *ms = ComputeGravitation_GPU_AOS_tiled( 
                 g_dptrAOS_Force,
                 g_dptrAOS_PosMass,
                 g_softening*g_softening,
