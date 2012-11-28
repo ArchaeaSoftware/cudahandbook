@@ -35,6 +35,8 @@
  *
  */
 
+
+
 template<int nTile, typename T>
 __device__ void
 DoDiagonalTile_GPU( 
@@ -75,12 +77,20 @@ DoDiagonalTile_GPU(
 }
 
 
+template<int nTile, typename T>
+__global__ void
+ComputeNBodyGravitation_GPU_tile( T *force, T *posMass, size_t N, T softeningSquared, int iTile, int jTile )
+{
+    DoDiagonalTile_GPU<32,T>( force, posMass, softeningSquared, iTile, jTile );
+}
+
+
 
 template<int nTile, typename T>
 __global__ void
 ComputeNBodyGravitation_GPU_tiled( T *force, T *posMass, size_t N, T softeningSquared )
 {
-#if 1
+#if 0
     if ( blockIdx.x == 0 ) {
         for ( int iTile = 0; iTile < N/nTile; iTile += 1 ) {
             for ( int jTile = 0; jTile < N/nTile; jTile += 1 ) {
@@ -103,7 +113,7 @@ ComputeNBodyGravitation_GPU_tiled( T *force, T *posMass, size_t N, T softeningSq
 #endif
 }
 
-float
+cudaError_t
 ComputeGravitation_GPU_AOS_tiled(
     float *force, 
     float *posMass,
@@ -112,19 +122,24 @@ ComputeGravitation_GPU_AOS_tiled(
 )
 {
     cudaError_t status;
-    cudaEvent_t evStart = 0, evStop = 0;
-    float ms = 0.0;
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
-    CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
+    float *forces = new float[3*N];
     CUDART_CHECK( cudaMemset( force, 0, 3*N*sizeof(float) ) );
-    ComputeNBodyGravitation_GPU_tiled<32,float> <<<300,32>>>( force, posMass, N, softeningSquared );
-    CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
-    CUDART_CHECK( cudaDeviceSynchronize() );
-    CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
-Error:
-    CUDART_CHECK( cudaEventDestroy( evStop ) );
-    CUDART_CHECK( cudaEventDestroy( evStart ) );
-    return ms;
-}
+    for ( int iTile = 0; iTile < N/32; iTile++ ) {
+        for ( int jTile = 0; jTile < N/32; jTile++ ) {
 
+            ComputeNBodyGravitation_GPU_tile<32,float> <<<1,32>>>( 
+                force, 
+                posMass, 
+                N, 
+                softeningSquared,
+                iTile,
+                jTile );
+
+            CUDART_CHECK( cudaMemcpy( forces, force, 3*N*sizeof(float), cudaMemcpyDeviceToHost ) );
+
+        }
+    }
+    CUDART_CHECK( cudaDeviceSynchronize() );
+Error:
+    return status;
+}

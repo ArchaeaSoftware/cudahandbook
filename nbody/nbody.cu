@@ -11,7 +11,7 @@
  *   On Linux: nvcc -I ../chLib <options> nbody.cu nbody_CPU_SSE.cpp nbody_CPU_SSE_threaded.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu -lpthread -lrt
  * Requires: No minimum SM requirement.  If SM 3.x is not available,
  * this application quietly replaces the shuffle and fast-atomic
- * implemnetations with the shared memory implementation.
+ * implementations with the shared memory implementation.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -294,12 +294,13 @@ ComputeGravitation(
             CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
         case GPU_AOS_tiled:
-            *ms = ComputeGravitation_GPU_AOS_tiled( 
+            CUDART_CHECK( ComputeGravitation_GPU_AOS_tiled( 
                 g_dptrAOS_Force,
                 g_dptrAOS_PosMass,
                 g_softening*g_softening,
-                g_N );
+                g_N ) );
             CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
+            *ms = 0.0f;
             break;
         case GPU_Atomic:
             CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*sizeof(float) ) );
@@ -472,6 +473,7 @@ main( int argc, char *argv[] )
         g_bNoCPU ? "disabled" : "enabled" );
 
     g_Algorithm = g_bCUDAPresent ? GPU_AOS : CPU_SSE_threaded;
+g_Algorithm = GPU_AOS_tiled;
     g_maxAlgorithm = (g_bCUDAPresent || g_bNoCPU) ? multiGPU_MultiCPUThread : CPU_SSE_threaded;
 
     if ( g_bCUDAPresent ) {
