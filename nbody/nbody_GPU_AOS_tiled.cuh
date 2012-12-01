@@ -162,19 +162,11 @@ ComputeNBodyGravitation_GPU_nondiagonaltile( float *force, float *posMass, size_
 
 
 
+#if 0
 template<int nTile>
 __global__ void
 ComputeNBodyGravitation_GPU_tiled( float *force, float *posMass, size_t N, float softeningSquared )
 {
-#if 0
-    if ( blockIdx.x == 0 ) {
-        for ( int iTile = 0; iTile < N/nTile; iTile += 1 ) {
-            for ( int jTile = 0; jTile < N/nTile; jTile += 1 ) {
-                DoDiagonalTile_GPU<32,T>( force, posMass, softeningSquared, iTile, jTile );
-            }
-        }
-    }
-#else
     for ( int iTile = blockIdx.x*gridDim.x;
               iTile < N/nTile;
               iTile += gridDim.x )
@@ -186,7 +178,21 @@ ComputeNBodyGravitation_GPU_tiled( float *force, float *posMass, size_t N, float
             DoDiagonalTile_GPU<32>( force, posMass, softeningSquared, iTile, jTile );
         }
     }
+}
 #endif
+
+template<int nTile>
+__global__ void
+ComputeNBodyGravitation_GPU_tiled( float *force, float *posMass, size_t N, float softeningSquared )
+{
+    int iTile = blockIdx.x;
+    int jTile = blockIdx.y;
+    if ( iTile == jTile ) {
+        DoDiagonalTile_GPU<nTile>( force, posMass, softeningSquared, iTile, jTile );
+    }
+    else if ( jTile < iTile ) {
+        DoNondiagonalTile_GPU<nTile>( force, posMass, softeningSquared, iTile, jTile );
+    }
 }
 
 cudaError_t
@@ -199,48 +205,11 @@ ComputeGravitation_GPU_AOS_tiled(
 {
     cudaError_t status;
 
-#if 0
-    float *cpuForce = new float[3*N];
-    memset( cpuForce, 0, 3*N*sizeof(float) );
-    float *cpuPosMass = new float[4*N];
+    dim3 blocks( N/32, N/32, 1 );
 
-    float *forces = new float[3*N];
-
-    CUDART_CHECK( cudaMemcpy( cpuPosMass, posMass, 4*N*sizeof(float), cudaMemcpyDeviceToHost ) );
-#endif
     CUDART_CHECK( cudaMemset( force, 0, 3*N*sizeof(float) ) );
-    for ( int iTile = 0; iTile < N/32; iTile++ ) {
-        int jTile;
-        for ( jTile = 0; jTile < iTile; jTile++ ) {
-
-//            DoNondiagonalTile<32>( cpuForce, cpuPosMass, softeningSquared, iTile, jTile );
-
-            ComputeNBodyGravitation_GPU_nondiagonaltile<32> <<<1,32>>>( 
-                force, 
-                posMass, 
-                N, 
-                softeningSquared,
-                iTile,
-                jTile );
-
-//            CUDART_CHECK( cudaMemcpy( forces, force, 3*N*sizeof(float), cudaMemcpyDeviceToHost ) );
-
-        }
-        ComputeNBodyGravitation_GPU_diagonaltile<32> <<<1,32>>>(
-                force, 
-                posMass, 
-                N, 
-                softeningSquared,
-                iTile,
-                jTile );
-//        CUDART_CHECK( cudaMemcpy( forces, force, 3*N*sizeof(float), cudaMemcpyDeviceToHost ) );
-    }
+    ComputeNBodyGravitation_GPU_tiled<32><<<blocks,32>>>( force, posMass, N, softeningSquared );
     CUDART_CHECK( cudaDeviceSynchronize() );
 Error:
-#if 0
-    delete[] force;
-    delete[] cpuPosMass;
-    delete[] cpuForce;
-#endif
     return status;
 }
