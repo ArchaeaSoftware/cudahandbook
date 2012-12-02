@@ -213,42 +213,6 @@ DoNondiagonalTile_GPU(
 
 }
 
-
-template<int nTile>
-__global__ void
-ComputeNBodyGravitation_GPU_diagonaltile( float *force, float *posMass, size_t N, float softeningSquared, int iTile, int jTile )
-{
-    DoDiagonalTile_GPU<32>( force, posMass, softeningSquared, iTile, jTile );
-}
-
-template<int nTile>
-__global__ void
-ComputeNBodyGravitation_GPU_nondiagonaltile( float *force, float *posMass, size_t N, float softeningSquared, int iTile, int jTile )
-{
-    DoNondiagonalTile_GPU<32>( force, posMass, softeningSquared, iTile, jTile );
-}
-
-
-
-#if 0
-template<int nTile>
-__global__ void
-ComputeNBodyGravitation_GPU_tiled( float *force, float *posMass, size_t N, float softeningSquared )
-{
-    for ( int iTile = blockIdx.x*gridDim.x;
-              iTile < N/nTile;
-              iTile += gridDim.x )
-    {
-        for ( int jTile = 0;
-                  jTile < N/nTile;
-                  jTile += 1 )
-        {
-            DoDiagonalTile_GPU<32>( force, posMass, softeningSquared, iTile, jTile );
-        }
-    }
-}
-#endif
-
 template<int nTile>
 __global__ void
 ComputeNBodyGravitation_GPU_tiled( float *force, float *posMass, size_t N, float softeningSquared )
