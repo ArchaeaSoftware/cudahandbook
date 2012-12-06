@@ -44,7 +44,8 @@ DoDiagonalTile_GPU(
     size_t iTile, size_t jTile
 )
 {
-    size_t i = iTile*nTile+threadIdx.x;
+    int laneid = threadIdx.x&0x1f;
+    size_t i = iTile*nTile+laneid;
     float acc[3] = {0, 0, 0};
     float myX = posMass[i*4+0];
     float myY = posMass[i*4+1];
@@ -74,49 +75,6 @@ DoDiagonalTile_GPU(
     atomicAdd( &force[3*i+2], acc[2] );
 }
 
-#if 1
-template<typename ReductionType, typename T, unsigned int numThreads>
-__device__ void
-Reduction4_LogStepShared( volatile ReductionType *sPartials )
-{
-    const int tid = threadIdx.x;
-    if (numThreads >= 1024) {
-        if (tid < 512) { 
-            sPartials[tid] += sPartials[tid + 512];
-        }
-        __syncthreads();
-    }
-    if (numThreads >= 512) { 
-        if (tid < 256) {
-            sPartials[tid] += sPartials[tid + 256]; 
-        } 
-        __syncthreads();
-    }
-    if (numThreads >= 256) {
-        if (tid < 128) {
-            sPartials[tid] += sPartials[tid + 128];
-        } 
-        __syncthreads();
-    }
-    if (numThreads >= 128) {
-        if (tid <  64) { 
-            sPartials[tid] += sPartials[tid +  64];
-        } 
-        __syncthreads();
-    }
-
-    // warp synchronous at the end
-    if ( tid < 32 ) {
-        volatile ReductionType *wsSum = sPartials;
-        if (numThreads >=  64) { wsSum[tid] += wsSum[tid + 32]; }
-        if (numThreads >=  32) { wsSum[tid] += wsSum[tid + 16]; }
-        if (numThreads >=  16) { wsSum[tid] += wsSum[tid +  8]; }
-        if (numThreads >=   8) { wsSum[tid] += wsSum[tid +  4]; }
-        if (numThreads >=   4) { wsSum[tid] += wsSum[tid +  2]; }
-        if (numThreads >=   2) { wsSum[tid] += wsSum[tid +  1]; }
-    }
-}
-#else
 inline float
 __device__
 warpReduce( float x )
@@ -128,20 +86,6 @@ warpReduce( float x )
     x += __int_as_float( __shfl_xor( __float_as_int(x),  1 ) );
     return x;
 }
-#endif
-
-template<int numThreads>
-inline void
-__device__
-warpReduce( volatile float wsSum[numThreads] )
-{
-    const int tid = threadIdx.x;
-    if (numThreads >=  32) { wsSum[tid] += wsSum[tid + 16]; }
-    if (numThreads >=  16) { wsSum[tid] += wsSum[tid +  8]; }
-    if (numThreads >=   8) { wsSum[tid] += wsSum[tid +  4]; }
-    if (numThreads >=   4) { wsSum[tid] += wsSum[tid +  2]; }
-    if (numThreads >=   2) { wsSum[tid] += wsSum[tid +  1]; }
-}
 
 template<int nTile>
 __device__ void
@@ -152,15 +96,12 @@ DoNondiagonalTile_GPU(
     size_t iTile, size_t jTile
 )
 {
-    size_t i = iTile*nTile+threadIdx.x;
+    int laneid = threadIdx.x&0x1f;
+    size_t i = iTile*nTile+laneid;
     float ax = 0.0f, ay = 0.0f, az = 0.0f;
     float myX = posMass[i*4+0];
     float myY = posMass[i*4+1];
     float myZ = posMass[i*4+2];
-
-    volatile __shared__ float symmetricX[nTile];
-    volatile __shared__ float symmetricY[nTile];
-    volatile __shared__ float symmetricZ[nTile];
 
     for ( size_t _j = 0; _j < nTile; _j++ ) {
         size_t j = jTile*nTile+_j;
@@ -181,29 +122,14 @@ DoNondiagonalTile_GPU(
         ay += fy;
         az += fz;
 
-        symmetricX[threadIdx.x] = -fx;
-        symmetricY[threadIdx.x] = -fy;
-        symmetricZ[threadIdx.x] = -fz;
-
-#if 0
-        warpReduce<nTile>( symmetricX );
-        warpReduce<nTile>( symmetricY );
-        warpReduce<nTile>( symmetricZ );
-#else
-        Reduction4_LogStepShared<float,float,nTile>( symmetricX );
-        Reduction4_LogStepShared<float,float,nTile>( symmetricY );
-        Reduction4_LogStepShared<float,float,nTile>( symmetricZ );
-#endif
-
-#if 0
         fx = warpReduce( -fx );
         fy = warpReduce( -fy );
         fz = warpReduce( -fz );
-#endif
-        if ( threadIdx.x == 0 ) {
-            atomicAdd( &force[3*j+0], symmetricX[0] );
-            atomicAdd( &force[3*j+1], symmetricY[0] );
-            atomicAdd( &force[3*j+2], symmetricZ[0]);
+
+        if ( laneid == 0 ) {
+            atomicAdd( &force[3*j+0], fx );
+            atomicAdd( &force[3*j+1], fy );
+            atomicAdd( &force[3*j+2], fz );
         }
     }
 
@@ -215,15 +141,24 @@ DoNondiagonalTile_GPU(
 
 template<int nTile>
 __global__ void
-ComputeNBodyGravitation_GPU_tiled( float *force, float *posMass, size_t N, float softeningSquared )
+ComputeNBodyGravitation_GPU_tiled( 
+    float *force, 
+    float *posMass, 
+    size_t N, 
+    float softeningSquared )
 {
-    int iTile = blockIdx.x;
+    int warpsPerBlock = nTile/32;
+    const int warpid = threadIdx.x >> 5;
+
+    int iTileCoarse = blockIdx.x;
+    int iTile = iTileCoarse*warpsPerBlock+warpid;
     int jTile = blockIdx.y;
+
     if ( iTile == jTile ) {
-        DoDiagonalTile_GPU<nTile>( force, posMass, softeningSquared, iTile, jTile );
+        DoDiagonalTile_GPU<32>( force, posMass, softeningSquared, iTile, jTile );
     }
     else if ( jTile < iTile ) {
-        DoNondiagonalTile_GPU<nTile>( force, posMass, softeningSquared, iTile, jTile );
+        DoNondiagonalTile_GPU<32>( force, posMass, softeningSquared, iTile, jTile );
     }
 }
 
@@ -238,7 +173,9 @@ ComputeGravitation_GPU_AOS_tiled(
 {
     cudaError_t status;
 
-    dim3 blocks( N/nTile, N/nTile, 1 );
+    int warpsPerBlock = nTile/32;
+    dim3 blocks( N/nTile, N/32, 1 );
+    int numTiles = (N/32)*(N/32);
 
     CUDART_CHECK( cudaMemset( force, 0, 3*N*sizeof(float) ) );
     ComputeNBodyGravitation_GPU_tiled<nTile><<<blocks,nTile>>>( force, posMass, N, softeningSquared );
@@ -261,7 +198,7 @@ ComputeGravitation_GPU_AOS_tiled(
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
     CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
-    CUDART_CHECK( ComputeGravitation_GPU_AOS_tiled<32>(
+    CUDART_CHECK( ComputeGravitation_GPU_AOS_tiled<256>(
         force, 
         posMass,
         softeningSquared,
