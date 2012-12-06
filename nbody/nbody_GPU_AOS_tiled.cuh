@@ -172,10 +172,7 @@ ComputeGravitation_GPU_AOS_tiled(
 )
 {
     cudaError_t status;
-
-    int warpsPerBlock = nTile/32;
     dim3 blocks( N/nTile, N/32, 1 );
-    int numTiles = (N/32)*(N/32);
 
     CUDART_CHECK( cudaMemset( force, 0, 3*N*sizeof(float) ) );
     ComputeNBodyGravitation_GPU_tiled<nTile><<<blocks,nTile>>>( force, posMass, N, softeningSquared );
@@ -198,7 +195,7 @@ ComputeGravitation_GPU_AOS_tiled(
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
     CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
-    CUDART_CHECK( ComputeGravitation_GPU_AOS_tiled<256>(
+    CUDART_CHECK( ComputeGravitation_GPU_AOS_tiled<128>(
         force, 
         posMass,
         softeningSquared,
