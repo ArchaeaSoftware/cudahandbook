@@ -99,23 +99,29 @@ DoNondiagonalTile_GPU(
     int laneid = threadIdx.x&0x1f;
     size_t i = iTile*nTile+laneid;
     float ax = 0.0f, ay = 0.0f, az = 0.0f;
-    float myX = posMass[i*4+0];
-    float myY = posMass[i*4+1];
-    float myZ = posMass[i*4+2];
+    float4 myPosMass = ((float4 *) posMass)[i];
+    float myX = myPosMass.x;
+    float myY = myPosMass.y;
+    float myZ = myPosMass.z;
 
+    float4 shufSrcPosMass = ((float4 *) posMass)[jTile*nTile+laneid];
+
+//#pragma unroll
     for ( size_t _j = 0; _j < nTile; _j++ ) {
         size_t j = jTile*nTile+_j;
 
         float fx, fy, fz;
-        float bodyX = posMass[j*4+0];
-        float bodyY = posMass[j*4+1];
-        float bodyZ = posMass[j*4+2];
-        float bodyMass = posMass[j*4+3];
+        float4 bodyPosMass;
+
+        bodyPosMass.x = __shfl( shufSrcPosMass.x, _j );
+        bodyPosMass.y = __shfl( shufSrcPosMass.y, _j );
+        bodyPosMass.z = __shfl( shufSrcPosMass.z, _j );
+        bodyPosMass.w = __shfl( shufSrcPosMass.w, _j );
 
         bodyBodyInteraction<float>(
             &fx, &fy, &fz,
             myX, myY, myZ,
-            bodyX, bodyY, bodyZ, bodyMass,
+            bodyPosMass.x, bodyPosMass.y, bodyPosMass.z, bodyPosMass.w,
             softeningSquared );
 
         ax += fx;
