@@ -135,6 +135,7 @@ relError( T a, T b )
 
 #include "nbody_GPU_AOS.cuh"
 #include "nbody_GPU_AOS_tiled.cuh"
+#include "nbody_GPU_SOA_tiled.cuh"
 #include "nbody_GPU_Shuffle.cuh"
 #include "nbody_GPU_Atomic.cuh"
 
@@ -192,6 +193,7 @@ const char *rgszAlgorithmNames[] = {
     "CPU_SSE_threaded", 
     "GPU_AOS", 
     "GPU_AOS_tiled",
+    "GPU_SOA_tiled",
     "GPU_Atomic", 
     "GPU_Shared", 
     "GPU_Shuffle",
