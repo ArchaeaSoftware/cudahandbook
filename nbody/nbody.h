@@ -73,7 +73,7 @@ enum nbodyAlgorithm_enum {
     GPU_AOS,
     GPU_AOS_tiled,
     GPU_SOA_tiled,
-    GPU_Atomic,
+    //GPU_Atomic,
     GPU_Shared,
     GPU_Shuffle,
     multiGPU_SingleCPUThread,

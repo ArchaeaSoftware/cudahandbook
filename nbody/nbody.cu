@@ -194,7 +194,7 @@ const char *rgszAlgorithmNames[] = {
     "GPU_AOS", 
     "GPU_AOS_tiled",
     "GPU_SOA_tiled",
-    "GPU_Atomic", 
+    //"GPU_Atomic", 
     "GPU_Shared", 
     "GPU_Shuffle",
     "multiGPU_SingleCPUThread",
@@ -303,6 +303,7 @@ ComputeGravitation(
                 g_N );
             CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
+/*
         case GPU_Atomic:
             CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*sizeof(float) ) );
             *ms = ComputeGravitation_GPU_Atomic( 
@@ -312,6 +313,7 @@ ComputeGravitation(
                 g_N );
             CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
+*/
         case GPU_Shared:
             CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
             *ms = ComputeGravitation_GPU_Shared( 
@@ -354,11 +356,12 @@ ComputeGravitation(
     if ( bSOA ) {
         for ( size_t i = 0; i < g_N; i++ ) {
             g_hostAOS_Force[3*i+0] = g_hostSOA_Force[0][i];
-            g_hostAOS_Force[3*i+1] = g_hostSOA_Force[1][i];
+            g_hostAOS_Force[3*i+1] = g_hostSOA_Force[1][i]; 
             g_hostAOS_Force[3*i+2] = g_hostSOA_Force[2][i];
         }
     }
 
+	*maxRelError = 0.0f;
     if ( bCrossCheck ) {
         float max = 0.0f;
         for ( size_t i = 0; i < 3*g_N; i++ ) {
@@ -444,6 +447,7 @@ main( int argc, char *argv[] )
     }
 
     if ( g_numGPUs ) {
+		chCommandLineGet( &g_numGPUs, "numgpus", argc, argv );
         g_GPUThreadPool = new workerThread[g_numGPUs];
         for ( size_t i = 0; i < g_numGPUs; i++ ) {
             if ( ! g_GPUThreadPool[i].initialize( ) ) {
