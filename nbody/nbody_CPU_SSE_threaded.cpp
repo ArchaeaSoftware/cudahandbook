@@ -128,7 +128,9 @@ ComputeGravitation_SSE_threaded(
             psse[i].n = bodiesPerCore;
             psse[i].N = N;
 
-            g_CPUThreadPool[i].delegateAsynchronous( sseWorkerThread, &psse[i] );
+            g_CPUThreadPool[i].delegateAsynchronous( 
+                sseWorkerThread, 
+                &psse[i] );
         }
         workerThread::waitAll( g_CPUThreadPool, g_numCPUCores );
         delete[] psse;

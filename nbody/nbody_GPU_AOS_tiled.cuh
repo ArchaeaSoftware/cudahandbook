@@ -106,7 +106,6 @@ DoNondiagonalTile_GPU(
 
     float4 shufSrcPosMass = ((float4 *) posMass)[jTile*nTile+laneid];
 
-//#pragma unroll
     for ( size_t _j = 0; _j < nTile; _j++ ) {
         size_t j = jTile*nTile+_j;
 
@@ -161,10 +160,18 @@ ComputeNBodyGravitation_GPU_tiled(
     int jTile = blockIdx.y;
 
     if ( iTile == jTile ) {
-        DoDiagonalTile_GPU<32>( force, posMass, softeningSquared, iTile, jTile );
+        DoDiagonalTile_GPU<32>( 
+            force, 
+            posMass, 
+            softeningSquared, 
+            iTile, jTile );
     }
     else if ( jTile < iTile ) {
-        DoNondiagonalTile_GPU<32>( force, posMass, softeningSquared, iTile, jTile );
+        DoNondiagonalTile_GPU<32>( 
+            force, 
+            posMass, 
+            softeningSquared, 
+            iTile, jTile );
     }
 }
 

@@ -38,7 +38,11 @@
 #include "bodybodyInteraction.cuh"
 
 __global__ void
-ComputeNBodyGravitation_Shared( float *force, float *posMass, float softeningSquared, size_t N )
+ComputeNBodyGravitation_Shared( 
+    float *force, 
+    float *posMass, 
+    float softeningSquared, 
+    size_t N )
 {
     extern __shared__ float4 shPosMass[];
     for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
@@ -55,7 +59,14 @@ ComputeNBodyGravitation_Shared( float *force, float *posMass, float softeningSqu
                 float fx, fy, fz;
                 float4 bodyPosMass = shPosMass[k];
 
-                bodyBodyInteraction( &fx, &fy, &fz, myPosMass.x, myPosMass.y, myPosMass.z, bodyPosMass.x, bodyPosMass.y, bodyPosMass.z, bodyPosMass.w, softeningSquared );
+                bodyBodyInteraction( 
+                    &fx, &fy, &fz, 
+                    myPosMass.x, myPosMass.y, myPosMass.z, 
+                    bodyPosMass.x, 
+                    bodyPosMass.y, 
+                    bodyPosMass.z, 
+                    bodyPosMass.w, 
+                    softeningSquared );
                 acc[0] += fx;
                 acc[1] += fy;
                 acc[2] += fz;
@@ -69,7 +80,11 @@ ComputeNBodyGravitation_Shared( float *force, float *posMass, float softeningSqu
 }
 
 float
-ComputeGravitation_GPU_Shared( float *force, float *posMass, float softeningSquared, size_t N )
+ComputeGravitation_GPU_Shared( 
+    float *force, 
+    float *posMass, 
+    float softeningSquared, 
+    size_t N )
 {
     cudaError_t status;
     cudaEvent_t evStart = 0, evStop = 0;
