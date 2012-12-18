@@ -55,15 +55,12 @@ DoDiagonalTile_GPU(
         size_t j = jTile*nTile+_j;
 
         float fx, fy, fz;
-        float bodyX = posMass[j*4+0];
-        float bodyY = posMass[j*4+1];
-        float bodyZ = posMass[j*4+2];
-        float bodyMass = posMass[j*4+3];
+		float4 body = ((float4 *) posMass)[j];
 
         bodyBodyInteraction<float>(
             &fx, &fy, &fz,
             myX, myY, myZ,
-            bodyX, bodyY, bodyZ, bodyMass,
+            body.x, body.y, body.z, body.w,
             softeningSquared );
         acc[0] += fx;
         acc[1] += fy;
