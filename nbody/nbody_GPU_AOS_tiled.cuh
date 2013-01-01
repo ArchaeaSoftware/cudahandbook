@@ -35,6 +35,8 @@
  *
  */
 
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 300
+
 template<int nTile>
 __device__ void
 DoDiagonalTile_GPU( 
@@ -221,3 +223,16 @@ Error:
     CUDART_CHECK( cudaEventDestroy( evStart ) );
     return ms;
 }
+#else
+// here for build purposes when compiling for non-SM 3.0 architectures
+float
+ComputeGravitation_GPU_AOS_tiled(
+    float *force, 
+    float *posMass,
+    float softeningSquared,
+    size_t N
+)
+{
+    return 0.0f;
+}
+#endif

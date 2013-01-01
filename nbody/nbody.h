@@ -71,13 +71,15 @@ enum nbodyAlgorithm_enum {
     CPU_SSE,
     CPU_SSE_threaded,
     GPU_AOS,
-    GPU_AOS_tiled,
-    GPU_SOA_tiled,
-    //GPU_Atomic,
     GPU_Shared,
-    GPU_Shuffle,
     multiGPU_SingleCPUThread,
-    multiGPU_MultiCPUThread
+    multiGPU_MultiCPUThread,
+    GPU_Shuffle,
+    GPU_AOS_tiled,
+    // For illustrative purposes, SOA tiled and atomic are still in the
+    // source code, but they do not get built and run by default.
+    //GPU_SOA_tiled,
+    //GPU_Atomic,
     /*,
     GPU_SOA,
     MultiGPU*/
