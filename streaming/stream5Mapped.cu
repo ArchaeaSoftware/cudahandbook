@@ -1,11 +1,12 @@
 /*
  *
- * stream2Streams.cu
+ * stream4MappedXfer.cu
  *
- * Formulation of stream1Async.cu that uses streams to overlap data
- * transfers and kernel processing.
+ * Formulation of stream1Async.cu that uses mapped pinned memory to 
+ * perform a computation on inputs in host memory while writing the 
+ * output to device memory.
  *
- * Build with: nvcc -I ../chLib stream2Streams.cu
+ * Build with: nvcc -I ../chLib stream4MappedXfer.cu
  *
  * Copyright (c) 2012, Archaea Software, LLC.
  * All rights reserved.
@@ -42,6 +43,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "saxpyCPU.h"
+
 //
 // saxpy global function adds x[i]*alpha to each element y[i]
 // and writes the result to out[i].
@@ -55,15 +58,7 @@ saxpy( float *out, const float *x, const float *y, size_t N, float alpha )
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x;
                  i < N;
                  i += blockDim.x*gridDim.x ) {
-        out[i] += alpha*x[i]+y[i];
-    }
-}
-
-void
-saxpyCPU( float *out, const float *x, const float *y, size_t N, float alpha )
-{
-    for ( size_t i = 0; i < N; i++ ) {
-        out[i] += alpha*x[i]+y[i];
+        out[i] = alpha*x[i]+y[i];
     }
 }
 
@@ -72,7 +67,6 @@ MeasureTimes(
     float *msTotal,
     size_t N, 
     float alpha,
-    int nStreams,
     int nBlocks, 
     int nThreads )
 {
@@ -80,39 +74,18 @@ MeasureTimes(
     float *dptrOut = 0, *hptrOut = 0;
     float *dptrY = 0, *hptrY = 0;
     float *dptrX = 0, *hptrX = 0;
-    cudaStream_t *streams = 0;
     cudaEvent_t evStart = 0;
     cudaEvent_t evStop = 0;
-    size_t streamStep = N / nStreams;
 
-    if ( N % nStreams ) {
-        printf( "Stream count must be evenly divisible into N\n" );
-        status = cudaErrorInvalidValue;
-        goto Error;
-    }
-
-    streams = new cudaStream_t[nStreams];
-    if ( ! streams ) {
-        status = cudaErrorMemoryAllocation;
-        goto Error;
-    }
-    memset( streams, 0, nStreams*sizeof(cudaStream_t) );
-    for ( int i = 0; i < nStreams; i++ ) {
-        CUDART_CHECK( cudaStreamCreate( &streams[i] ) );
-    }
-    CUDART_CHECK( cudaHostAlloc( &hptrOut, N*sizeof(float), 0 ) );
-    memset( hptrOut, 0, N*sizeof(float) );
-    CUDART_CHECK( cudaHostAlloc( &hptrY, N*sizeof(float), 0 ) );
-    CUDART_CHECK( cudaHostAlloc( &hptrX, N*sizeof(float), 0 ) );
-
+    CUDART_CHECK( cudaHostAlloc( &hptrOut, N*sizeof(float), cudaHostAllocMapped ) );
     CUDART_CHECK( cudaMalloc( &dptrOut, N*sizeof(float) ) );
     CUDART_CHECK( cudaMemset( dptrOut, 0, N*sizeof(float) ) );
-
-    CUDART_CHECK( cudaMalloc( &dptrY, N*sizeof(float) ) );
-    CUDART_CHECK( cudaMemset( dptrY, 0, N*sizeof(float) ) );
-
-    CUDART_CHECK( cudaMalloc( &dptrX, N*sizeof(float) ) );
-    CUDART_CHECK( cudaMemset( dptrY, 0, N*sizeof(float) ) );
+    CUDART_CHECK( cudaHostGetDevicePointer( &dptrOut, hptrOut, 0 ) );
+    memset( hptrOut, 0, N*sizeof(float) );
+    CUDART_CHECK( cudaHostAlloc( &hptrY, N*sizeof(float), cudaHostAllocMapped ) );
+    CUDART_CHECK( cudaHostGetDevicePointer( &dptrY, hptrY, 0 ) );
+    CUDART_CHECK( cudaHostAlloc( &hptrX, N*sizeof(float), cudaHostAllocMapped ) );
+    CUDART_CHECK( cudaHostGetDevicePointer( &dptrX, hptrX, 0 ) );
 
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
@@ -121,21 +94,9 @@ MeasureTimes(
         hptrY[i] = (float) rand() / RAND_MAX;
     }
     CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
-
-    for ( int iStream = 0; iStream < nStreams; iStream++ ) {
-        CUDART_CHECK( cudaMemcpyAsync( dptrX+iStream*streamStep, hptrX+iStream*streamStep, streamStep*sizeof(float), cudaMemcpyHostToDevice, streams[iStream] ) );
-        CUDART_CHECK( cudaMemcpyAsync( dptrY+iStream*streamStep, hptrY+iStream*streamStep, streamStep*sizeof(float), cudaMemcpyHostToDevice, streams[iStream] ) );
-    }
-
-    for ( int iStream = 0; iStream < nStreams; iStream++ ) {
-        saxpy<<<nBlocks, nThreads, 0, streams[iStream]>>>( dptrOut+iStream*streamStep, dptrX+iStream*streamStep, dptrY+iStream*streamStep, streamStep, alpha );
-    }
-
-    for ( int iStream = 0; iStream < nStreams; iStream++ ) {
-        CUDART_CHECK( cudaMemcpyAsync( hptrOut+iStream*streamStep, dptrOut+iStream*streamStep, streamStep*sizeof(float), cudaMemcpyDeviceToHost, streams[iStream] ) );
-    }
-
+        saxpy<<<nBlocks, nThreads>>>( dptrOut, dptrX, dptrY, N, alpha );
     CUDART_CHECK( cudaEventRecord( evStop, 0 ) );
+    CUDART_CHECK( cudaMemcpy( hptrOut, dptrOut, N*sizeof(float), cudaMemcpyDeviceToHost ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     for ( size_t i = 0; i < N; i++ ) {
         if ( fabsf( hptrOut[i] - (alpha*hptrX[i]+hptrY[i]) ) > 1e-5f ) {
@@ -145,16 +106,9 @@ MeasureTimes(
     }
     CUDART_CHECK( cudaEventElapsedTime( msTotal, evStart, evStop ) );
 Error:
-    if ( streams ) {
-        for ( int i = 0; i < nStreams; i++ ) {
-            cudaStreamDestroy( streams[i] );
-        }
-        delete[] streams;
-    }
-    cudaEventDestroy( evStart );
     cudaEventDestroy( evStop );
-    cudaFree( dptrX );
-    cudaFree( dptrY );
+    cudaEventDestroy( evStart );
+    cudaFreeHost( hptrOut );
     cudaFreeHost( hptrX );
     cudaFreeHost( hptrY );
     return status;
@@ -172,14 +126,12 @@ main( int argc, char *argv[] )
     cudaError_t status;
     int N_Mfloats = 128;
     size_t N;
-    int nStreams = 8;
     int nBlocks = 1500;
     int nThreads = 256;
     float alpha = 2.0f;
 
     chCommandLineGet( &nBlocks, "nBlocks", argc, argv );
     chCommandLineGet( &nThreads, "nThreads", argc, argv );
-    chCommandLineGet( &nThreads, "nStreams", argc, argv );
     chCommandLineGet( &N_Mfloats, "N", argc, argv );
     printf( "Measuring times with %dM floats", N_Mfloats );
     if ( N_Mfloats==128 ) {
@@ -192,7 +144,7 @@ main( int argc, char *argv[] )
     CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
     {
         float msTotal;
-        CUDART_CHECK( MeasureTimes( &msTotal, N, alpha, nStreams, nBlocks, nThreads ) );
+        CUDART_CHECK( MeasureTimes( &msTotal, N, alpha, nBlocks, nThreads ) );
         printf( "Total time: %.2f ms (%.2f MB/s)\n", msTotal, Bandwidth( msTotal, 3*N*sizeof(float) ) );
     }
 

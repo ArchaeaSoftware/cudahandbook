@@ -120,7 +120,7 @@ predicateScan_kernel(
 
 template<class T, bool bZeroPad>
 __global__ void
-streamCompact_odd( 
+streamCompact_odd_kernel( 
     T *out, 
     int *outCount,
     const int *gBaseSums, 
@@ -153,14 +153,18 @@ streamCompact_odd(
         if ( index < N && isOdd( value ) ) {
             int outIndex = base_sum;
             if ( tid ) {
-                outIndex += sPartials[scanSharedIndex<bZeroPad>(tid-1)];
+                int index = scanSharedIndex<bZeroPad>(tid-1);
+                outIndex += sPartials[index];
             }
             out[outIndex] = value;
         }
         __syncthreads();
 
         // carry forward from this block to the next.
-        base_sum += sPartials[ scanSharedIndex<bZeroPad>( blockDim.x-1 ) ];
+        {
+            int index = scanSharedIndex<bZeroPad>( blockDim.x-1 );
+            base_sum += sPartials[ index ];
+        }
         __syncthreads();
     }
     if ( threadIdx.x == 0 && blockIdx.x == 0 ) {
@@ -168,7 +172,8 @@ streamCompact_odd(
             *outCount = gBaseSums[gridDim.x-1];
         }
         else {
-            *outCount = sPartials[ scanSharedIndex<bZeroPad>( blockDim.x-1 ) ];
+            int index = scanSharedIndex<bZeroPad>( blockDim.x-1 );
+            *outCount = sPartials[ index ];
         }
     }
 }
@@ -177,13 +182,10 @@ streamCompact_odd(
 
 /*
  * streamCompact_odd
- *     Takes a float parameter and a float array
- *     and writes to the output all floats that are 
- *     less than the input float.
  *
  *     This sample illustrates how to scan predicates,
- *     with an example predicate of comparing FP values
- *     and emitting values below a threshold.
+ *     with an example predicate of testing integers
+ *     and emitting values that are odd.
  *
  * The algorithm is implemented using the 2-pass scan 
  *     algorithm, counting the true predicates with a
@@ -205,7 +207,7 @@ streamCompact_odd( T *out, int *outCount, const T *in, size_t N, int b )
     int sBytes = scanSharedMemory<int,bZeroPad>( b );
 
     if ( N <= b ) {
-        return streamCompact_odd<T, bZeroPad><<<1,b,sBytes>>>( 
+        return streamCompact_odd_kernel<T, bZeroPad><<<1,b,sBytes>>>( 
             out, outCount, 0, in, N, N );
     }
 
@@ -252,7 +254,7 @@ streamCompact_odd( T *out, int *outCount, const T *in, size_t N, int b )
             gPartials, 
             numPartials, 
             numPartials);
-        streamCompact_odd<T, bZeroPad><<<numBlocks,b,sBytes>>>(
+        streamCompact_odd_kernel<T, bZeroPad><<<numBlocks,b,sBytes>>>(
             out, 
             outCount,
             gPartials, 

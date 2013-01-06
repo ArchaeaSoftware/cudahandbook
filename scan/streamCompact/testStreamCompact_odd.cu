@@ -112,7 +112,6 @@ TestStreamCompact(
             if ( isOdd( inCPU[inxIn] ) ) {
                 if ( hostGPU[inxOut] != inCPU[inxIn] ) {
                     printf( "Scan failed\n" );
-                    CHBREAK;
                     goto Error;
                 }
                 inxOut += 1;
@@ -122,13 +121,11 @@ TestStreamCompact(
         while ( inxIn < N ) {
             if ( isOdd( inCPU[inxIn] ) ) {
                 printf( "Missed some inputs that met the criteria\n" );
-                CHBREAK;
             }
             inxIn += 1;
         }
         if ( inxOut != *hostTotal ) {
             printf( "Total reported is incorrect\n" );
-            CHBREAK;
         }
     }
     ret = true;

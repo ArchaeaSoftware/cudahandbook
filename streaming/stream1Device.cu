@@ -46,6 +46,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "saxpyCPU.h"
+
 //
 // saxpy global function adds x[i]*alpha to each element y[i]
 // and writes the result to out[i].
@@ -53,22 +55,54 @@
 // Due to low arithmetic density, this kernel is extremely bandwidth-bound.
 //
 
-__global__ void
-saxpy( float *out, const float *x, const float *y, size_t N, float alpha )
+template<const int n> 
+__device__ void
+saxpy_unrolled( float *out, const float *px, const float *py, size_t N, float alpha )
 {
-    for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x;
-                 i < N;
-                 i += blockDim.x*gridDim.x ) {
-        out[i] += alpha*x[i]+y[i];
+    float x[n], y[n];
+    size_t i;
+    for ( i = n*blockIdx.x*blockDim.x+threadIdx.x; 
+          i < N-n*blockDim.x*gridDim.x; 
+          i += n*blockDim.x*gridDim.x ) {
+        for ( int j = 0; j < n; j++ ) {
+            size_t index = i+j*blockDim.x;
+            x[j] = px[index];
+            y[j] = py[index];
+        }
+        for ( int j = 0; j < n; j++ ) {
+            size_t index = i+j*blockDim.x;
+            out[index] = alpha*x[j]+y[j];
+        }
+    }
+    // to avoid the (index<N) conditional in the inner loop, 
+    // we left off some work at the end
+    for ( int j = 0; j < n; j++ ) {
+        for ( int j = 0; j < n; j++ ) {
+            size_t index = i+j*blockDim.x;
+            if ( index<N ) {
+                x[j] = px[index];
+                y[j] = py[index];
+            }
+        }
+        for ( int j = 0; j < n; j++ ) {
+            size_t index = i+j*blockDim.x;
+            if ( index<N ) out[index] = alpha*x[j]+y[j];
+        }
     }
 }
 
-void
-saxpyCPU( float *out, const float *x, const float *y, size_t N, float alpha )
+__global__ void
+saxpy( float *out, const float *px, const float *py, size_t N, float alpha )
 {
-    for ( size_t i = 0; i < N; i++ ) {
-        out[i] += alpha*x[i]+y[i];
+    saxpy_unrolled<4>( out, px, py, N, alpha );
+#if 0
+    float x[n], y[n];
+    for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x;
+                 i < N;
+                 i += blockDim.x*gridDim.x ) {
+        out[i] = alpha*x[i]+y[i];
     }
+#endif
 }
 
 cudaError_t

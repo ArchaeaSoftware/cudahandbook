@@ -37,12 +37,9 @@
 #ifndef __SCAN_WARP_SHUFFLE_CUH__
 #define __SCAN_WARP_SHUFFLE_CUH__
 
-#define WARP_SIZE 32
-#define LOG_WARP_SIZE 5
-
 __device__ __forceinline__
 int
-shfl_scan_add_step(int partial, int offset)
+scanWarpShuffle_step(int partial, int offset)
 {
     int result;
     asm(
@@ -58,10 +55,10 @@ shfl_scan_add_step(int partial, int offset)
 template <int levels>
 __device__ __forceinline__
 int
-inclusive_scan_warp_shfl(int mysum)
+scanWarpShuffle(int mysum)
 {
     for(int i = 0; i < levels; ++i)
-        mysum = shfl_scan_add_step(mysum, 1 << i);
+        mysum = scanWarpShuffle_step(mysum, 1 << i);
     return mysum;
 }
 
@@ -80,24 +77,32 @@ exclusive_scan_warp_shfl(int mysum)
 template <int logBlockSize>
 __device__
 int
-inclusive_scan_block(int val, const unsigned int idx)
+scanBlockShuffle(int val, const unsigned int idx)
 {
     const unsigned int lane   = idx & 31;
     const unsigned int warpid = idx >> 5;
-    __shared__ int sPartials[WARP_SIZE];
+    __shared__ int sPartials[32];
 
-    // step 1: Intra-warp scan in each warp
+    // Intra-warp scan in each warp
+    val = scanWarpShuffle<5>(val);
 
-    val = inclusive_scan_warp_shfl<LOG_WARP_SIZE>(val);
-
-    // step 2: Collect per-warp results
+    // Collect per-warp results
     if (lane == 31) sPartials[warpid] = val;
     __syncthreads();
-    // step 3: Use 1st warp to scan per-warp results
-    if (warpid == 0) sPartials[lane] = inclusive_scan_warp_shfl<logBlockSize-LOG_WARP_SIZE>(sPartials[lane]);
+
+    // Use first warp to scan per-warp results
+    if (warpid == 0) {
+        int t = sPartials[lane];
+        t = scanWarpShuffle<logBlockSize-5>( t );
+        sPartials[lane] = t;
+    }
+
     __syncthreads();
-    // step 4: Accumulate results from Steps 1 and 3;
-    if (warpid > 0) val += sPartials[warpid - 1];
+
+    // Add scanned base sum for final result
+    if (warpid > 0) {
+        val += sPartials[warpid - 1];
+    }
     return val;
 }
 
@@ -108,22 +113,31 @@ exclusive_scan_block(int val, const unsigned int idx)
 {
     const unsigned int lane   = idx & 31;
     const unsigned int warpid = idx >> 5;
-    __shared__ int sPartials[WARP_SIZE];
+    __shared__ int sPartials[32];
 
-    // step 1: Intra-warp scan in each warp
+    // Intra-warp scan in each warp
+    val = scanWarpShuffle<5>(val);
 
-    val = inclusive_scan_warp_shfl<LOG_WARP_SIZE>(val);
-
-    // step 2: Collect per-warp results
+    // Collect per-warp results
     if (lane == 31) sPartials[warpid] = val;
     __syncthreads();
-    // step 3: Use 1st warp to scan per-warp results
-    if (warpid == 0) sPartials[lane] = inclusive_scan_warp_shfl<logBlockSize-LOG_WARP_SIZE>(sPartials[lane]);
+
+    // Use first warp to scan per-warp results
+    if (warpid == 0) {
+        int t = sPartials[lane];
+        t = scanWarpShuffle<logBlockSize-5>( t );
+        sPartials[lane] = t;
+    }
     __syncthreads();
-    // step 4: Accumulate results from Steps 1 and 3;
-    if (warpid > 0) val += sPartials[warpid - 1];
+
+    // Accumulate results
+    if (warpid > 0) 
+        val += sPartials[warpid - 1];
     __syncthreads();
-    if ( lane==31 ) sPartials[warpid] = val;
+
+    if ( lane==31 ) 
+        sPartials[warpid] = val;
+
     __syncthreads();
     val = __shfl_up(val, 1);
     if ( lane ) {
