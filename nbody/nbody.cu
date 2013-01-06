@@ -428,6 +428,9 @@ main( int argc, char *argv[] )
         printf( "    --nocpu implies --nocrosscheck.\n" );
     }
 
+    // for reproducible results for a given N
+    srand(7);
+
     {
         g_numCPUCores = processorCount();
         g_CPUThreadPool = new workerThread[g_numCPUCores];
