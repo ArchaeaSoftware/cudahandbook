@@ -35,6 +35,50 @@
  *
  */
 
+template<typename ReductionType, typename T, unsigned int numThreads>
+__device__ T
+Reduction4_LogStepShared( volatile ReductionType *sPartials )
+{
+    const int tid = threadIdx.x;
+    if (numThreads >= 1024) {
+        if (tid < 512) { 
+            sPartials[tid] += sPartials[tid + 512];
+        }
+        __syncthreads();
+    }
+    if (numThreads >= 512) { 
+        if (tid < 256) {
+            sPartials[tid] += sPartials[tid + 256]; 
+        } 
+        __syncthreads();
+    }
+    if (numThreads >= 256) {
+        if (tid < 128) {
+            sPartials[tid] += sPartials[tid + 128];
+        } 
+        __syncthreads();
+    }
+    if (numThreads >= 128) {
+        if (tid <  64) { 
+            sPartials[tid] += sPartials[tid +  64];
+        } 
+        __syncthreads();
+    }
+
+    // warp synchronous at the end
+    if ( tid < 32 ) {
+        volatile ReductionType *wsSum = sPartials;
+        if (numThreads >=  64) { wsSum[tid] += wsSum[tid + 32]; }
+        if (numThreads >=  32) { wsSum[tid] += wsSum[tid + 16]; }
+        if (numThreads >=  16) { wsSum[tid] += wsSum[tid +  8]; }
+        if (numThreads >=   8) { wsSum[tid] += wsSum[tid +  4]; }
+        if (numThreads >=   4) { wsSum[tid] += wsSum[tid +  2]; }
+        if (numThreads >=   2) { wsSum[tid] += wsSum[tid +  1]; }
+    }
+    // return value only valid for tid==0
+    return wsSum[0];
+}
+
 template<int nTile>
 __device__ void
 DoDiagonalTile_GPU( 
@@ -105,6 +149,9 @@ DoNondiagonalTile_GPU(
     float myZ = myPosMass.z;
 
     float4 shufSrcPosMass = ((float4 *) posMass)[jTile*nTile+laneid];
+
+    for ( size_t i = iTile*nTile+laneid;
+                 i < 
 
 //#pragma unroll
     for ( size_t _j = 0; _j < nTile; _j++ ) {
