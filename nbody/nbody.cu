@@ -135,7 +135,7 @@ relError( T a, T b )
 
 #include "nbody_GPU_AOS.cuh"
 #include "nbody_GPU_AOS_tiled.cuh"
-#include "nbody_GPU_SOA_tiled.cuh"
+//#include "nbody_GPU_SOA_tiled.cuh"
 #include "nbody_GPU_Shuffle.cuh"
 #include "nbody_GPU_Atomic.cuh"
 
@@ -192,13 +192,13 @@ const char *rgszAlgorithmNames[] = {
     "CPU_SSE", 
     "CPU_SSE_threaded", 
     "GPU_AOS", 
-    "GPU_AOS_tiled",
-    "GPU_SOA_tiled",
-    "GPU_Atomic", 
     "GPU_Shared", 
-    "GPU_Shuffle",
     "multiGPU_SingleCPUThread",
-    "multiGPU_MultiCPUThread"
+    "multiGPU_MultiCPUThread",
+    "GPU_Shuffle",
+    "GPU_AOS_tiled",
+    //"GPU_SOA_tiled",
+    //"GPU_Atomic", 
 };
 
 enum nbodyAlgorithm_enum g_Algorithm;
@@ -303,6 +303,7 @@ ComputeGravitation(
                 g_N );
             CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
+/*
         case GPU_Atomic:
             CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*sizeof(float) ) );
             *ms = ComputeGravitation_GPU_Atomic( 
@@ -312,6 +313,7 @@ ComputeGravitation(
                 g_N );
             CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
+*/
         case GPU_Shared:
             CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
             *ms = ComputeGravitation_GPU_Shared( 
@@ -354,11 +356,12 @@ ComputeGravitation(
     if ( bSOA ) {
         for ( size_t i = 0; i < g_N; i++ ) {
             g_hostAOS_Force[3*i+0] = g_hostSOA_Force[0][i];
-            g_hostAOS_Force[3*i+1] = g_hostSOA_Force[1][i];
+            g_hostAOS_Force[3*i+1] = g_hostSOA_Force[1][i]; 
             g_hostAOS_Force[3*i+2] = g_hostSOA_Force[2][i];
         }
     }
 
+	*maxRelError = 0.0f;
     if ( bCrossCheck ) {
         float max = 0.0f;
         for ( size_t i = 0; i < 3*g_N; i++ ) {
@@ -444,6 +447,7 @@ main( int argc, char *argv[] )
     }
 
     if ( g_numGPUs ) {
+		chCommandLineGet( &g_numGPUs, "numgpus", argc, argv );
         g_GPUThreadPool = new workerThread[g_numGPUs];
         for ( size_t i = 0; i < g_numGPUs; i++ ) {
             if ( ! g_GPUThreadPool[i].initialize( ) ) {
@@ -474,12 +478,19 @@ main( int argc, char *argv[] )
         g_bNoCPU ? "disabled" : "enabled" );
 
     g_Algorithm = g_bCUDAPresent ? GPU_AOS : CPU_SSE_threaded;
-g_Algorithm = GPU_AOS_tiled;
+g_Algorithm = GPU_AOS;
     g_maxAlgorithm = (g_bCUDAPresent || g_bNoCPU) ? multiGPU_MultiCPUThread : CPU_SSE_threaded;
 
     if ( g_bCUDAPresent ) {
+        cudaDeviceProp propForVersion;
 
         CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
+        CUDART_CHECK( cudaGetDeviceProperties( &propForVersion, 0 ) );
+        if ( propForVersion.major < 3 ) {
+            // Only SM 3.x supports shuffle and fast atomics, so we cannot run
+            // some algorithms on this board.
+            g_maxAlgorithm = multiGPU_MultiCPUThread;
+        }
 
         CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_PosMass, 4*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
         for ( int i = 0; i < 3; i++ ) {

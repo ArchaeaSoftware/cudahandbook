@@ -56,10 +56,20 @@ horizontal_sum_ps( const __m128 x )
 
 inline void
 bodyBodyInteraction(
-    __m128& a0, __m128& a1, __m128& a2,
-    const __m128& x0, const __m128& y0, const __m128& z0,
-    const __m128& x1, const __m128& y1, const __m128& z1, const __m128& mass1,
-    const __m128& softeningSquared)
+    __m128& fx, 
+    __m128& fy, 
+    __m128& fz,
+    
+    const __m128& x0, 
+    const __m128& y0, 
+    const __m128& z0,
+    
+    const __m128& x1, 
+    const __m128& y1, 
+    const __m128& z1, 
+    const __m128& mass1,
+
+    const __m128& softeningSquared )
 {
     // r_01  [3 FLOPS]
     __m128 dx = _mm_sub_ps( x1, x0 );
@@ -67,19 +77,31 @@ bodyBodyInteraction(
     __m128 dz = _mm_sub_ps( z1, z0 );
 
     // d^2 + e^2 [6 FLOPS]
-    __m128 distSq = _mm_add_ps( _mm_add_ps( _mm_mul_ps( dx, dx ), _mm_mul_ps( dy, dy ) ), _mm_mul_ps( dz, dz ) );
+    __m128 distSq = 
+        _mm_add_ps( 
+            _mm_add_ps( 
+                _mm_mul_ps( dx, dx ), 
+                _mm_mul_ps( dy, dy ) 
+            ), 
+            _mm_mul_ps( dz, dz ) 
+        );
     distSq = _mm_add_ps( distSq, softeningSquared );
 
     // invDistCube =1/distSqr^(3/2)  [4 FLOPS (2 mul, 1 sqrt, 1 inv)]
     __m128 invDist = rcp_sqrt_nr_ps( distSq );
-    __m128 invDistCube = _mm_mul_ps( invDist, _mm_mul_ps( invDist, invDist ) );
+    __m128 invDistCube = 
+        _mm_mul_ps( 
+            invDist, 
+            _mm_mul_ps( 
+                invDist, invDist ) 
+        );
 
     // s = m_j * invDistCube [1 FLOP]
     __m128 s = _mm_mul_ps( mass1, invDistCube );
 
     // (m_1 * r_01) / (d^2 + e^2)^(3/2)  [6 FLOPS]
-    a0 = _mm_add_ps( a0, _mm_mul_ps( dx, s ) );
-    a1 = _mm_add_ps( a1, _mm_mul_ps( dy, s ) );
-    a2 = _mm_add_ps( a2, _mm_mul_ps( dz, s ) );
+    fx = _mm_add_ps( fx, _mm_mul_ps( dx, s ) );
+    fy = _mm_add_ps( fy, _mm_mul_ps( dy, s ) );
+    fz = _mm_add_ps( fz, _mm_mul_ps( dz, s ) );
 }
 

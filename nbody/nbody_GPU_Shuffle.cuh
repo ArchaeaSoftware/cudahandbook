@@ -35,8 +35,13 @@
 
 #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 300
 __global__ void
-ComputeNBodyGravitation_Shuffle( float *force, float *posMass, float softeningSquared, size_t N )
+ComputeNBodyGravitation_Shuffle( 
+    float *force, 
+    float *posMass, 
+    float softeningSquared, 
+    size_t N )
 {
+    const int laneid = threadIdx.x & 31;
     for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
               i < N;
               i += blockDim.x*gridDim.x )
@@ -45,7 +50,7 @@ ComputeNBodyGravitation_Shuffle( float *force, float *posMass, float softeningSq
         float4 myPosMass = ((float4 *) posMass)[i];
 
         for ( int j = 0; j < N; j += 32 ) {
-            float4 shufSrcPosMass = ((float4 *) posMass)[j+(31&threadIdx.x)];
+            float4 shufSrcPosMass = ((float4 *) posMass)[j+laneid];
 #pragma unroll
             for ( int k = 0; k < 32; k++ ) {
                 float fx, fy, fz;
@@ -59,7 +64,11 @@ ComputeNBodyGravitation_Shuffle( float *force, float *posMass, float softeningSq
                 bodyBodyInteraction(
                     &fx, &fy, &fz, 
                     myPosMass.x, myPosMass.y, myPosMass.z, 
-                    shufDstPosMass.x, shufDstPosMass.y, shufDstPosMass.z, shufDstPosMass.w, softeningSquared);
+                    shufDstPosMass.x, 
+                    shufDstPosMass.y, 
+                    shufDstPosMass.z, 
+                    shufDstPosMass.w, 
+                    softeningSquared);
                 acc[0] += fx;
                 acc[1] += fy;
                 acc[2] += fz;

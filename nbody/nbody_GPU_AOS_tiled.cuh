@@ -76,8 +76,10 @@ Reduction4_LogStepShared( volatile ReductionType *sPartials )
         if (numThreads >=   2) { wsSum[tid] += wsSum[tid +  1]; }
     }
     // return value only valid for tid==0
-    return wsSum[0];
+    return sPartials[0];
 }
+
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 300
 
 template<int nTile>
 __device__ void
@@ -99,15 +101,12 @@ DoDiagonalTile_GPU(
         size_t j = jTile*nTile+_j;
 
         float fx, fy, fz;
-        float bodyX = posMass[j*4+0];
-        float bodyY = posMass[j*4+1];
-        float bodyZ = posMass[j*4+2];
-        float bodyMass = posMass[j*4+3];
+        float4 body = ((float4 *) posMass)[j];
 
         bodyBodyInteraction<float>(
             &fx, &fy, &fz,
             myX, myY, myZ,
-            bodyX, bodyY, bodyZ, bodyMass,
+            body.x, body.y, body.z, body.w,
             softeningSquared );
         acc[0] += fx;
         acc[1] += fy;
@@ -150,10 +149,6 @@ DoNondiagonalTile_GPU(
 
     float4 shufSrcPosMass = ((float4 *) posMass)[jTile*nTile+laneid];
 
-    for ( size_t i = iTile*nTile+laneid;
-                 i < 
-
-//#pragma unroll
     for ( size_t _j = 0; _j < nTile; _j++ ) {
         size_t j = jTile*nTile+_j;
 
@@ -208,10 +203,18 @@ ComputeNBodyGravitation_GPU_tiled(
     int jTile = blockIdx.y;
 
     if ( iTile == jTile ) {
-        DoDiagonalTile_GPU<32>( force, posMass, softeningSquared, iTile, jTile );
+        DoDiagonalTile_GPU<32>( 
+            force, 
+            posMass, 
+            softeningSquared, 
+            iTile, jTile );
     }
     else if ( jTile < iTile ) {
-        DoNondiagonalTile_GPU<32>( force, posMass, softeningSquared, iTile, jTile );
+        DoNondiagonalTile_GPU<32>( 
+            force, 
+            posMass, 
+            softeningSquared, 
+            iTile, jTile );
     }
 }
 
@@ -261,3 +264,16 @@ Error:
     CUDART_CHECK( cudaEventDestroy( evStart ) );
     return ms;
 }
+#else
+// here for build purposes when compiling for non-SM 3.0 architectures
+float
+ComputeGravitation_GPU_AOS_tiled(
+    float *force, 
+    float *posMass,
+    float softeningSquared,
+    size_t N
+)
+{
+    return 0.0f;
+}
+#endif

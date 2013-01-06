@@ -35,7 +35,7 @@
 
 #include <assert.h>
 
-template<class T, bool bWritePartials>
+template<class T, bool bWriteSpine>
 __global__ void
 scanAndWritePartials( 
     T *out, 
@@ -64,7 +64,7 @@ scanAndWritePartials(
         //
         // write the spine value to global memory
         //
-        if ( bWritePartials && (threadIdx.x==(blockDim.x-1)) )
+        if ( bWriteSpine && (threadIdx.x==(blockDim.x-1)) )
         {
             gPartials[iBlock] = sum;
         }
@@ -73,10 +73,11 @@ scanAndWritePartials(
 
 template<class T>
 __global__ void
-scanAddBaseSums( T *out, 
-                 T *gBaseSums, 
-                 size_t N, 
-                 size_t numBlocks )
+scanAddBaseSums( 
+    T *out, 
+    T *gBaseSums, 
+    size_t N, 
+    size_t numBlocks )
 {
     const int tid = threadIdx.x;
 

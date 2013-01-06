@@ -35,7 +35,11 @@
 
 template<typename T>
 __global__ void
-ComputeNBodyGravitation( T *force, T *posMass, size_t N, T softeningSquared )
+ComputeNBodyGravitation_GPU_AOS( 
+    T *force, 
+    T *posMass, 
+    size_t N, 
+    T softeningSquared )
 {
     for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
               i < N;
@@ -49,7 +53,11 @@ ComputeNBodyGravitation( T *force, T *posMass, size_t N, T softeningSquared )
         for ( int j = 0; j < N; j++ ) {
             float4 body = ((float4 *) posMass)[j];
             float fx, fy, fz;
-            bodyBodyInteraction( &fx, &fy, &fz, myX, myY, myZ, body.x, body.y, body.z, body.w, softeningSquared);
+            bodyBodyInteraction( 
+                &fx, &fy, &fz, 
+                myX, myY, myZ, 
+                body.x, body.y, body.z, body.w, 
+                softeningSquared);
             acc[0] += fx;
             acc[1] += fy;
             acc[2] += fz;
@@ -74,7 +82,8 @@ ComputeGravitation_GPU_AOS(
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
     CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
-    ComputeNBodyGravitation<float> <<<300,256>>>( force, posMass, N, softeningSquared );
+    ComputeNBodyGravitation_GPU_AOS<float> <<<300,256>>>( 
+        force, posMass, N, softeningSquared );
     CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
