@@ -42,8 +42,10 @@
 #include <thrust/device_vector.h>
 
 #include <chAssert.h>
+#include <chCommandLine.h>
 #include <chError.h>
 
+#include "scanBlock.cuh" 
 #include "scanWarp.cuh"
 #include "scanWarp2.cuh"
 #include "scanWarpShuffle.cuh"
@@ -273,7 +275,7 @@ ScanGPUWarpShuffle( int *out, const int *in, size_t N )
                  i < N;
                  i += blockDim.x ) {
         if ( scantype == Inclusive ) {
-            out[i+threadIdx.x] = inclusive_scan_warp_shfl<5>( in[i+threadIdx.x] );
+            out[i+threadIdx.x] = scanWarpShuffle<5>( in[i+threadIdx.x] );
         }
         else {
             out[i+threadIdx.x] = exclusive_scan_warp_shfl<5>( in[i+threadIdx.x] );
@@ -374,6 +376,7 @@ main( int argc, char *argv[] )
 {
     cudaError_t status;
     int maxThreads;
+    int numInts = 16*1048576;
 
     CUDART_CHECK( cudaSetDevice( 0 ) );
     CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
@@ -398,8 +401,15 @@ main( int argc, char *argv[] )
 \
 } while (0)
 
+    chCommandLineGet( &numInts, "numints", argc, argv );
     printf( "Problem size: %d integers\n", numInts );
 
+{
+    float maxElementsPerSecond = 0.0f;
+    SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanGPU<Exclusive>, numInts, 256 );
+}
+
+#if 0
     for ( int numThreads = 256; numThreads <= maxThreads; numThreads *= 2 ) {
         float maxElementsPerSecond = 0.0f;
         SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanGPU<Exclusive>, numInts, numThreads );
@@ -421,7 +431,7 @@ main( int argc, char *argv[] )
         printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
         maxElementsPerSecond = 0.0f;
         SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanInclusiveGPU_0, numInts, numThreads );
-        printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
+        printf( "GPU (0): %.2f Melements/s\n", maxElementsPerSecond );
         maxElementsPerSecond = 0.0f;
         SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanInclusiveGPU2, numInts, numThreads );
         printf( "GPU2: %.2f Melements/s\n", maxElementsPerSecond );
@@ -429,7 +439,7 @@ main( int argc, char *argv[] )
         SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanGPUShuffle<Inclusive>, numInts, numThreads );
         printf( "Shuffle: %.2f Melements/s\n", maxElementsPerSecond );
     }
-
+#endif
     return 0;
 Error:
     return 1;
