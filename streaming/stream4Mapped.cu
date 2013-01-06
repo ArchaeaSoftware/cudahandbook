@@ -44,6 +44,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "saxpyCPU.h"
+
 //
 // saxpy global function adds x[i]*alpha to each element y[i]
 // and writes the result to out[i].
@@ -52,20 +54,17 @@
 //
 
 __global__ void
-saxpy( float *out, const float *x, const float *y, size_t N, float alpha )
+saxpyGPU( 
+    float *out, 
+    const float *x, 
+    const float *y, 
+    size_t N, 
+    float alpha )
 {
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x;
                  i < N;
                  i += blockDim.x*gridDim.x ) {
-        out[i] += alpha*x[i]+y[i];
-    }
-}
-
-void
-saxpyCPU( float *out, const float *x, const float *y, size_t N, float alpha )
-{
-    for ( size_t i = 0; i < N; i++ ) {
-        out[i] += alpha*x[i]+y[i];
+        out[i] = alpha*x[i]+y[i];
     }
 }
 
