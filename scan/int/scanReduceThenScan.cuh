@@ -58,11 +58,12 @@ scanReduceBlocks( T *gPartials, const T *in, size_t N )
 
 template<class T>
 void
-scanReduceBlocks( T *gPartials, 
-                  const T *in, 
-                  size_t N, 
-                  int numThreads, 
-                  int numBlocks )
+scanReduceBlocks( 
+    T *gPartials, 
+    const T *in, 
+    size_t N, 
+    int numThreads, 
+    int numBlocks )
 {
     switch ( numThreads ) {
         case  128: return scanReduceBlocks<T, 128><<<numBlocks,  128,  128*sizeof(T)>>>( gPartials, in, N );
@@ -74,11 +75,12 @@ scanReduceBlocks( T *gPartials,
 
 template<class T>
 __global__ void
-scanWithBaseSums( T *out, 
-                  const T *gBaseSums, 
-                  const T *in, 
-                  size_t N, 
-                  size_t numBlocks )
+scanWithBaseSums( 
+    T *out, 
+    const T *gBaseSums, 
+    const T *in, 
+    size_t N, 
+    size_t numBlocks )
 {
     extern volatile __shared__ T sPartials[];
     const int tid = threadIdx.x;

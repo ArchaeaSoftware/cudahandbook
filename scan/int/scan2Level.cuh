@@ -134,7 +134,8 @@ scan2Level_kernel(
         __syncthreads();
 
         // carry forward from this block to the next.
-        base_sum += sPartials[ scanSharedIndex<bZeroPad>( blockDim.x-1 ) ];
+        base_sum += sPartials[ 
+            scanSharedIndex<bZeroPad>( blockDim.x-1 ) ];
         __syncthreads();
     }
 }
