@@ -1,15 +1,15 @@
 /*
  *
- * stream1Async.cu
+ * stream2Async.cu
  *
  * Microbenchmark to illustrate a bandwidth-limited workload.
  *
  * It separately measures the host->device transfer time, kernel
  * processing time, and device->host transfer time.  Due to low
- * arithmetic density in the saxpy() kernel, the bulk of time
+ * arithmetic density in the saxpyGPU() kernel, the bulk of time
  * is spent transferring data. 
  *
- * Build with: nvcc -I ../chLib stream1Async.cu
+ * Build with: nvcc -I ../chLib stream2Async.cu
  *
  * Copyright (c) 2012, Archaea Software, LLC.
  * All rights reserved.
@@ -47,98 +47,7 @@
 #include <stdlib.h>
 
 #include "saxpyCPU.h"
-
-//
-// saxpy global function adds x[i]*alpha to each element y[i]
-// and writes the result to out[i].
-//
-// Due to low arithmetic density, this kernel is extremely bandwidth-bound.
-//
-
-template<const int n> 
-__device__ void
-saxpy_unrolled( float *out, const float *px, const float *py, size_t N, float alpha )
-{
-    float x[n], y[n];
-    size_t i;
-    for ( i = n*blockIdx.x*blockDim.x+threadIdx.x; 
-          i < N-n*blockDim.x*gridDim.x; 
-          i += n*blockDim.x*gridDim.x ) {
-        for ( int j = 0; j < n; j++ ) {
-            size_t index = i+j*blockDim.x;
-            x[j] = px[index];
-            y[j] = py[index];
-        }
-        for ( int j = 0; j < n; j++ ) {
-            size_t index = i+j*blockDim.x;
-            out[index] = alpha*x[j]+y[j];
-        }
-    }
-    // to avoid the (index<N) conditional in the inner loop, 
-    // we left off some work at the end
-    for ( int j = 0; j < n; j++ ) {
-        for ( int j = 0; j < n; j++ ) {
-            size_t index = i+j*blockDim.x;
-            if ( index<N ) {
-                x[j] = px[index];
-                y[j] = py[index];
-            }
-        }
-        for ( int j = 0; j < n; j++ ) {
-            size_t index = i+j*blockDim.x;
-            if ( index<N ) out[index] = alpha*x[j]+y[j];
-        }
-    }
-}
-
-__global__ void
-saxpy( float *out, const float *px, const float *py, size_t N, float alpha )
-{
-    saxpy_unrolled<4>( out, px, py, N, alpha );
-#if 0
-    float x[n], y[n];
-    for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x;
-                 i < N;
-                 i += blockDim.x*gridDim.x ) {
-        out[i] = alpha*x[i]+y[i];
-    }
-#endif
-}
-
-
-#if 0
-template<class T, const int n> 
-__global__ void
-GlobalCopy( T *out, const T *in, size_t N )
-{
-    T temp[n];
-    size_t i;
-    for ( i = n*blockIdx.x*blockDim.x+threadIdx.x; 
-          i < N-n*blockDim.x*gridDim.x; 
-          i += n*blockDim.x*gridDim.x ) {
-        for ( int j = 0; j < n; j++ ) {
-            size_t index = i+j*blockDim.x;
-            temp[j] = in[index];
-        }
-        for ( int j = 0; j < n; j++ ) {
-            size_t index = i+j*blockDim.x;
-            out[index] = temp[j];
-        }
-    }
-    // to avoid the (index<N) conditional in the inner loop, 
-    // we left off some work at the end
-    for ( int j = 0; j < n; j++ ) {
-        for ( int j = 0; j < n; j++ ) {
-            size_t index = i+j*blockDim.x;
-            if ( index<N ) temp[j] = in[index];
-        }
-        for ( int j = 0; j < n; j++ ) {
-            size_t index = i+j*blockDim.x;
-            if ( index<N ) out[index] = temp[j];
-        }
-    }
-}
-#endif
+#include "saxpyGPU.cuh"
 
 cudaError_t
 MeasureTimes( 
@@ -186,7 +95,7 @@ MeasureTimes(
         CUDART_CHECK( cudaMemcpyAsync( dptrX, hptrX, N*sizeof(float), cudaMemcpyHostToDevice, NULL ) );
         CUDART_CHECK( cudaMemcpyAsync( dptrY, hptrY, N*sizeof(float), cudaMemcpyHostToDevice, NULL ) );
     CUDART_CHECK( cudaEventRecord( evHtoD, 0 ) );
-        saxpy<<<nBlocks, nThreads>>>( dptrOut, dptrX, dptrY, N, alpha );
+        saxpyGPU<<<nBlocks, nThreads>>>( dptrOut, dptrX, dptrY, N, alpha );
     CUDART_CHECK( cudaEventRecord( evKernel, 0 ) );
         CUDART_CHECK( cudaMemcpyAsync( hptrOut, dptrOut, N*sizeof(float), cudaMemcpyDeviceToHost, NULL ) );
     CUDART_CHECK( cudaEventRecord( evDtoH, 0 ) );

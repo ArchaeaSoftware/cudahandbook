@@ -1,11 +1,11 @@
 /*
  *
- * stream2Streams.cu
+ * stream3Streams.cu
  *
- * Formulation of stream1Async.cu that uses streams to overlap data
+ * Formulation of stream2Async.cu that uses streams to overlap data
  * transfers and kernel processing.
  *
- * Build with: nvcc -I ../chLib stream2Streams.cu
+ * Build with: nvcc -I ../chLib stream3Streams.cu
  *
  * Copyright (c) 2012, Archaea Software, LLC.
  * All rights reserved.
@@ -43,23 +43,7 @@
 #include <stdlib.h>
 
 #include "saxpyCPU.h"
-
-//
-// saxpy global function adds x[i]*alpha to each element y[i]
-// and writes the result to out[i].
-//
-// Due to low arithmetic density, this kernel is extremely bandwidth-bound.
-//
-
-__global__ void
-saxpy( float *out, const float *x, const float *y, size_t N, float alpha )
-{
-    for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x;
-                 i < N;
-                 i += blockDim.x*gridDim.x ) {
-        out[i] = alpha*x[i]+y[i];
-    }
-}
+#include "saxpyGPU.cuh"
 
 cudaError_t
 MeasureTimes( 
@@ -122,7 +106,7 @@ MeasureTimes(
     }
 
     for ( int iStream = 0; iStream < nStreams; iStream++ ) {
-        saxpy<<<nBlocks, nThreads, 0, streams[iStream]>>>( dptrOut+iStream*streamStep, dptrX+iStream*streamStep, dptrY+iStream*streamStep, streamStep, alpha );
+        saxpyGPU<<<nBlocks, nThreads, 0, streams[iStream]>>>( dptrOut+iStream*streamStep, dptrX+iStream*streamStep, dptrY+iStream*streamStep, streamStep, alpha );
     }
 
     for ( int iStream = 0; iStream < nStreams; iStream++ ) {
