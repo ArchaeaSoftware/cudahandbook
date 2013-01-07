@@ -1,13 +1,13 @@
 /*
  *
- * stream3Mapped.cu
+ * stream4Mapped.cu
  *
  * Formulation of stream1Async.cu that uses mapped pinned memory to
  * hold the input and output data.  Since the kernel can use mapped
  * pinned memory to initiate DMA transfers across the bus, this
  * version is simpler (no cudaMemcpy() calls) and just as fast.
  *
- * Build with: nvcc -I ../chLib stream3Mapped.cu
+ * Build with: nvcc -I ../chLib stream4Mapped.cu
  *
  * Copyright (c) 2012, Archaea Software, LLC.
  * All rights reserved.
@@ -45,28 +45,7 @@
 #include <stdlib.h>
 
 #include "saxpyCPU.h"
-
-//
-// saxpy global function adds x[i]*alpha to each element y[i]
-// and writes the result to out[i].
-//
-// Due to low arithmetic density, this kernel is extremely bandwidth-bound.
-//
-
-__global__ void
-saxpyGPU( 
-    float *out, 
-    const float *x, 
-    const float *y, 
-    size_t N, 
-    float alpha )
-{
-    for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x;
-                 i < N;
-                 i += blockDim.x*gridDim.x ) {
-        out[i] = alpha*x[i]+y[i];
-    }
-}
+#include "saxpyGPU.cuh"
 
 cudaError_t
 MeasureTimes( 
@@ -98,7 +77,7 @@ MeasureTimes(
         hptrY[i] = (float) rand() / RAND_MAX;
     }
     CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
-        saxpy<<<nBlocks, nThreads>>>( dptrOut, dptrX, dptrY, N, alpha );
+        saxpyGPU<<<nBlocks, nThreads>>>( dptrOut, dptrX, dptrY, N, alpha );
     CUDART_CHECK( cudaEventRecord( evStop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     for ( size_t i = 0; i < N; i++ ) {

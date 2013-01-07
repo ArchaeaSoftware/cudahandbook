@@ -1,6 +1,6 @@
 /*
  *
- * stream1Async.cu
+ * stream1Device.cu
  *
  * Microbenchmark to illustrate a bandwidth-limited workload.
  *
@@ -9,7 +9,7 @@
  * arithmetic density in the saxpy() kernel, the bulk of time
  * is spent transferring data. 
  *
- * Build with: nvcc -I ../chLib stream1Async.cu
+ * Build with: nvcc -I ../chLib stream1Device.cu
  *
  * Copyright (c) 2012, Archaea Software, LLC.
  * All rights reserved.
@@ -95,14 +95,6 @@ __global__ void
 saxpy( float *out, const float *px, const float *py, size_t N, float alpha )
 {
     saxpy_unrolled<4>( out, px, py, N, alpha );
-#if 0
-    float x[n], y[n];
-    for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x;
-                 i < N;
-                 i += blockDim.x*gridDim.x ) {
-        out[i] = alpha*x[i]+y[i];
-    }
-#endif
 }
 
 cudaError_t
@@ -148,12 +140,12 @@ MeasureTimes(
         hptrY[i] = (float) rand() / RAND_MAX;
     }
     CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
-        CUDART_CHECK( cudaMemcpyAsync( dptrX, hptrX, N*sizeof(float), cudaMemcpyHostToDevice, NULL ) );
-        CUDART_CHECK( cudaMemcpyAsync( dptrY, hptrY, N*sizeof(float), cudaMemcpyHostToDevice, NULL ) );
+    CUDART_CHECK( cudaMemcpyAsync( dptrX, hptrX, N*sizeof(float), cudaMemcpyHostToDevice, NULL ) );
+    CUDART_CHECK( cudaMemcpyAsync( dptrY, hptrY, N*sizeof(float), cudaMemcpyHostToDevice, NULL ) );
     CUDART_CHECK( cudaEventRecord( evHtoD, 0 ) );
         saxpy<<<nBlocks, nThreads>>>( dptrOut, dptrX, dptrY, N, alpha );
     CUDART_CHECK( cudaEventRecord( evKernel, 0 ) );
-        CUDART_CHECK( cudaMemcpyAsync( hptrOut, dptrOut, N*sizeof(float), cudaMemcpyDeviceToHost, NULL ) );
+    CUDART_CHECK( cudaMemcpyAsync( hptrOut, dptrOut, N*sizeof(float), cudaMemcpyDeviceToHost, NULL ) );
     CUDART_CHECK( cudaEventRecord( evDtoH, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     for ( size_t i = 0; i < N; i++ ) {
