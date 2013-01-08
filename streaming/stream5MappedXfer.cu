@@ -67,8 +67,6 @@ MeasureTimes(
     CUDART_CHECK( cudaHostAlloc( &hptrOut, N*sizeof(float), cudaHostAllocMapped ) );
     CUDART_CHECK( cudaMalloc( &dptrOut, N*sizeof(float) ) );
     CUDART_CHECK( cudaMemset( dptrOut, 0, N*sizeof(float) ) );
-//    CUDART_CHECK( cudaHostGetDevicePointer( &dptrOut, hptrOut, 0 ) );
-    CUDART_CHECK( cudaMemset( dptrOut, 0, N*sizeof(float) ) );
     CUDART_CHECK( cudaHostAlloc( &hptrY, N*sizeof(float), cudaHostAllocMapped ) );
     CUDART_CHECK( cudaHostGetDevicePointer( &dptrY, hptrY, 0 ) );
     CUDART_CHECK( cudaHostAlloc( &hptrX, N*sizeof(float), cudaHostAllocMapped ) );
@@ -80,7 +78,6 @@ MeasureTimes(
         hptrX[i] = (float) rand() / RAND_MAX;
         hptrY[i] = (float) rand() / RAND_MAX;
     }
-    
 
     //
     // begin timing
