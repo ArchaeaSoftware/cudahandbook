@@ -57,7 +57,12 @@
 
 template<const int n> 
 __device__ void
-saxpy_unrolled( float *out, const float *px, const float *py, size_t N, float alpha )
+saxpy_unrolled( 
+    float *out, 
+    const float *px, 
+    const float *py, 
+    size_t N, 
+    float alpha )
 {
     float x[n], y[n];
     size_t i;
@@ -92,7 +97,7 @@ saxpy_unrolled( float *out, const float *px, const float *py, size_t N, float al
 }
 
 __global__ void
-saxpy( float *out, const float *px, const float *py, size_t N, float alpha )
+saxpyGPU( float *out, const float *px, const float *py, size_t N, float alpha )
 {
     saxpy_unrolled<4>( out, px, py, N, alpha );
 }
@@ -143,7 +148,7 @@ MeasureTimes(
     CUDART_CHECK( cudaMemcpyAsync( dptrX, hptrX, N*sizeof(float), cudaMemcpyHostToDevice, NULL ) );
     CUDART_CHECK( cudaMemcpyAsync( dptrY, hptrY, N*sizeof(float), cudaMemcpyHostToDevice, NULL ) );
     CUDART_CHECK( cudaEventRecord( evHtoD, 0 ) );
-        saxpy<<<nBlocks, nThreads>>>( dptrOut, dptrX, dptrY, N, alpha );
+        saxpyGPU<<<nBlocks, nThreads>>>( dptrOut, dptrX, dptrY, N, alpha );
     CUDART_CHECK( cudaEventRecord( evKernel, 0 ) );
     CUDART_CHECK( cudaMemcpyAsync( hptrOut, dptrOut, N*sizeof(float), cudaMemcpyDeviceToHost, NULL ) );
     CUDART_CHECK( cudaEventRecord( evDtoH, 0 ) );
