@@ -202,7 +202,11 @@ Error:
 
 template<class T, const int n, bool bOffset>
 double
-ReportRow( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
+ReportRow( 
+    size_t N, 
+    size_t threadStart, 
+    size_t threadStop, 
+    size_t cBlocks )
 {
     int maxThreads = 0;
     double maxBW = 0.0;
