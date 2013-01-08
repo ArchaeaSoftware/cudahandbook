@@ -151,10 +151,11 @@ Error:
 
 template<class T, const int n, bool bOffset>
 double
-ReportRow( size_t N, 
-           size_t threadStart, 
-           size_t threadStop, 
-           size_t cBlocks )
+ReportRow( 
+    size_t N, 
+    size_t threadStart, 
+    size_t threadStop, 
+    size_t cBlocks )
 {
     int maxThreads = 0;
     double maxBW = 0.0;
@@ -180,6 +181,7 @@ Shmoo( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
 {
     printf( "Operand size: %d byte%c\n", (int) sizeof(T), sizeof(T)==1 ? '\0' : 's' );
     printf( "Input size: %dM operands\n", (int) (N>>20) );
+    printf( "                      Block Size\n" );
     printf( "Unroll\t" );
     for ( int cThreads = threadStart; cThreads <= threadStop; cThreads *= 2 ) {
         printf( "%d\t", cThreads );
