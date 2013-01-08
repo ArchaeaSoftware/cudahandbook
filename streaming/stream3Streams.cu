@@ -94,10 +94,7 @@ MeasureTimes(
 
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
-    for ( size_t i = 0; i < N; i++ ) {
-        hptrX[i] = (float) rand() / RAND_MAX;
-        hptrY[i] = (float) rand() / RAND_MAX;
-    }
+
     CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
 
     for ( int iStream = 0; iStream < nStreams; iStream++ ) {
@@ -131,8 +128,10 @@ Error:
     }
     cudaEventDestroy( evStart );
     cudaEventDestroy( evStop );
+    cudaFree( dptrOut );
     cudaFree( dptrX );
     cudaFree( dptrY );
+    cudaFreeHost( hptrOut );
     cudaFreeHost( hptrX );
     cudaFreeHost( hptrY );
     return status;
@@ -150,28 +149,33 @@ main( int argc, char *argv[] )
     cudaError_t status;
     int N_Mfloats = 128;
     size_t N;
-    int nStreams = 8;
+    int maxStreams = 8;
     int nBlocks = 1500;
     int nThreads = 256;
     float alpha = 2.0f;
 
     chCommandLineGet( &nBlocks, "nBlocks", argc, argv );
     chCommandLineGet( &nThreads, "nThreads", argc, argv );
-    chCommandLineGet( &nThreads, "nStreams", argc, argv );
-    chCommandLineGet( &N_Mfloats, "N", argc, argv );
-    printf( "Measuring times with %dM floats", N_Mfloats );
-    if ( N_Mfloats==128 ) {
-        printf( " (use --N to specify number of Mfloats)");
+    if ( ! chCommandLineGet( &N_Mfloats, "N", argc, argv ) ) {
+        printf( "    Usage: use --N to specify number of Mfloats)\n");
+    }
+    printf( "Measuring times with %dM floats\n", N_Mfloats );
+    if ( ! chCommandLineGet( &maxStreams, "maxStreams", argc, argv ) ) {
+        printf( "Testing with default max of %d streams "
+            "(set with --maxStreams <count>)\n", maxStreams );
     }
     printf( "\n" );
 
     N = 1048576*N_Mfloats;
 
     CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
-    {
+    printf( "Streams\tTime (ms)\tMB/s\n" );
+    for ( int numStreams = 1; numStreams <= maxStreams; numStreams++ ) {
         float msTotal;
-        CUDART_CHECK( MeasureTimes( &msTotal, N, alpha, nStreams, nBlocks, nThreads ) );
-        printf( "Total time: %.2f ms (%.2f MB/s)\n", msTotal, Bandwidth( msTotal, 3*N*sizeof(float) ) );
+        size_t thisN = (N / numStreams)*numStreams;
+        CUDART_CHECK( MeasureTimes( &msTotal, thisN, alpha, numStreams, nBlocks, nThreads ) );
+
+        printf( "%d\t%.2f ms\t%.2f\n", numStreams, msTotal, Bandwidth( msTotal, 3*thisN*sizeof(float) ) );
     }
 
 Error:

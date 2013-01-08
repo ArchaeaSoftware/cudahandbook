@@ -185,6 +185,7 @@ Bandwidth( float ms, double NumBytes )
 int
 main( int argc, char *argv[] )
 {
+    int device = 0;
     cudaError_t status;
     int N_Mfloats = 128;
     size_t N;
@@ -192,6 +193,7 @@ main( int argc, char *argv[] )
     int nThreads = 256;
     float alpha = 2.0f;
 
+    chCommandLineGet( &device, "device", argc, argv );
     chCommandLineGet( &nBlocks, "nBlocks", argc, argv );
     chCommandLineGet( &nThreads, "nThreads", argc, argv );
     chCommandLineGet( &N_Mfloats, "N", argc, argv );
@@ -203,6 +205,7 @@ main( int argc, char *argv[] )
 
     N = 1048576*N_Mfloats;
 
+    CUDART_CHECK( cudaSetDevice( device ) );
     CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
     {
         float msTotal, msHtoD, msKernel, msDtoH;

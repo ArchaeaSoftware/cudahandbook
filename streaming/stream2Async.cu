@@ -154,10 +154,10 @@ main( int argc, char *argv[] )
     {
         float msTotal, msHtoD, msKernel, msDtoH;
         CUDART_CHECK( MeasureTimes( &msTotal, &msHtoD, &msKernel, &msDtoH, N, alpha, nBlocks, nThreads ) );
-        printf( "Total time: %.2f ms (%.2f MB/s)\n", msTotal, Bandwidth( msTotal, 3*N*sizeof(float) ) );
         printf( "Memcpy( host->device ): %.2f ms (%.2f MB/s)\n", msHtoD, Bandwidth( msHtoD, 2*N*sizeof(float) ) );
         printf( "Kernel processing     : %.2f ms (%.2f MB/s)\n", msKernel, Bandwidth( msKernel, 3*N*sizeof(float) ) );
-        printf( "Memcpy (device->host ): %.2f ms (%.2f MB/s)\n", msDtoH, Bandwidth( msDtoH, N*sizeof(float) ) );
+        printf( "Memcpy (device->host ): %.2f ms (%.2f MB/s)\n\n", msDtoH, Bandwidth( msDtoH, N*sizeof(float) ) );
+        printf( "Total time: %.2f ms (%.2f MB/s)\n", msTotal, Bandwidth( msTotal, 3*N*sizeof(float) ) );
     }
 
 Error:
