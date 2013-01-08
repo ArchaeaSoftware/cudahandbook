@@ -42,6 +42,7 @@
 
 #include <chError.h>
 #include <chCommandLine.h>
+#include <chTimer.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,6 +53,7 @@
 cudaError_t
 MeasureTimes( 
     float *msTotal,
+    float *msWallClock,
     float *msHtoD, 
     float *msKernel, 
     float *msDtoH, 
@@ -61,6 +63,7 @@ MeasureTimes(
     int nThreads )
 {
     cudaError_t status;
+    chTimerTimestamp chStart, chStop;
     float *dptrOut = 0, *hptrOut = 0;
     float *dptrY = 0, *hptrY = 0;
     float *dptrX = 0, *hptrX = 0;
@@ -91,6 +94,12 @@ MeasureTimes(
         hptrX[i] = (float) rand() / RAND_MAX;
         hptrY[i] = (float) rand() / RAND_MAX;
     }
+
+    //
+    // begin timing
+    //
+
+    chTimerGetTime( &chStart );
     CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
         CUDART_CHECK( cudaMemcpyAsync( dptrX, hptrX, N*sizeof(float), cudaMemcpyHostToDevice, NULL ) );
         CUDART_CHECK( cudaMemcpyAsync( dptrY, hptrY, N*sizeof(float), cudaMemcpyHostToDevice, NULL ) );
@@ -100,6 +109,13 @@ MeasureTimes(
         CUDART_CHECK( cudaMemcpyAsync( hptrOut, dptrOut, N*sizeof(float), cudaMemcpyDeviceToHost, NULL ) );
     CUDART_CHECK( cudaEventRecord( evDtoH, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
+    chTimerGetTime( &chStop );
+    *msWallClock = 1000.0f*chTimerElapsedTime( &chStart, &chStop );
+
+    //
+    // end timing
+    //
+
     for ( size_t i = 0; i < N; i++ ) {
         if ( fabsf( hptrOut[i] - (alpha*hptrX[i]+hptrY[i]) ) > 1e-5f ) {
             status = cudaErrorUnknown;
@@ -118,6 +134,7 @@ Error:
     cudaFree( dptrOut );
     cudaFree( dptrX );
     cudaFree( dptrY );
+    cudaFreeHost( hptrOut );
     cudaFreeHost( hptrX );
     cudaFreeHost( hptrY );
     return status;
@@ -152,12 +169,12 @@ main( int argc, char *argv[] )
 
     CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
     {
-        float msTotal, msHtoD, msKernel, msDtoH;
-        CUDART_CHECK( MeasureTimes( &msTotal, &msHtoD, &msKernel, &msDtoH, N, alpha, nBlocks, nThreads ) );
-        printf( "Total time: %.2f ms (%.2f MB/s)\n", msTotal, Bandwidth( msTotal, 3*N*sizeof(float) ) );
+        float msTotal, msWallClock, msHtoD, msKernel, msDtoH;
+        CUDART_CHECK( MeasureTimes( &msTotal, &msWallClock, &msHtoD, &msKernel, &msDtoH, N, alpha, nBlocks, nThreads ) );
         printf( "Memcpy( host->device ): %.2f ms (%.2f MB/s)\n", msHtoD, Bandwidth( msHtoD, 2*N*sizeof(float) ) );
         printf( "Kernel processing     : %.2f ms (%.2f MB/s)\n", msKernel, Bandwidth( msKernel, 3*N*sizeof(float) ) );
-        printf( "Memcpy (device->host ): %.2f ms (%.2f MB/s)\n", msDtoH, Bandwidth( msDtoH, N*sizeof(float) ) );
+        printf( "Memcpy (device->host ): %.2f ms (%.2f MB/s)\n\n", msDtoH, Bandwidth( msDtoH, N*sizeof(float) ) );
+        printf( "Total time (wall clock): %.2f ms (%.2f MB/s)\n", msWallClock, Bandwidth( msWallClock, 3*N*sizeof(float) ) );
     }
 
 Error:

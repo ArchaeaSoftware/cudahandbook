@@ -40,6 +40,7 @@
 
 #include <chError.h>
 #include <chCommandLine.h>
+#include <chTimer.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,12 +51,14 @@
 cudaError_t
 MeasureTimes( 
     float *msTotal,
+    float *msWallClock,
     size_t N, 
     float alpha,
     int nBlocks, 
     int nThreads )
 {
     cudaError_t status;
+    chTimerTimestamp chStart, chStop;
     float *dptrOut = 0, *hptrOut = 0;
     float *dptrY = 0, *hptrY = 0;
     float *dptrX = 0, *hptrX = 0;
@@ -65,6 +68,7 @@ MeasureTimes(
     CUDART_CHECK( cudaHostAlloc( &hptrOut, N*sizeof(float), cudaHostAllocMapped ) );
     CUDART_CHECK( cudaHostGetDevicePointer( &dptrOut, hptrOut, 0 ) );
     memset( hptrOut, 0, N*sizeof(float) );
+
     CUDART_CHECK( cudaHostAlloc( &hptrY, N*sizeof(float), cudaHostAllocMapped ) );
     CUDART_CHECK( cudaHostGetDevicePointer( &dptrY, hptrY, 0 ) );
     CUDART_CHECK( cudaHostAlloc( &hptrX, N*sizeof(float), cudaHostAllocMapped ) );
@@ -76,10 +80,23 @@ MeasureTimes(
         hptrX[i] = (float) rand() / RAND_MAX;
         hptrY[i] = (float) rand() / RAND_MAX;
     }
+
+    //
+    // begin timing
+    //
+
+    chTimerGetTime( &chStart );
     CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
         saxpyGPU<<<nBlocks, nThreads>>>( dptrOut, dptrX, dptrY, N, alpha );
     CUDART_CHECK( cudaEventRecord( evStop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
+
+    //
+    // end timing
+    //
+
+    chTimerGetTime( &chStop );
+    *msWallClock = 1000.0f*chTimerElapsedTime( &chStart, &chStop );
     for ( size_t i = 0; i < N; i++ ) {
         if ( fabsf( hptrOut[i] - (alpha*hptrX[i]+hptrY[i]) ) > 1e-5f ) {
             status = cudaErrorUnknown;
@@ -125,9 +142,10 @@ main( int argc, char *argv[] )
 
     CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
     {
-        float msTotal;
-        CUDART_CHECK( MeasureTimes( &msTotal, N, alpha, nBlocks, nThreads ) );
-        printf( "Total time: %.2f ms (%.2f MB/s)\n", msTotal, Bandwidth( msTotal, 3*N*sizeof(float) ) );
+        float msTotalGPU, msWallClock;
+        CUDART_CHECK( MeasureTimes( &msTotalGPU, &msWallClock, N, alpha, nBlocks, nThreads ) );
+        printf( "Total time (GPU event):  %.2f ms (%.2f MB/s)\n", msTotalGPU, Bandwidth( msTotalGPU, 3*N*sizeof(float) ) );
+        printf( "Total time (wall clock): %.2f ms (%.2f MB/s)\n", msWallClock, Bandwidth( msWallClock, 3*N*sizeof(float) ) );
     }
 
 Error:
