@@ -38,6 +38,7 @@
 
 #include <chError.h>
 #include <chCommandLine.h>
+#include <chTimer.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,6 +49,7 @@
 cudaError_t
 MeasureTimes( 
     float *msTotal,
+    float *msWallClock,
     size_t N, 
     float alpha,
     int nStreams,
@@ -55,6 +57,7 @@ MeasureTimes(
     int nThreads )
 {
     cudaError_t status;
+    chTimerTimestamp chStart, chStop;
     float *dptrOut = 0, *hptrOut = 0;
     float *dptrY = 0, *hptrY = 0;
     float *dptrX = 0, *hptrX = 0;
@@ -95,6 +98,8 @@ MeasureTimes(
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
 
+    chTimerGetTime( &chStart );
+
     CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
 
     for ( int iStream = 0; iStream < nStreams; iStream++ ) {
@@ -112,6 +117,8 @@ MeasureTimes(
 
     CUDART_CHECK( cudaEventRecord( evStop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
+    chTimerGetTime( &chStop );
+    *msWallClock = 1000.0f*chTimerElapsedTime( &chStart, &chStop );
     for ( size_t i = 0; i < N; i++ ) {
         if ( fabsf( hptrOut[i] - (alpha*hptrX[i]+hptrY[i]) ) > 1e-5f ) {
             status = cudaErrorUnknown;
@@ -171,11 +178,11 @@ main( int argc, char *argv[] )
     CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
     printf( "Streams\tTime (ms)\tMB/s\n" );
     for ( int numStreams = 1; numStreams <= maxStreams; numStreams++ ) {
-        float msTotal;
+        float msTotal, msWallClock;
         size_t thisN = (N / numStreams)*numStreams;
-        CUDART_CHECK( MeasureTimes( &msTotal, thisN, alpha, numStreams, nBlocks, nThreads ) );
+        CUDART_CHECK( MeasureTimes( &msTotal, &msWallClock, thisN, alpha, numStreams, nBlocks, nThreads ) );
 
-        printf( "%d\t%.2f ms\t%.2f\n", numStreams, msTotal, Bandwidth( msTotal, 3*thisN*sizeof(float) ) );
+        printf( "%d\t%.2f ms\t%.2f\n", numStreams, msTotal, Bandwidth( msWallClock, 3*thisN*sizeof(float) ) );
     }
 
 Error:
