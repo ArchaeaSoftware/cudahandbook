@@ -1,8 +1,10 @@
 /*
  *
- * nbody_GPU_Shared.cu
+ * nbody_GPU_Shared.cuh
  *
  * Shared memory-based implementation of the O(N^2) N-body calculation.
+ * This header is designed to be included by the multi-GPU versions as
+ * well as the shared memory implementation.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -33,40 +35,51 @@
  *
  */
 
-#include <chError.h>
+#ifndef __CUDAHANDBOOK_SHARED_CUH__
+#define __CUDAHANDBOOK_SHARED_CUH__
 
 #include "bodybodyInteraction.cuh"
-#include "nbody_GPU_shared.cuh"
 
-__global__ void
-ComputeNBodyGravitation_Shared( 
+inline __device__ void
+ComputeNBodyGravitation_Shared_device( 
     float *force, 
     float *posMass, 
     float softeningSquared, 
     size_t N )
 {
-    ComputeNBodyGravitation_Shared_device( force, posMass, softeningSquared, N );
+    extern __shared__ float4 shPosMass[];
+    for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
+              i < N;
+              i += blockDim.x*gridDim.x )
+    {
+        float acc[3] = {0};
+        float4 myPosMass = ((float4 *) posMass)[i];
+#pragma unroll 4
+        for ( int j = 0; j < N; j += blockDim.x ) {
+            shPosMass[threadIdx.x] = ((float4 *) posMass)[j+threadIdx.x];
+            __syncthreads();
+            for ( size_t k = 0; k < blockDim.x; k++ ) {
+                float fx, fy, fz;
+                float4 bodyPosMass = shPosMass[k];
+
+                bodyBodyInteraction( 
+                    &fx, &fy, &fz, 
+                    myPosMass.x, myPosMass.y, myPosMass.z, 
+                    bodyPosMass.x, 
+                    bodyPosMass.y, 
+                    bodyPosMass.z, 
+                    bodyPosMass.w, 
+                    softeningSquared );
+                acc[0] += fx;
+                acc[1] += fy;
+                acc[2] += fz;
+            }
+            __syncthreads();
+        }
+        force[3*i+0] = acc[0];
+        force[3*i+1] = acc[1];
+        force[3*i+2] = acc[2];
+    }
 }
 
-float
-ComputeGravitation_GPU_Shared( 
-    float *force, 
-    float *posMass, 
-    float softeningSquared, 
-    size_t N )
-{
-    cudaError_t status;
-    cudaEvent_t evStart = 0, evStop = 0;
-    float ms = 0.0;
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
-    CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
-    ComputeNBodyGravitation_Shared<<<300,256, 256*sizeof(float4)>>>( force, posMass, softeningSquared, N );
-    CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
-    CUDART_CHECK( cudaDeviceSynchronize() );
-    CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
-Error:
-    CUDART_CHECK( cudaEventDestroy( evStop ) );
-    CUDART_CHECK( cudaEventDestroy( evStart ) );
-    return ms;
-}
+#endif
