@@ -34,6 +34,9 @@
  *
  */
 
+#ifndef __CUDAHANDBOOK_BODYBODYINTERACTION_CUH__
+#define __CUDAHANDBOOK_BODYBODYINTERACTION_CUH__
+
 template <typename T>
 __host__ __device__ void bodyBodyInteraction(
     T *fx, T *fy, T *fz, 
@@ -61,3 +64,5 @@ __host__ __device__ void bodyBodyInteraction(
     *fy = dy * s;
     *fz = dz * s;
 }
+
+#endif
