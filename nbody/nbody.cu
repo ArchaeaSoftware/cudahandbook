@@ -366,7 +366,7 @@ ComputeGravitation(
         }
     }
 
-	*maxRelError = 0.0f;
+    *maxRelError = 0.0f;
     if ( bCrossCheck ) {
         float max = 0.0f;
         for ( size_t i = 0; i < 3*g_N; i++ ) {
