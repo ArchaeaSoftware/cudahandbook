@@ -147,13 +147,13 @@ MeasureTimes(
         hptrX[i] = (float) rand() / RAND_MAX;
         hptrY[i] = (float) rand() / RAND_MAX;
     }
-    CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
 
     //
     // begin timing
     //
 
     chTimerGetTime( &chStart );
+    CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
     CUDART_CHECK( cudaMemcpy( dptrX, hptrX, N*sizeof(float), cudaMemcpyHostToDevice ) );
     CUDART_CHECK( cudaMemcpy( dptrY, hptrY, N*sizeof(float), cudaMemcpyHostToDevice ) );
     CUDART_CHECK( cudaEventRecord( evHtoD, 0 ) );

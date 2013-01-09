@@ -103,16 +103,36 @@ MeasureTimes(
     CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
 
     for ( int iStream = 0; iStream < nStreams; iStream++ ) {
-        CUDART_CHECK( cudaMemcpyAsync( dptrX+iStream*streamStep, hptrX+iStream*streamStep, streamStep*sizeof(float), cudaMemcpyHostToDevice, streams[iStream] ) );
-        CUDART_CHECK( cudaMemcpyAsync( dptrY+iStream*streamStep, hptrY+iStream*streamStep, streamStep*sizeof(float), cudaMemcpyHostToDevice, streams[iStream] ) );
+        CUDART_CHECK( cudaMemcpyAsync( 
+                          dptrX+iStream*streamStep, 
+                          hptrX+iStream*streamStep, 
+                          streamStep*sizeof(float), 
+                          cudaMemcpyHostToDevice, 
+                          streams[iStream] ) );
+        CUDART_CHECK( cudaMemcpyAsync( 
+                          dptrY+iStream*streamStep, 
+                          hptrY+iStream*streamStep, 
+                          streamStep*sizeof(float), 
+                          cudaMemcpyHostToDevice, 
+                          streams[iStream] ) );
     }
 
     for ( int iStream = 0; iStream < nStreams; iStream++ ) {
-        saxpyGPU<<<nBlocks, nThreads, 0, streams[iStream]>>>( dptrOut+iStream*streamStep, dptrX+iStream*streamStep, dptrY+iStream*streamStep, streamStep, alpha );
+        saxpyGPU<<<nBlocks, nThreads, 0, streams[iStream]>>>( 
+            dptrOut+iStream*streamStep, 
+            dptrX+iStream*streamStep, 
+            dptrY+iStream*streamStep, 
+            streamStep, 
+            alpha );
     }
 
     for ( int iStream = 0; iStream < nStreams; iStream++ ) {
-        CUDART_CHECK( cudaMemcpyAsync( hptrOut+iStream*streamStep, dptrOut+iStream*streamStep, streamStep*sizeof(float), cudaMemcpyDeviceToHost, streams[iStream] ) );
+        CUDART_CHECK( cudaMemcpyAsync( 
+                          hptrOut+iStream*streamStep, 
+                          dptrOut+iStream*streamStep, 
+                          streamStep*sizeof(float), 
+                          cudaMemcpyDeviceToHost, 
+                          streams[iStream] ) );
     }
 
     CUDART_CHECK( cudaEventRecord( evStop, 0 ) );
