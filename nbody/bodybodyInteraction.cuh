@@ -48,7 +48,11 @@ __host__ __device__ void bodyBodyInteraction(
     T distSqr = dx*dx + dy*dy + dz*dz;
     distSqr += softeningSquared;
 
-    T invDist = (T)1.0 / (T)sqrt(distSqr);
+    //
+    // rsqrtf() maps to SFU instruction - to support
+    // double, this has to be changed.
+    //
+    T invDist = rsqrtf(distSqr);
 
     T invDistCube =  invDist * invDist * invDist;
     T s = mass1 * invDistCube;
