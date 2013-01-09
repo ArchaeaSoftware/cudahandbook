@@ -74,15 +74,27 @@ enum nbodyAlgorithm_enum {
     GPU_Shared,
     multiGPU_SingleCPUThread,
     multiGPU_MultiCPUThread,
+// SM 3.0 only
     GPU_Shuffle,
     GPU_AOS_tiled,
-    // For illustrative purposes, SOA tiled and atomic are still in the
-    // source code, but they do not get built and run by default.
-    //GPU_SOA_tiled,
-    //GPU_Atomic,
-    /*,
-    GPU_SOA,
-    MultiGPU*/
+//    GPU_Atomic
+};
+
+
+static const char *rgszAlgorithmNames[] = { 
+    "CPU_AOS", 
+    "CPU_AOS_tiled", 
+    "CPU_SOA", 
+    "CPU_SSE", 
+    "CPU_SSE_threaded", 
+    "GPU_AOS", 
+    "GPU_Shared", 
+    "multiGPU_SingleCPUThread",
+    "multiGPU_MultiCPUThread",
+// SM 3.0 only
+    "GPU_Shuffle",
+    "GPU_AOS_tiled",
+//    "GPU_Atomic"
 };
 
 extern const char *rgszAlgorithmNames[];
