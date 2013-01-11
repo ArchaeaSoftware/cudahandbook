@@ -59,6 +59,7 @@ ComputeNBodyGravitation_multiGPU(
         posMass, 
         softeningSquared, 
         base, 
+        n,
         N );
 }
 

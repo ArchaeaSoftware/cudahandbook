@@ -50,6 +50,7 @@ ComputeNBodyGravitation_Shared(
         posMass, 
         softeningSquared, 
         0, 
+        N,
         N );
 }
 
