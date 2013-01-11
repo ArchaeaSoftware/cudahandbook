@@ -45,16 +45,18 @@ ComputeNBodyGravitation_Shared_device(
     float *force, 
     float *posMass, 
     float softeningSquared, 
+    size_t base,
     size_t N )
 {
     extern __shared__ float4 shPosMass[];
-    for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
-              i < N;
-              i += blockDim.x*gridDim.x )
+    for ( int m = blockIdx.x*blockDim.x + threadIdx.x;
+              m < N;
+              m += blockDim.x*gridDim.x )
     {
+        size_t i = base+m;
         float acc[3] = {0};
         float4 myPosMass = ((float4 *) posMass)[i];
-#pragma unroll 4
+#pragma unroll 32
         for ( int j = 0; j < N; j += blockDim.x ) {
             shPosMass[threadIdx.x] = ((float4 *) posMass)[j+threadIdx.x];
             __syncthreads();

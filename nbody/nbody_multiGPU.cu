@@ -47,9 +47,20 @@
 using namespace cudahandbook::threading;
 
 __global__ void
-ComputeNBodyGravitation_multiGPU_onethread( float *force, float *posMass, float softeningSquared, size_t base, size_t n, size_t N )
+ComputeNBodyGravitation_multiGPU_onethread( 
+    float *force, 
+    float *posMass, 
+    float softeningSquared, 
+    size_t base, 
+    size_t n, 
+    size_t N )
 {
-    ComputeNBodyGravitation_Shared_device( force, posMass, softeningSquared, N );
+    ComputeNBodyGravitation_Shared_device( 
+        force, 
+        posMass, 
+        softeningSquared, 
+        base, 
+        N );
 }
 
 float

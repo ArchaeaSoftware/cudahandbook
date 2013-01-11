@@ -45,7 +45,12 @@ ComputeNBodyGravitation_Shared(
     float softeningSquared, 
     size_t N )
 {
-    ComputeNBodyGravitation_Shared_device( force, posMass, softeningSquared, N );
+    ComputeNBodyGravitation_Shared_device( 
+        force, 
+        posMass, 
+        softeningSquared, 
+        0, 
+        N );
 }
 
 float

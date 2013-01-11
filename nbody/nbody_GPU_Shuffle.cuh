@@ -51,7 +51,7 @@ ComputeNBodyGravitation_Shuffle(
 
         for ( int j = 0; j < N; j += 32 ) {
             float4 shufSrcPosMass = ((float4 *) posMass)[j+laneid];
-#pragma unroll
+#pragma unroll 32
             for ( int k = 0; k < 32; k++ ) {
                 float fx, fy, fz;
                 float4 shufDstPosMass;
