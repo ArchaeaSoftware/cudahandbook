@@ -116,25 +116,19 @@ pageAlignedNumaAlloc( size_t bytes, int node )
 {
     void *ret;
     printf( "Allocating on node %d\n", node ); fflush(stdout);
-#ifdef _WIN32
     ret = VirtualAllocExNuma( GetCurrentProcess(), 
                               NULL,
                               bytes,
                               MEM_COMMIT | MEM_RESERVE,
                               PAGE_READWRITE,
                               node );
-#else
-    ret = posix_memalign( 
-#endif
     return ret;
 }
 
 void
 pageAlignedNumaFree( void *p )
 {
-#ifdef _WIN32
     VirtualFreeEx( GetCurrentProcess(), p, 0, MEM_RELEASE );
-#endif
 }
 
 typedef struct __GPU_BANDWIDTH_PARAMETERS
