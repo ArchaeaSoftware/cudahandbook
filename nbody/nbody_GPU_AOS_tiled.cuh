@@ -35,6 +35,9 @@
  *
  */
 
+
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH>300)
+
 template<typename ReductionType, typename T, unsigned int numThreads>
 __device__ T
 Reduction4_LogStepShared( volatile ReductionType *sPartials )
@@ -262,3 +265,15 @@ Error:
     CUDART_CHECK( cudaEventDestroy( evStart ) );
     return ms;
 }
+#else
+float
+ComputeGravitation_GPU_AOS_tiled(
+    float *,
+    float *,
+    float,
+    size_t )
+{
+    return 0.0f;
+}
+#endif
+

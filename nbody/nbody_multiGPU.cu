@@ -78,6 +78,7 @@ ComputeGravitation_multiGPU_singlethread(
 
     float *dptrPosMass[g_maxGPUs];
     float *dptrForce[g_maxGPUs];
+    int oldDevice;
 
     chTimerTimestamp start, end;
     chTimerGetTime( &start );
@@ -88,6 +89,7 @@ ComputeGravitation_multiGPU_singlethread(
     if ( (0 != N % g_numGPUs) || (g_numGPUs > g_maxGPUs) ) {
         return 0.0f;
     }
+    CUDART_CHECK( cudaGetDevice( &oldDevice ) );
 
     // kick off the asynchronous memcpy's - overlap GPUs pulling
     // host memory with the CPU time needed to do the memory 
@@ -129,5 +131,6 @@ Error:
         cudaFree( dptrPosMass[i] );
         cudaFree( dptrForce[i] );
     }
+    cudaSetDevice( oldDevice );
     return ret;
 }

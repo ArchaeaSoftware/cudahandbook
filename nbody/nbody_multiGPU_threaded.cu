@@ -41,7 +41,7 @@
 
 #include "nbody.h"
 #include "bodybodyInteraction.cuh"
-#include "nbody_GPU_Shared.cuh"
+#include "nbody_GPU_shared.cuh"
 
 using namespace cudahandbook::threading;
 

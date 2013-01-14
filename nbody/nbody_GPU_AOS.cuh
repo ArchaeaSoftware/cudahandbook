@@ -88,7 +88,7 @@ ComputeGravitation_GPU_AOS(
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
 Error:
-    CUDART_CHECK( cudaEventDestroy( evStop ) );
-    CUDART_CHECK( cudaEventDestroy( evStart ) );
+    cudaEventDestroy( evStop );
+    cudaEventDestroy( evStart );
     return ms;
 }

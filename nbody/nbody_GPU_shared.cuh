@@ -1,6 +1,6 @@
 /*
  *
- * nbody_GPU_Shared.cuh
+ * nbody_GPU_shared.cuh
  *
  * Shared memory-based implementation of the O(N^2) N-body calculation.
  * This header is designed to be included by the multi-GPU versions as
