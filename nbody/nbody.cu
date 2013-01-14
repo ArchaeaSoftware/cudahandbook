@@ -551,7 +551,10 @@ main( int argc, char *argv[] )
         while ( ! bStop ) {
             float ms, err;
 
-            ComputeGravitation( &ms, &err, g_Algorithm, g_bCrossCheck );
+            if ( ! ComputeGravitation( &ms, &err, g_Algorithm, g_bCrossCheck ) ) {
+                fprintf( stderr, "Error computing timestep\n" );
+                exit(1);
+            }
             double interactionsPerSecond = (double) g_N*g_N*1000.0f / ms;
             if ( interactionsPerSecond > 1e9 ) {
                 printf ( "%s: %.2f ms = %.3fx10^9 interactions/s (Rel. error: %E)\n", 
