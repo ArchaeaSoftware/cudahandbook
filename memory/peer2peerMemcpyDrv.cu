@@ -75,15 +75,31 @@ chMemcpyPeerToPeer(
         size_t thisCopySize = min( N, STAGING_BUFFER_SIZE );
 
         CUDA_CHECK( cuCtxPushCurrent( srcContext ) );
-        CUDA_CHECK( cuStreamWaitEvent( NULL, g_events[dstDevice][stagingIndex], 0 ) );
-        CUDA_CHECK( cuMemcpyDtoHAsync( g_hostBuffers[stagingIndex], src, thisCopySize, NULL ) );
-        CUDA_CHECK( cuEventRecord( g_events[srcDevice][stagingIndex], 0 ) );
+        CUDA_CHECK( cuStreamWaitEvent( 
+            NULL, g_events[dstDevice][stagingIndex], 0 ) );
+        CUDA_CHECK( cuMemcpyDtoHAsync( 
+            g_hostBuffers[stagingIndex], 
+            src, 
+            thisCopySize, 
+            NULL ) );
+        CUDA_CHECK( cuEventRecord( 
+            g_events[srcDevice][stagingIndex], 
+            0 ) );
 
         CUDA_CHECK( cuCtxPopCurrent( &srcContext ) );
         CUDA_CHECK( cuCtxPushCurrent( dstContext ) );
-        CUDA_CHECK( cuStreamWaitEvent( NULL, g_events[srcDevice][stagingIndex], 0 ) );
-        CUDA_CHECK( cuMemcpyHtoDAsync( dst, g_hostBuffers[stagingIndex], thisCopySize, NULL ) );
-        CUDA_CHECK( cuEventRecord( g_events[dstDevice][stagingIndex], 0 ) );
+        CUDA_CHECK( cuStreamWaitEvent( 
+            NULL, 
+            g_events[srcDevice][stagingIndex], 
+            0 ) );
+        CUDA_CHECK( cuMemcpyHtoDAsync( 
+            dst, 
+            g_hostBuffers[stagingIndex], 
+            thisCopySize, 
+            NULL ) );
+        CUDA_CHECK( cuEventRecord( 
+            g_events[dstDevice][stagingIndex], 
+            0 ) );
 
         CUDA_CHECK( cuCtxPopCurrent( &dstContext ) );
 
