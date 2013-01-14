@@ -54,7 +54,7 @@ ComputeNBodyGravitation_multiGPU(
     size_t n, 
     size_t N )
 {
-    ComputeNBodyGravitation_Shared_device( 
+    ComputeNBodyGravitation_Shared_multiGPU( 
         force, 
         posMass, 
         softeningSquared, 
