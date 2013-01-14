@@ -97,6 +97,9 @@ static const char *rgszAlgorithmNames[] = {
 //    "GPU_Atomic"
 };
 
+// maximum number of GPUs supported by single-threaded multi-GPU
+const int g_maxGPUs = 32;
+
 extern const char *rgszAlgorithmNames[];
 
 extern enum nbodyAlgorithm_enum g_Algorithm;

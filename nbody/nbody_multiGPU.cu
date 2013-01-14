@@ -75,27 +75,29 @@ ComputeGravitation_multiGPU_singlethread(
     cudaError_t status;
 
     float ret = 0.0f;
-    
-    float *dptrPosMass = 0;
-    float *dptrForce = 0;
+
+    float *dptrPosMass[g_maxGPUs];
+    float *dptrForce[g_maxGPUs];
 
     chTimerTimestamp start, end;
     chTimerGetTime( &start );
-    
+
+    memset( dptrPosMass, 0, sizeof(dptrPosMass) );
+    memset( dptrForce, 0, sizeof(dptrForce) );
     size_t bodiesPerGPU = N / g_numGPUs;
-    if ( N % g_numGPUs ) {
+    if ( (0 != N % g_numGPUs) || (g_numGPUs > g_maxGPUs) ) {
         return 0.0f;
     }
-    
+
     // kick off the asynchronous memcpy's - overlap GPUs pulling
     // host memory with the CPU time needed to do the memory 
     // allocations.
     for ( int i = 0; i < g_numGPUs; i++ ) {
         CUDART_CHECK( cudaSetDevice( i ) );
-        CUDART_CHECK( cudaMalloc( &dptrPosMass, 4*N*sizeof(float) ) );
-        CUDART_CHECK( cudaMalloc( &dptrForce, 3*bodiesPerGPU*sizeof(float) ) );
+        CUDART_CHECK( cudaMalloc( &dptrPosMass[i], 4*N*sizeof(float) ) );
+        CUDART_CHECK( cudaMalloc( &dptrForce[i], 3*bodiesPerGPU*sizeof(float) ) );
         CUDART_CHECK( cudaMemcpyAsync( 
-            dptrPosMass, 
+            dptrPosMass[i], 
             g_hostAOS_PosMass, 
             4*N*sizeof(float), 
             cudaMemcpyHostToDevice ) );
@@ -103,15 +105,15 @@ ComputeGravitation_multiGPU_singlethread(
     for ( int i = 0; i < g_numGPUs; i++ ) {
         CUDART_CHECK( cudaSetDevice( i ) );
         ComputeNBodyGravitation_multiGPU_onethread<<<300,256,256*sizeof(float4)>>>( 
-            dptrForce,
-            dptrPosMass,
+            dptrForce[i],
+            dptrPosMass[i],
             softeningSquared,
             i*bodiesPerGPU,
             bodiesPerGPU,
             N );
         CUDART_CHECK( cudaMemcpyAsync( 
             g_hostAOS_Force+3*bodiesPerGPU*i, 
-            dptrForce, 
+            dptrForce[i], 
             3*bodiesPerGPU*sizeof(float), 
             cudaMemcpyDeviceToHost ) );
     }
@@ -121,9 +123,11 @@ ComputeGravitation_multiGPU_singlethread(
         CUDART_CHECK( cudaDeviceSynchronize() );
     }
     chTimerGetTime( &end );
-    return chTimerElapsedTime( &start, &end ) * 1000.0f;
+    ret = chTimerElapsedTime( &start, &end ) * 1000.0f;
 Error:
-    cudaFree( dptrPosMass );
-    cudaFree( dptrForce );
+    for ( int i = 0; i < g_numGPUs; i++ ) {
+        cudaFree( dptrPosMass[i] );
+        cudaFree( dptrForce[i] );
+    }
     return ret;
 }
