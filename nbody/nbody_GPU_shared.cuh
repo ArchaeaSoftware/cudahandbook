@@ -41,7 +41,49 @@
 #include "bodybodyInteraction.cuh"
 
 inline __device__ void
-ComputeNBodyGravitation_Shared_device( 
+ComputeNBodyGravitation_Shared_singleGPU( 
+    float *force, 
+    float *posMass, 
+    float softeningSquared, 
+    size_t N )
+{
+    extern __shared__ float4 shPosMass[];
+    for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
+              i < N;
+              i += blockDim.x*gridDim.x )
+    {
+        float acc[3] = {0};
+        float4 myPosMass = ((float4 *) posMass)[i];
+#pragma unroll 32
+        for ( int j = 0; j < N; j += blockDim.x ) {
+            shPosMass[threadIdx.x] = ((float4 *) posMass)[j+threadIdx.x];
+            __syncthreads();
+            for ( size_t k = 0; k < blockDim.x; k++ ) {
+                float fx, fy, fz;
+                float4 bodyPosMass = shPosMass[k];
+
+                bodyBodyInteraction( 
+                    &fx, &fy, &fz, 
+                    myPosMass.x, myPosMass.y, myPosMass.z, 
+                    bodyPosMass.x, 
+                    bodyPosMass.y, 
+                    bodyPosMass.z, 
+                    bodyPosMass.w, 
+                    softeningSquared );
+                acc[0] += fx;
+                acc[1] += fy;
+                acc[2] += fz;
+            }
+            __syncthreads();
+        }
+        force[3*i+0] = acc[0];
+        force[3*i+1] = acc[1];
+        force[3*i+2] = acc[2];
+    }
+}
+
+inline __device__ void
+ComputeNBodyGravitation_Shared_multiGPU( 
     float *force, 
     float *posMass, 
     float softeningSquared, 

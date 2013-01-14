@@ -45,12 +45,10 @@ ComputeNBodyGravitation_Shared(
     float softeningSquared, 
     size_t N )
 {
-    ComputeNBodyGravitation_Shared_device( 
+    ComputeNBodyGravitation_Shared_singleGPU(
         force, 
         posMass, 
         softeningSquared, 
-        0, 
-        N,
         N );
 }
 
@@ -67,7 +65,11 @@ ComputeGravitation_GPU_Shared(
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
     CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
-    ComputeNBodyGravitation_Shared<<<300,256, 256*sizeof(float4)>>>( force, posMass, softeningSquared, N );
+    ComputeNBodyGravitation_Shared<<<300,256, 256*sizeof(float4)>>>( 
+        force, 
+        posMass, 
+        softeningSquared, 
+        N );
     CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
