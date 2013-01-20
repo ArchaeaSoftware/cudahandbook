@@ -40,7 +40,7 @@
 #include <chThread.h>
 
 #include "nbody.h"
-#include "nbody_GPU_shared.cuh"
+#include "nbody_multiGPU_shared.cuh"
 
 #include "bodybodyInteraction.cuh"
 
