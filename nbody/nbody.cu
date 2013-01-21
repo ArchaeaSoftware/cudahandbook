@@ -135,6 +135,7 @@ relError( T a, T b )
 #include "nbody_CPU_SSE_threaded.h"
 
 #include "nbody_GPU_AOS.cuh"
+#include "nbody_GPU_AOS_Const.cuh"
 #include "nbody_GPU_AOS_tiled.cuh"
 //#include "nbody_GPU_SOA_tiled.cuh"
 #include "nbody_GPU_Shuffle.cuh"
@@ -322,6 +323,15 @@ ComputeGravitation(
         case GPU_Shared:
             CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
             *ms = ComputeGravitation_GPU_Shared( 
+                g_dptrAOS_Force,
+                g_dptrAOS_PosMass,
+                g_softening*g_softening,
+                g_N );
+            CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
+            break;
+        case GPU_Const:
+            CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
+            *ms = ComputeNBodyGravitation_GPU_AOS_const( 
                 g_dptrAOS_Force,
                 g_dptrAOS_PosMass,
                 g_softening*g_softening,

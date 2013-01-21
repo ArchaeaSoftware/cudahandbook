@@ -72,6 +72,7 @@ enum nbodyAlgorithm_enum {
     CPU_SSE_threaded,
     GPU_AOS,
     GPU_Shared,
+    GPU_Const,
     multiGPU_SingleCPUThread,
     multiGPU_MultiCPUThread,
 // SM 3.0 only
@@ -89,6 +90,7 @@ static const char *rgszAlgorithmNames[] = {
     "CPU_SSE_threaded", 
     "GPU_AOS", 
     "GPU_Shared", 
+    "GPU_Const",
     "multiGPU_SingleCPUThread",
     "multiGPU_MultiCPUThread",
 // SM 3.0 only
