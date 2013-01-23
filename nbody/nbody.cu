@@ -137,6 +137,7 @@ relError( T a, T b )
 #include "nbody_GPU_AOS.cuh"
 #include "nbody_GPU_AOS_Const.cuh"
 #include "nbody_GPU_AOS_tiled.cuh"
+#include "nbody_GPU_AOS_tiled_const.cuh"
 //#include "nbody_GPU_SOA_tiled.cuh"
 #include "nbody_GPU_Shuffle.cuh"
 #include "nbody_GPU_Atomic.cuh"
@@ -247,7 +248,11 @@ ComputeGravitation(
 
     // CPU->GPU copies in case we are measuring GPU performance
     if ( g_bCUDAPresent ) {
-        CUDART_CHECK( cudaMemcpyAsync( g_dptrAOS_PosMass, g_hostAOS_PosMass, 4*g_N*sizeof(float), cudaMemcpyHostToDevice ) );
+        CUDART_CHECK( cudaMemcpyAsync( 
+            g_dptrAOS_PosMass, 
+            g_hostAOS_PosMass, 
+            4*g_N*sizeof(float), 
+            cudaMemcpyHostToDevice ) );
     }
 
     switch ( algorithm ) {
@@ -302,6 +307,14 @@ ComputeGravitation(
             break;
         case GPU_AOS_tiled:
             *ms = ComputeGravitation_GPU_AOS_tiled( 
+                g_dptrAOS_Force,
+                g_dptrAOS_PosMass,
+                g_softening*g_softening,
+                g_N );
+            CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
+            break;
+        case GPU_AOS_tiled_const:
+            *ms = ComputeGravitation_GPU_AOS_tiled_const( 
                 g_dptrAOS_Force,
                 g_dptrAOS_PosMass,
                 g_softening*g_softening,
@@ -506,7 +519,7 @@ main( int argc, char *argv[] )
     g_maxAlgorithm = CPU_SSE_threaded;
     if ( g_bCUDAPresent || g_bNoCPU ) {
         // max algorithm is different depending on whether SM 3.0 is present
-        g_maxAlgorithm = g_bSM30Present ? GPU_AOS_tiled : multiGPU_MultiCPUThread;
+        g_maxAlgorithm = g_bSM30Present ? GPU_AOS_tiled_const : multiGPU_MultiCPUThread;
     }
 
     if ( g_bCUDAPresent ) {

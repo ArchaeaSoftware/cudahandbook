@@ -78,6 +78,7 @@ enum nbodyAlgorithm_enum {
 // SM 3.0 only
     GPU_Shuffle,
     GPU_AOS_tiled,
+    GPU_AOS_tiled_const,
 //    GPU_Atomic
 };
 
@@ -96,6 +97,7 @@ static const char *rgszAlgorithmNames[] = {
 // SM 3.0 only
     "GPU_Shuffle",
     "GPU_AOS_tiled",
+    "GPU_AOS_tiled_const",
 //    "GPU_Atomic"
 };
 
