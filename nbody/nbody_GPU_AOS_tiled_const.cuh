@@ -192,8 +192,6 @@ DoNondiagonalTile_GPU_const(
     float4 shufSrcPosMass = ((float4 *) posMass)[jTile*nTile+laneid];
 
     for ( size_t _j = 0; _j < nTile; _j++ ) {
-        size_t j = jTile*nTile+_j;
-
         float fx, fy, fz;
         float4 bodyPosMass;
 
@@ -212,36 +210,39 @@ DoNondiagonalTile_GPU_const(
         ay += fy;
         az += fz;
 
-        sForces[33*laneid+_j] = fx;
-#if 0
-        fx = warpReduce( -fx );
-#endif
-        fy = warpReduce( -fy );
-        fz = warpReduce( -fz );
-
-        if ( laneid == 0 ) {
-#if 0
-            atomicAdd( &force[3*j+0], fx );
-#endif
-            atomicAdd( &force[3*j+1], fy );
-            atomicAdd( &force[3*j+2], fz );
-        }
+        sForces[0*1056+33*laneid+_j] = fx;
+        sForces[1*1056+33*laneid+_j] = fy;
+        sForces[2*1056+33*laneid+_j] = fz;
     }
 
     atomicAdd( &force[3*i+0], ax );
     atomicAdd( &force[3*i+1], ay );
     atomicAdd( &force[3*i+2], az );
-#if 1
-    ax = 0.0f;
-#pragma unroll 32
-    for ( int _j = 0; _j < nTile; _j++ ) {
-        ax -= sForces[33*_j+laneid];
-    }
+
     {
         size_t j = jTile*nTile+laneid;
+
+        ax = 0.0f;
+#pragma unroll 32
+        for ( int _j = 0; _j < nTile; _j++ ) {
+            ax -= sForces[0*1056+33*_j+laneid];
+        }
         atomicAdd( &force[3*j+0], ax );
+
+        ay = 0.0f;
+#pragma unroll 32
+        for ( int _j = 0; _j < nTile; _j++ ) {
+            ay -= sForces[1*1056+33*_j+laneid];
+        }
+        atomicAdd( &force[3*j+1], ay );
+
+        az = 0.0f;
+#pragma unroll 32
+        for ( int _j = 0; _j < nTile; _j++ ) {
+            az -= sForces[2*1056+33*_j+laneid];
+        }
+        atomicAdd( &force[3*j+2], az );
     }
-#endif
 
 }
 
@@ -262,7 +263,7 @@ ComputeNBodyGravitation_GPU_tiled_const(
     //
     // 3K floats = 12672 bytes of shared memory per 32x32 tile
     //
-    __shared__ float sForces[33*32];
+    __shared__ float sForces[3*33*32];
 
     int iTileCoarse = blockIdx.x;
     int iTile = iTileCoarse*warpsPerBlock+warpid;
@@ -280,7 +281,7 @@ ComputeNBodyGravitation_GPU_tiled_const(
             force, 
             posMass, 
             softeningSquared, 
-            iTile, jTile, sForces );
+            iTile, jTile, sForces /*+warpid*(3*33*32)*/ );
     }
 }
 
