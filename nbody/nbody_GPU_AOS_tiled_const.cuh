@@ -87,13 +87,98 @@ warpReduce_const( float x )
     return x;
 }
 
+#if 0
 template<int nTile>
 __device__ void
 DoNondiagonalTile_GPU_const( 
     float *force, 
     float *posMass,
     float softeningSquared,
-    size_t iTile, size_t jTile
+    size_t iTile, size_t jTile,
+    volatile float *sForces
+)
+{
+    int laneid = threadIdx.x&0x1f;
+    size_t i = iTile*nTile+laneid;
+    float ax = 0.0f, ay = 0.0f, az = 0.0f;
+    float4 myPosMass = ((float4 *) posMass)[i];
+    float myX = myPosMass.x;
+    float myY = myPosMass.y;
+    float myZ = myPosMass.z;
+
+    float4 shufSrcPosMass = ((float4 *) posMass)[jTile*nTile+laneid];
+
+    for ( size_t _j = 0; _j < nTile; _j++ ) {
+
+        float fx, fy, fz;
+        float4 bodyPosMass;
+
+        bodyPosMass.x = __shfl( shufSrcPosMass.x, _j );
+        bodyPosMass.y = __shfl( shufSrcPosMass.y, _j );
+        bodyPosMass.z = __shfl( shufSrcPosMass.z, _j );
+        bodyPosMass.w = __shfl( shufSrcPosMass.w, _j );
+
+        bodyBodyInteraction<float>(
+            &fx, &fy, &fz,
+            myX, myY, myZ,
+            bodyPosMass.x, bodyPosMass.y, bodyPosMass.z, bodyPosMass.w,
+            softeningSquared );
+
+        ax += fx;
+        ay += fy;
+        az += fz;
+
+        sForces[0*396+33*laneid+_j] = ax;
+        sForces[1*396+33*laneid+_j] = ay;
+        sForces[2*396+33*laneid+_j] = az;
+
+#if 0
+        fx = warpReduce_const( -fx );
+        fy = warpReduce_const( -fy );
+        fz = warpReduce_const( -fz );
+
+        if ( laneid == 0 ) {
+            atomicAdd( &force[3*j+0], fx );
+            atomicAdd( &force[3*j+1], fy );
+            atomicAdd( &force[3*j+2], fz );
+        }
+#endif
+    }
+
+    atomicAdd( &force[3*i+0], ax );
+    atomicAdd( &force[3*i+1], ay );
+    atomicAdd( &force[3*i+2], az );
+
+    __syncthreads();
+#if 0
+    ax = 0.0f;
+    ay = 0.0f;
+    az = 0.0f;
+    for ( size_t _j = 0; _j < nTile; _j++ ) {
+        ax -= sForces[0*396+33*laneid+_j];
+        ay -= sForces[1*396+33*laneid+_j];
+        az -= sForces[2*396+33*laneid+_j];
+
+    }
+
+    {
+        size_t j = jTile*nTile+laneid;
+        atomicAdd( &force[3*j+0], ax );
+        atomicAdd( &force[3*j+1], ay );
+        atomicAdd( &force[3*j+2], az );
+    }
+#endif
+}
+#endif
+
+template<int nTile>
+__device__ void
+DoNondiagonalTile_GPU_const( 
+    float *force, 
+    float *posMass,
+    float softeningSquared,
+    size_t iTile, size_t jTile,
+    volatile float *sForces
 )
 {
     int laneid = threadIdx.x&0x1f;
@@ -127,12 +212,17 @@ DoNondiagonalTile_GPU_const(
         ay += fy;
         az += fz;
 
-        fx = warpReduce_const( -fx );
-        fy = warpReduce_const( -fy );
-        fz = warpReduce_const( -fz );
+        sForces[33*laneid+_j] = fx;
+#if 0
+        fx = warpReduce( -fx );
+#endif
+        fy = warpReduce( -fy );
+        fz = warpReduce( -fz );
 
         if ( laneid == 0 ) {
+#if 0
             atomicAdd( &force[3*j+0], fx );
+#endif
             atomicAdd( &force[3*j+1], fy );
             atomicAdd( &force[3*j+2], fz );
         }
@@ -141,8 +231,20 @@ DoNondiagonalTile_GPU_const(
     atomicAdd( &force[3*i+0], ax );
     atomicAdd( &force[3*i+1], ay );
     atomicAdd( &force[3*i+2], az );
+#if 1
+    ax = 0.0f;
+#pragma unroll 32
+    for ( int _j = 0; _j < nTile; _j++ ) {
+        ax -= sForces[33*_j+laneid];
+    }
+    {
+        size_t j = jTile*nTile+laneid;
+        atomicAdd( &force[3*j+0], ax );
+    }
+#endif
 
 }
+
 
 template<int nTile>
 __global__ void
@@ -154,6 +256,13 @@ ComputeNBodyGravitation_GPU_tiled_const(
 {
     int warpsPerBlock = nTile/32;
     const int warpid = threadIdx.x >> 5;
+    //
+    // each 32x32 tile needs 3 float vectors (one fo reach dimension
+    // of force, padded to 33 floats per row to avoid bank conflicts
+    //
+    // 3K floats = 12672 bytes of shared memory per 32x32 tile
+    //
+    __shared__ float sForces[33*32];
 
     int iTileCoarse = blockIdx.x;
     int iTile = iTileCoarse*warpsPerBlock+warpid;
@@ -171,7 +280,7 @@ ComputeNBodyGravitation_GPU_tiled_const(
             force, 
             posMass, 
             softeningSquared, 
-            iTile, jTile );
+            iTile, jTile, sForces );
     }
 }
 
@@ -205,10 +314,11 @@ ComputeGravitation_GPU_AOS_tiled_const(
     cudaError_t status;
     cudaEvent_t evStart = 0, evStop = 0;
     float ms = 0.0;
+    CUDART_CHECK( cudaDeviceSetCacheConfig( cudaFuncCachePreferShared ) );
     CUDART_CHECK( cudaEventCreate( &evStart ) );
     CUDART_CHECK( cudaEventCreate( &evStop ) );
     CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
-    CUDART_CHECK( ComputeGravitation_GPU_AOS_tiled_const<128>(
+    CUDART_CHECK( ComputeGravitation_GPU_AOS_tiled_const<32>(
         force, 
         posMass,
         softeningSquared,
