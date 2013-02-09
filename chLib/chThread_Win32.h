@@ -107,8 +107,8 @@ public:
     bool delegateSynchronous( void (*pfn)(void *), void *parameter );
 
     //
-    // call this from your app thread to delegate to the worker asynchronously.
-    // Since it returns immediately, you must call waitAll later
+    // call from your app thread to delegate to the worker asynchronously.
+    // Since it returns immediately, you must call waitAll() later.
     //
 
     bool delegateAsynchronous( void (*pfn)(void *), void *parameter );
