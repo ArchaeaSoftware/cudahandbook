@@ -559,6 +559,51 @@ main( int argc, char *argv[] )
         g_hostSOA_InvMass[i] = 1.0f / g_hostSOA_Mass[i];
     }
 
+#if 0
+    // gather performance data over GPU implementations
+    // for different problem sizes.
+
+    printf( "kBodies\t" );
+    for ( int algorithm = GPU_AOS; 
+              algorithm < sizeof(rgszAlgorithmNames)/sizeof(rgszAlgorithmNames[0]); 
+              algorithm++ ) {
+        printf( "%s\t", rgszAlgorithmNames[algorithm] );
+    }
+    printf( "\n" );
+
+    for ( int kBodies = 3; kBodies <= 96; kBodies += 3 ) {
+
+	g_N = 1024*kBodies;
+
+        printf( "%d\t", kBodies );
+
+	for ( int algorithm = GPU_AOS; 
+                  algorithm < sizeof(rgszAlgorithmNames)/sizeof(rgszAlgorithmNames[0]); 
+                  algorithm++ ) {
+            float sum = 0.0f;
+            const int numIterations = 10;
+            for ( int i = 0; i < numIterations; i++ ) {
+                float ms, err;
+		if ( ! ComputeGravitation( &ms, &err, (nbodyAlgorithm_enum) algorithm, g_bCrossCheck ) ) {
+			fprintf( stderr, "Error computing timestep\n" );
+			exit(1);
+		}
+                sum += ms;
+            }
+            sum /= (float) numIterations;
+
+            double interactionsPerSecond = (double) g_N*g_N*1000.0f / sum;
+            if ( interactionsPerSecond > 1e9 ) {
+                printf ( "%.2f\t", interactionsPerSecond/1e9 );
+            }
+            else {
+                printf ( "%.3f\t", interactionsPerSecond/1e9 );               
+            }
+        }
+        printf( "\n" );
+    }
+    return 0;
+#endif
     {
         bool bStop = false;
         while ( ! bStop ) {
