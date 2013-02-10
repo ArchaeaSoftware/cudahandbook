@@ -124,18 +124,10 @@ Error:
         cudaEventDestroy( events[i] );
     }
 
-    if ( deviceIn ) {
-        cudaFree( deviceIn );
-    }
-    if ( deviceOut ) {
-        cudaFree( deviceOut );
-    }
-    if ( hostOut ) {
-        cudaFreeHost( hostOut );
-    }
-    if ( hostIn ) {
-        cudaFreeHost( hostIn );
-    }
+    cudaFree( deviceIn );
+    cudaFree( deviceOut );
+    cudaFreeHost( hostOut );
+    cudaFreeHost( hostIn );
     return ret;
 }
 
