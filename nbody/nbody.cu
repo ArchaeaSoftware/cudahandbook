@@ -481,7 +481,7 @@ main( int argc, char *argv[] )
     }
 
     if ( g_numGPUs ) {
-		chCommandLineGet( &g_numGPUs, "numgpus", argc, argv );
+        chCommandLineGet( &g_numGPUs, "numgpus", argc, argv );
         g_GPUThreadPool = new workerThread[g_numGPUs];
         for ( size_t i = 0; i < g_numGPUs; i++ ) {
             if ( ! g_GPUThreadPool[i].initialize( ) ) {
@@ -491,10 +491,15 @@ main( int argc, char *argv[] )
         }
         for ( int i = 0; i < g_numGPUs; i++ ) {
             gpuInit_struct initGPU = {i};
-            g_GPUThreadPool[i].delegateSynchronous( initializeGPU, &initGPU );
+            g_GPUThreadPool[i].delegateSynchronous( 
+                initializeGPU, 
+                &initGPU );
             if ( cudaSuccess != initGPU.status ) {
-                fprintf( stderr, "Initializing GPU %d failed with %d (%s)\n",
-                    i, initGPU.status, cudaGetErrorString( initGPU.status ) );
+                fprintf( stderr, "Initializing GPU %d failed "
+                    " with %d (%s)\n",
+                    i, 
+                    initGPU.status, 
+                    cudaGetErrorString( initGPU.status ) );
                 return 1;
             }
         }

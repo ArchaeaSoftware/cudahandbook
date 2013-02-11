@@ -88,7 +88,11 @@ gpuWorkerThread( void *_p )
     //
     CUDART_CHECK( cudaMalloc( &dptrPosMass, 4*p->N*sizeof(float) ) );
     CUDART_CHECK( cudaMalloc( &dptrForce, 3*p->n*sizeof(float) ) );
-    CUDART_CHECK( cudaMemcpyAsync( dptrPosMass, p->hostPosMass, 4*p->N*sizeof(float), cudaMemcpyHostToDevice ) );
+    CUDART_CHECK( cudaMemcpyAsync( 
+        dptrPosMass, 
+        p->hostPosMass, 
+        4*p->N*sizeof(float), 
+        cudaMemcpyHostToDevice ) );
     ComputeNBodyGravitation_multiGPU<<<300,256,256*sizeof(float4)>>>( 
         dptrForce,
         dptrPosMass,
@@ -96,8 +100,13 @@ gpuWorkerThread( void *_p )
         p->i,
         p->n,
         p->N );
-    // NOTE: synchronous memcpy, so no need for further synchronization with device
-    CUDART_CHECK( cudaMemcpy( p->hostForce+3*p->i, dptrForce, 3*p->n*sizeof(float), cudaMemcpyDeviceToHost ) );
+    // NOTE: synchronous memcpy, so no need for further 
+    // synchronization with device
+    CUDART_CHECK( cudaMemcpy( 
+        p->hostForce+3*p->i, 
+        dptrForce, 
+        3*p->n*sizeof(float), 
+        cudaMemcpyDeviceToHost ) );
 Error:
     cudaFree( dptrPosMass );
     cudaFree( dptrForce );
@@ -132,7 +141,9 @@ ComputeGravitation_multiGPU_threaded(
             pgpu[i].n = bodiesPerGPU;
             pgpu[i].N = N;
 
-            g_GPUThreadPool[i].delegateAsynchronous( gpuWorkerThread, &pgpu[i] );
+            g_GPUThreadPool[i].delegateAsynchronous( 
+                gpuWorkerThread, 
+                &pgpu[i] );
         }
         workerThread::waitAll( g_GPUThreadPool, g_numGPUs );
         delete[] pgpu;

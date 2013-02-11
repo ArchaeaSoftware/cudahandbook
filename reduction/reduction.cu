@@ -69,7 +69,8 @@ typedef void (*pfnReduction)(int *out, int *intermediateSums, const int *in, siz
 
 double
 TimedReduction( 
-    int *answer, const int *deviceIn, size_t N, int cBlocks, int cThreads,
+    int *answer, const int *deviceIn, size_t N, 
+    int cBlocks, int cThreads,
     pfnReduction hostReduction
 )
 {
@@ -87,11 +88,22 @@ TimedReduction(
     CUDART_CHECK( cudaThreadSynchronize() );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    hostReduction( deviceAnswer, partialSums, deviceIn, N, cBlocks, cThreads );
+    hostReduction( 
+        deviceAnswer, 
+        partialSums, 
+        deviceIn, 
+        N, 
+        cBlocks, 
+        cThreads );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
-    CUDART_CHECK( cudaMemcpy( answer, deviceAnswer, sizeof(int), cudaMemcpyDeviceToHost ) );
+    CUDART_CHECK( cudaMemcpy( 
+        answer, 
+        deviceAnswer, 
+        sizeof(int), 
+        cudaMemcpyDeviceToHost ) );
 
-    ret = chEventBandwidth( start, stop, N*sizeof(int) ) / 1073741824.0;
+    ret = chEventBandwidth( start, stop, N*sizeof(int) ) / 
+        powf(2.0f,30.0f);
 
     // fall through to free resources before returning
 Error:
