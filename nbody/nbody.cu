@@ -135,7 +135,7 @@ relError( T a, T b )
 #include "nbody_CPU_SSE_threaded.h"
 
 #include "nbody_GPU_AOS.cuh"
-#include "nbody_GPU_AOS_Const.cuh"
+#include "nbody_GPU_AOS_const.cuh"
 #include "nbody_GPU_AOS_tiled.cuh"
 //#include "nbody_GPU_SOA_tiled.cuh"
 #include "nbody_GPU_Shuffle.cuh"
