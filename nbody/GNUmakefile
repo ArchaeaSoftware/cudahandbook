@@ -4,6 +4,8 @@ CFLAGS := -O3
 CXXFLAGS := -fopenmp -pthread
 LDFLAGS := -fopenmp -pthread -lrt
 
+CUDA_ROOT := /usr
+
 ifneq ($(NO_CUDA),)
 NVCC := g++
 NVCCFLAGS := -xc++
@@ -11,7 +13,7 @@ CFLAGS += -DNO_CUDA
 else
 NVCC := nvcc
 NVCCFLAGS :=
-LDFLAGS += -lcudart
+LDFLAGS += -L$(CUDA_ROOT)/lib -L$(CUDA_ROOT)/lib64 -lcudart
 endif
 
 LINK := $(CXX)
