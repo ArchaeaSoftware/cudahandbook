@@ -521,6 +521,11 @@ main( int argc, char *argv[] )
 
     chCommandLineGet( &kParticles, "numbodies", argc, argv );
     g_N = kParticles*1024;
+
+    // Round down to the nearest multiple of the CPU count (e.g. if we have
+    // a system with a CPU count that isn't a power of two, we need to round)
+    g_N -= g_N % g_numCPUCores;
+
     printf( "Running simulation with %d particles, crosscheck %s, CPU %s\n", (int) g_N,
         g_bCrossCheck ? "enabled" : "disabled",
         g_bNoCPU ? "disabled" : "enabled" );

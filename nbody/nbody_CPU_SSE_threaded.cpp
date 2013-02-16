@@ -111,9 +111,6 @@ ComputeGravitation_SSE_threaded(
     {
         sseDelegation *psse = new sseDelegation[g_numCPUCores];
         size_t bodiesPerCore = N / g_numCPUCores;
-        if ( N % g_numCPUCores ) {
-            return 0.0f;
-        }
         for ( size_t i = 0; i < g_numCPUCores; i++ ) {
             psse[i].hostPosSOA[0] = pos[0];
             psse[i].hostPosSOA[1] = pos[1];
