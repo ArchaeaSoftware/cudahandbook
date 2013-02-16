@@ -1,9 +1,28 @@
-CC = nvcc
-CFLAGS = -O3
-INCLUDE = -I../chLib
-LDFLAGS = -lpthread -lrt
 
-SOURCES = nbody.cu nbody_CPU_SSE.cpp nbody_CPU_SSE_threaded.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu
+ifneq ($(NO_CUDA),)
+CC := g++
+CFLAGS := -O3 -DNO_CUDA -pthread -xc++
+LDFLAGS := -pthread -lrt
+else
+CC := nvcc
+CFLAGS := -O3
+LDFLAGS := -lpthread -lrt
+endif
+
+INCLUDE := -I../chLib
+
+SOURCES := \
+	nbody.cu \
+	nbody_CPU_SSE.cpp \
+	nbody_CPU_SSE_threaded.cpp
+
+ifeq ($(NO_CUDA),)
+SOURCES += \
+	nbody_GPU_shared.cu \
+	nbody_multiGPU.cu \
+	nbody_multiGPU_threaded.cu
+endif
+
 OBJECTS := $(SOURCES:%.cu=%.o)
 OBJECTS := $(OBJECTS:%.cpp=%.o)
 
@@ -22,11 +41,26 @@ clean:
 	rm -f nbody
 	rm -f $(OBJECTS)
 
-%.o: %.cu
+%.o: %.cu .cflags
 	$(QUIET_CC)$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
 
-%.o: %.cpp
+%.o: %.cpp .cflags
 	$(QUIET_CC)$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
 
 nbody: $(OBJECTS)
-	$(QUIET_LINK)$(CC) $(CFLAGS) $(INCLUDE) -o $@ $(OBJECTS) $(LDFLAGS)
+	$(QUIET_LINK)$(CC) -o $@ $(OBJECTS) $(LDFLAGS)
+
+ifeq (,$(findstring clean,$(MAKECMDGOALS)))
+
+TRACK_CFLAGS = $(subst ','\'',$(CC) $(CFLAGS) $(LDFLAGS))
+
+.cflags: .force-cflags
+	@FLAGS='$(TRACK_CFLAGS)'; \
+	if test x"$$FLAGS" != x"`cat .cflags 2>/dev/null`" ; then \
+		echo "    * rebuilding nbody: new build flags or prefix"; \
+		echo "$$FLAGS" > .cflags; \
+	fi
+
+.PHONY: .force-cflags
+
+endif

@@ -134,12 +134,14 @@ relError( T a, T b )
 #include "nbody_CPU_SSE.h"
 #include "nbody_CPU_SSE_threaded.h"
 
+#ifndef NO_CUDA
 #include "nbody_GPU_AOS.cuh"
 #include "nbody_GPU_AOS_const.cuh"
 #include "nbody_GPU_AOS_tiled.cuh"
 //#include "nbody_GPU_SOA_tiled.cuh"
 #include "nbody_GPU_Shuffle.cuh"
 #include "nbody_GPU_Atomic.cuh"
+#endif
 
 void
 integrateGravitation_AOS( float *ppos, float *pvel, float *pforce, float dt, float damping, size_t N )
@@ -292,6 +294,7 @@ ComputeGravitation(
                 g_N );
             bSOA = true;
             break;
+#ifndef NO_CUDA
         case GPU_AOS:
             *ms = ComputeGravitation_GPU_AOS( 
                 g_dptrAOS_Force,
@@ -362,6 +365,11 @@ ComputeGravitation(
                 g_hostAOS_PosMass,
                 g_softening*g_softening,
                 g_N );
+            break;
+#endif
+        default:
+            fprintf(stderr, "Unrecognized algorithm index: %d\n", algorithm);
+            abort();
             break;
     }
 
