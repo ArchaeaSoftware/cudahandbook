@@ -58,7 +58,7 @@ struct sseDelegation {
 
 };
 
-void
+static void
 sseWorkerThread( void *_p )
 {
     sseDelegation *p = (sseDelegation *) _p;
