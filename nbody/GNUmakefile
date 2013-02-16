@@ -1,13 +1,20 @@
+CXX := g++
+
+CFLAGS := -O3
+CXXFLAGS := -fopenmp -pthread
+LDFLAGS := -fopenmp -pthread -lrt
 
 ifneq ($(NO_CUDA),)
-CC := g++
-CFLAGS := -O3 -fopenmp -DNO_CUDA -pthread -xc++
-LDFLAGS := -fopenmp -pthread -lrt
+NVCC := g++
+NVCCFLAGS := -xc++
+CFLAGS += -DNO_CUDA
 else
-CC := nvcc
-CFLAGS := -O3
-LDFLAGS := -lpthread -lrt
+NVCC := nvcc
+NVCCFLAGS :=
+LDFLAGS += -lcudart
 endif
+
+LINK := $(CXX)
 
 INCLUDE := -I../chLib
 
@@ -29,8 +36,10 @@ OBJECTS := $(OBJECTS:%.cpp=%.o)
 
 ifneq ($(findstring $(MAKEFLAGS),s),s)
 ifndef V
-        QUIET_CC        = @echo '   ' CC $@;
-        QUIET_LINK      = @echo '   ' LD $@;
+        QUIET_CC        = @echo '   ' CC   $@;
+        QUIET_CXX       = @echo '   ' CXX  $@;
+        QUIET_NVCC      = @echo '   ' NVCC $@;
+        QUIET_LINK      = @echo '   ' LD   $@;
         QUIET           = @
         export V
 endif
@@ -43,13 +52,13 @@ clean:
 	rm -f $(OBJECTS)
 
 %.o: %.cu .cflags
-	$(QUIET_CC)$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
+	$(QUIET_NVCC)$(NVCC) $(CFLAGS) $(NVCCFLAGS) $(INCLUDE) -c -o $@ $<
 
 %.o: %.cpp .cflags
-	$(QUIET_CC)$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
+	$(QUIET_CXX)$(CXX) $(CFLAGS) $(CXXFLAGS) $(INCLUDE) -c -o $@ $<
 
 nbody: $(OBJECTS)
-	$(QUIET_LINK)$(CC) -o $@ $(OBJECTS) $(LDFLAGS)
+	$(QUIET_LINK)$(LINK) -o $@ $(OBJECTS) $(LDFLAGS)
 
 ifeq (,$(findstring clean,$(MAKECMDGOALS)))
 
