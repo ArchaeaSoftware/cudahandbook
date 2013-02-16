@@ -64,7 +64,7 @@ nbody: $(OBJECTS)
 
 ifeq (,$(findstring clean,$(MAKECMDGOALS)))
 
-TRACK_CFLAGS = $(subst ','\'',$(CC) $(CFLAGS) $(LDFLAGS))
+TRACK_CFLAGS = $(subst ','\'',$(CXX) $(NVCC) $(LINK) $(CFLAGS) $(CXXFLAGS) $(NVCCFLAGS) $(INCLUDE) $(LDFLAGS))
 
 .cflags: .force-cflags
 	@FLAGS='$(TRACK_CFLAGS)'; \
