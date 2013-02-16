@@ -6,6 +6,14 @@ LDFLAGS := -fopenmp -pthread -lrt
 
 CUDA_ROOT := /usr
 
+ifeq ($(CXX),icpc)
+# Special Intel compiler options to give us more detail
+CXXFLAGS += -parallel -openmp-report2 -vec-report2 -par-report2
+
+# Statically link Intel libraries so the executables are more portable
+LDFLAGS += -static-intel
+endif
+
 ifneq ($(NO_CUDA),)
 NVCC := g++
 NVCCFLAGS := -xc++
