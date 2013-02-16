@@ -462,6 +462,7 @@ main( int argc, char *argv[] )
         CUDART_CHECK( cudaGetDeviceProperties( &prop, 0 ) );
         g_bSM30Present = prop.major >= 3;
     }
+    g_bNoCPU = chCommandLineGetBool( "nocpu", argc, argv );
     if ( g_bNoCPU && ! g_bCUDAPresent ) {
         printf( "--nocpu specified, but no CUDA present...exiting\n" );
         exit(1);
@@ -493,7 +494,6 @@ main( int argc, char *argv[] )
     }
 
     g_bCrossCheck = ! chCommandLineGetBool( "nocrosscheck", argc, argv );
-    g_bNoCPU = chCommandLineGetBool( "nocpu", argc, argv );
     if ( g_bNoCPU ) {
         g_bCrossCheck = false;
     }
