@@ -108,7 +108,7 @@ ComputeGravitation_SSE_openmp(
     {
         sseDelegation *psse = new sseDelegation[g_numCPUCores];
         size_t bodiesPerCore = N / g_numCPUCores;
-#pragma omp parallel for
+#pragma omp parallel for schedule(static,1)
         for ( size_t i = 0; i < g_numCPUCores; i++ ) {
             psse[i].hostPosSOA[0] = pos[0];
             psse[i].hostPosSOA[1] = pos[1];
