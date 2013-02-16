@@ -133,6 +133,7 @@ relError( T a, T b )
 #include "nbody_CPU_SOA.h"
 #include "nbody_CPU_SSE.h"
 #include "nbody_CPU_SSE_threaded.h"
+#include "nbody_CPU_SSE_openmp.h"
 
 #ifndef NO_CUDA
 #include "nbody_GPU_AOS.cuh"
@@ -287,6 +288,15 @@ ComputeGravitation(
             break;
         case CPU_SSE_threaded:
             *ms = ComputeGravitation_SSE_threaded(
+                g_hostSOA_Force,
+                g_hostSOA_Pos,
+                g_hostSOA_Mass,
+                g_softening*g_softening,
+                g_N );
+            bSOA = true;
+            break;
+        case CPU_SSE_openmp:
+            *ms = ComputeGravitation_SSE_openmp(
                 g_hostSOA_Force,
                 g_hostSOA_Pos,
                 g_hostSOA_Mass,
@@ -516,7 +526,7 @@ main( int argc, char *argv[] )
         g_bNoCPU ? "disabled" : "enabled" );
 
     g_Algorithm = g_bCUDAPresent ? GPU_AOS : CPU_SSE_threaded;
-    g_maxAlgorithm = CPU_SSE_threaded;
+    g_maxAlgorithm = CPU_SSE_openmp;
     if ( g_bCUDAPresent || g_bNoCPU ) {
         // max algorithm is different depending on whether SM 3.0 is present
         g_maxAlgorithm = g_bSM30Present ? GPU_AOS_tiled : multiGPU_MultiCPUThread;

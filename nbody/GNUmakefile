@@ -1,8 +1,8 @@
 
 ifneq ($(NO_CUDA),)
 CC := g++
-CFLAGS := -O3 -DNO_CUDA -pthread -xc++
-LDFLAGS := -pthread -lrt
+CFLAGS := -O3 -fopenmp -DNO_CUDA -pthread -xc++
+LDFLAGS := -fopenmp -pthread -lrt
 else
 CC := nvcc
 CFLAGS := -O3
@@ -14,7 +14,8 @@ INCLUDE := -I../chLib
 SOURCES := \
 	nbody.cu \
 	nbody_CPU_SSE.cpp \
-	nbody_CPU_SSE_threaded.cpp
+	nbody_CPU_SSE_threaded.cpp \
+	nbody_CPU_SSE_openmp.cpp
 
 ifeq ($(NO_CUDA),)
 SOURCES += \
