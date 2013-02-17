@@ -1,10 +1,26 @@
+
+all: nbody
+
+uname_S := $(shell uname -s 2>/dev/null || echo "not")
+uname_M := $(shell uname -m 2>/dev/null || echo "not")
+uname_O := $(shell uname -o 2>/dev/null || echo "not")
+
 CXX := g++
 
 CFLAGS := -O3
-CXXFLAGS := -fopenmp -pthread
-LDFLAGS := -fopenmp -pthread -lrt
+CXXFLAGS := -fopenmp
+LDFLAGS := -fopenmp
 
 CUDA_ROOT := /usr
+
+ifneq ($(uname_O),Cygwin)
+CXXFLAGS += -pthread
+LDFLAGS += -pthread
+endif
+
+ifeq ($(uname_S),Linux)
+LDFLAGS += -lrt
+endif
 
 ifeq ($(CXX),icpc)
 # Special Intel compiler options to give us more detail
@@ -54,8 +70,6 @@ ifndef V
         export V
 endif
 endif
-
-all: nbody
 
 clean:
 	rm -f nbody
