@@ -70,7 +70,9 @@ enum nbodyAlgorithm_enum {
     CPU_SOA,
     CPU_SSE,
     CPU_SSE_threaded,
+#ifdef USE_OPENMP
     CPU_SSE_openmp,
+#endif
     GPU_AOS,
     GPU_Shared,
     GPU_Const,
@@ -89,7 +91,9 @@ static const char *rgszAlgorithmNames[] = {
     "CPU_SOA", 
     "CPU_SSE", 
     "CPU_SSE_threaded", 
+#ifdef USE_OPENMP
     "CPU_SSE_openmp",
+#endif
     "GPU_AOS", 
     "GPU_Shared", 
     "GPU_Const",

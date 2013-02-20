@@ -295,6 +295,7 @@ ComputeGravitation(
                 g_N );
             bSOA = true;
             break;
+#ifdef USE_OPENMP
         case CPU_SSE_openmp:
             *ms = ComputeGravitation_SSE_openmp(
                 g_hostSOA_Force,
@@ -304,6 +305,7 @@ ComputeGravitation(
                 g_N );
             bSOA = true;
             break;
+#endif
 #ifndef NO_CUDA
         case GPU_AOS:
             *ms = ComputeGravitation_GPU_AOS( 
@@ -531,7 +533,11 @@ main( int argc, char *argv[] )
         g_bNoCPU ? "disabled" : "enabled" );
 
     g_Algorithm = g_bCUDAPresent ? GPU_AOS : CPU_SSE_threaded;
+#ifdef USE_OPENMP
     g_maxAlgorithm = CPU_SSE_openmp;
+#else
+	g_maxAlgorithm = CPU_SSE_threaded;
+#endif
     if ( g_bCUDAPresent || g_bNoCPU ) {
         // max algorithm is different depending on whether SM 3.0 is present
         g_maxAlgorithm = g_bSM30Present ? GPU_AOS_tiled : multiGPU_MultiCPUThread;

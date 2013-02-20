@@ -6,10 +6,15 @@ uname_M := $(shell uname -m 2>/dev/null || echo "not")
 uname_O := $(shell uname -o 2>/dev/null || echo "not")
 
 CXX := g++
+NVCC := nvcc
 
 CFLAGS := -O3
+
+ifeq ($(NO_OPENMP),)
+CFLAGS += -DUSE_OPENMP
 CXXFLAGS := -fopenmp
 LDFLAGS := -fopenmp
+endif
 
 CUDA_ROOT := /usr
 
@@ -35,7 +40,6 @@ NVCC := g++
 NVCCFLAGS := -xc++
 CFLAGS += -DNO_CUDA
 else
-NVCC := nvcc
 NVCCFLAGS :=
 LDFLAGS += -L$(CUDA_ROOT)/lib -L$(CUDA_ROOT)/lib64 -lcudart
 endif
@@ -47,8 +51,12 @@ INCLUDE := -I../chLib
 SOURCES := \
 	nbody.cu \
 	nbody_CPU_SSE.cpp \
-	nbody_CPU_SSE_threaded.cpp \
+	nbody_CPU_SSE_threaded.cpp
+
+ifeq ($(NO_OPENMP),)
+SOURCES += \
 	nbody_CPU_SSE_openmp.cpp
+endif
 
 ifeq ($(NO_CUDA),)
 SOURCES += \
