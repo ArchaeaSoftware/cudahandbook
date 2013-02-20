@@ -39,7 +39,7 @@
 #ifdef _WIN32
 #include "chThread_Win32.h"
 #else
-#include "chThread_Linux.h"
+#include "chThread_POSIX.h"
 #endif
 
 #if 0
