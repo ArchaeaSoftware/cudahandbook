@@ -1,5 +1,6 @@
+BIN := nbody
 
-all: nbody
+all: $(BIN)
 
 uname_S := $(shell uname -s 2>/dev/null || echo "not")
 uname_M := $(shell uname -m 2>/dev/null || echo "not")
@@ -8,7 +9,10 @@ uname_O := $(shell uname -o 2>/dev/null || echo "not")
 CXX := g++
 NVCC := nvcc
 
-CFLAGS := -Os
+CFOPTIMIZE := -Os
+
+CFLAGS := -O3
+CXXFLAGS := $(CFOPTIMIZE)
 
 ifeq ($(NO_OPENMP),)
 CFLAGS += -DUSE_OPENMP
@@ -80,27 +84,27 @@ endif
 endif
 
 clean:
-	rm -f nbody
+	rm -f $(BIN)
 	rm -f $(OBJECTS)
 
-%.o: %.cu .cflags
+%.o: %.cu .cflags-$(BIN)
 	$(QUIET_NVCC)$(NVCC) $(CFLAGS) $(NVCCFLAGS) $(INCLUDE) -c -o $@ $<
 
-%.o: %.cpp .cflags
+%.o: %.cpp .cflags-$(BIN)
 	$(QUIET_CXX)$(CXX) $(CFLAGS) $(CXXFLAGS) $(INCLUDE) -c -o $@ $<
 
-nbody: $(OBJECTS)
+$(BIN): $(OBJECTS)
 	$(QUIET_LINK)$(LINK) -o $@ $(OBJECTS) $(LDFLAGS)
 
 ifeq (,$(findstring clean,$(MAKECMDGOALS)))
 
 TRACK_CFLAGS = $(subst ','\'',$(CXX) $(NVCC) $(LINK) $(CFLAGS) $(CXXFLAGS) $(NVCCFLAGS) $(INCLUDE) $(LDFLAGS))
 
-.cflags: .force-cflags
+.cflags-$(BIN): .force-cflags
 	@FLAGS='$(TRACK_CFLAGS)'; \
-	if test x"$$FLAGS" != x"`cat .cflags 2>/dev/null`" ; then \
-		echo "    * rebuilding nbody: new build flags or prefix"; \
-		echo "$$FLAGS" > .cflags; \
+	if test x"$$FLAGS" != x"`cat .cflags-$(BIN) 2>/dev/null`" ; then \
+		echo "    * rebuilding $(BIN): new build flags or prefix"; \
+		echo "$$FLAGS" > .cflags-$(BIN); \
 	fi
 
 .PHONY: .force-cflags
