@@ -8,7 +8,7 @@ uname_O := $(shell uname -o 2>/dev/null || echo "not")
 CXX := g++
 NVCC := nvcc
 
-CFLAGS := -O3
+CFLAGS := -Os
 
 ifeq ($(NO_OPENMP),)
 CFLAGS += -DUSE_OPENMP
