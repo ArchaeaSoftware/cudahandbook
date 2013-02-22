@@ -35,8 +35,6 @@
  *
  */
 
-void sseWorkerThread( void *_p );
-
 float
 ComputeGravitation_SSE_threaded( 
     float *force[3], 
