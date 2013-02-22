@@ -459,6 +459,7 @@ main( int argc, char *argv[] )
         printf( "    The CPU implementation may be disabled with --nocpu.\n" );
         printf( "    --nocpu implies --nocrosscheck.\n\n" );
         printf( "    --nosse uses serial CPU implementation instead of SSE.\n" );
+        return 1;
     }
 
     // for reproducible results for a given N
@@ -536,7 +537,7 @@ main( int argc, char *argv[] )
 #ifdef USE_OPENMP
     g_maxAlgorithm = CPU_SSE_openmp;
 #else
-	g_maxAlgorithm = CPU_SSE_threaded;
+    g_maxAlgorithm = CPU_SSE_threaded;
 #endif
     if ( g_bCUDAPresent || g_bNoCPU ) {
         // max algorithm is different depending on whether SM 3.0 is present
