@@ -49,6 +49,10 @@
 #include <vector>
 #include <stdint.h>
 
+#ifdef __MACH__
+#define USE_NAMED_SEMAPHORES
+#endif
+
 namespace cudahandbook {
 
 namespace threading {
@@ -59,43 +63,81 @@ processorCount()
     return sysconf( _SC_NPROCESSORS_ONLN );
 }
 
+class Semaphore
+{
+private:
+	sem_t *m_semaphore;
+public:
+	Semaphore() {
+		m_semaphore = new sem_t;
+		if ( !m_semaphore )
+			return;
+#ifdef USE_NAMED_SEMAPHORES
+		char semName[32];
+		sprintf( semName, "/chSema%p", this );
+		m_semaphore = sem_open( semName, O_CREAT | O_EXCL, 0644, 0 );
+		if (m_semaphore == SEM_FAILED)
+			m_semaphore = NULL;
+#else
+		if ( sem_init( m_semaphore, 0, 0 ) ) {
+			delete m_semaphore;
+			m_semaphore = NULL;
+		}
+#endif
+	}
+
+	~Semaphore() {
+#ifdef USE_NAMED_SEMAPHORES
+		sem_close( m_semaphore );
+#else
+		sem_destroy( m_semaphore );
+#endif
+		delete m_semaphore;
+		m_semaphore = NULL;
+	}
+
+	bool valid()
+	{
+		return m_semaphore != NULL;
+	}
+
+	int wait()
+	{
+		return sem_wait( m_semaphore );
+	}
+
+	int post()
+	{
+		return sem_post( m_semaphore );
+	}
+};
+
 class workerThread
 {
 public:
     workerThread( int cpuThreadId = 0 ) {
         m_cpuThreadId = cpuThreadId;
-        m_semWait = NULL;
-        m_semDone = NULL;
         memset( &m_thread, 0, sizeof(pthread_t) );
     }
     virtual ~workerThread() {
         delegateSynchronous( NULL, NULL );
         pthread_join( m_thread, NULL );
-        sem_close( m_semWait );
-        sem_close( m_semDone );
     }
 
     bool initialize( ) {
-        char semName[32];
         pthread_attr_t attr;
         int ret = pthread_attr_init( &attr );
         if ( 0 != ret )
             goto Error;
-        sprintf(semName, "/semWait%p", this);
-        m_semWait = sem_open( semName, O_CREAT | O_EXCL, 0644, 0 );
-        if ( !m_semWait )
-            goto Error;
-        sprintf(semName, "/semDone%p", this);
-        m_semDone = sem_open( semName, O_CREAT | O_EXCL, 0644, 0 );
-        if ( !m_semDone )
-            goto Error;
+		if ( !m_semWait.valid() )
+			goto Error;
+		if ( !m_semDone.valid() )
+			goto Error;
         ret = pthread_create( &m_thread, &attr, threadRoutine, this );
         if ( 0 != ret )
             goto Error;
         return true;
     Error:
-        sem_close( m_semWait );
-        sem_close( m_semDone );
         return false;
     }
 
@@ -120,8 +162,8 @@ public:
 private:
     unsigned int m_cpuThreadId;
     pthread_t m_thread;
-    sem_t *m_semWait;
-    sem_t *m_semDone;
+	Semaphore m_semWait;
+	Semaphore m_semDone;
 
     void (*m_pfnDelegatedWork)(void *);
     void *m_Parameter;
@@ -133,13 +175,13 @@ workerThread::threadRoutine( void *_p )
     workerThread *p = (workerThread *) _p;
     bool bLoop = true;
     do {
-        sem_wait( p->m_semWait );
+        p->m_semWait.wait();
         if ( NULL == p->m_Parameter ) {
             bLoop = false;
         }
         else {
             (*p->m_pfnDelegatedWork)( p->m_Parameter );
-            sem_post( p->m_semDone );
+			p->m_semDone.post();
         }
     } while ( bLoop );
     // fall through to exit if bLoop was set to false
@@ -151,9 +193,9 @@ workerThread::delegateSynchronous( void (*pfn)(void *), void *parameter )
 {
     m_pfnDelegatedWork = pfn;
     m_Parameter = parameter;
-    if ( 0 != sem_post( m_semWait ) )
+    if ( 0 != m_semWait.post() )
         return false;
-    return 0 == sem_wait( m_semDone );
+    return 0 == m_semDone.wait();
 }
 
 inline bool
@@ -161,14 +203,14 @@ workerThread::delegateAsynchronous( void (*pfn)(void *), void *parameter )
 {
     m_pfnDelegatedWork = pfn;
     m_Parameter = parameter;
-    return 0 == sem_post( m_semWait );
+    return 0 == m_semWait.post();
 }
 
 inline bool
 workerThread::waitAll( workerThread *p, size_t N )
 {
     for ( size_t i = 0; i < N; i++ ) {
-        int ret = sem_wait( p[i].m_semDone );
+        int ret = p[i].m_semDone.wait();
         if ( 0 != ret )
             return false;
     }
