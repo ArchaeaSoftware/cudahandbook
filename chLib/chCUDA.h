@@ -46,7 +46,9 @@
 
 #else
 
-#include <cstdlib>
+#include <stddef.h>
+#include <math.h>
+#include <memory.h>
 
 #define __global__
 #define __host__
