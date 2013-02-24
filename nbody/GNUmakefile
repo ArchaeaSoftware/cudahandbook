@@ -16,8 +16,8 @@ CXXFLAGS := $(CFOPTIMIZE)
 
 ifeq ($(NO_OPENMP),)
 CFLAGS += -DUSE_OPENMP
-CXXFLAGS := -fopenmp
-LDFLAGS := -fopenmp
+CXXFLAGS += -fopenmp
+LDFLAGS += -fopenmp
 endif
 
 CUDA_ROOT := /usr
