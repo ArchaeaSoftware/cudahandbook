@@ -54,6 +54,9 @@ INCLUDE := -I../chLib
 
 SOURCES := \
 	nbody.cu \
+	nbody_CPU_AOS.cpp \
+	nbody_CPU_AOS_tiled.cpp \
+	nbody_CPU_SOA.cpp \
 	nbody_CPU_SSE.cpp \
 	nbody_CPU_SSE_threaded.cpp
 
