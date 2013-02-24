@@ -43,56 +43,6 @@
 #include "bodybodyInteraction_SSE.h"
 #include "nbody_CPU_SSE.h"
 
-struct sseDelegation {
-    size_t i;   // base offset for this thread to process
-    size_t n;   // size of this thread's problem
-    size_t N;   // total number of bodies
-
-    float *hostPosSOA[3];
-    float *hostMassSOA;
-    float *hostForceSOA[3];
-    float softeningSquared;
-
-};
-
-static void
-sseWorkerThread( void *_p )
-{
-    sseDelegation *p = (sseDelegation *) _p;
-    for (int k = 0; k < p->n; k++)
-    {
-        int i = p->i + k;
-        __m128 ax = _mm_setzero_ps();
-        __m128 ay = _mm_setzero_ps();
-        __m128 az = _mm_setzero_ps();
-        __m128 *px = (__m128 *) p->hostPosSOA[0];
-        __m128 *py = (__m128 *) p->hostPosSOA[1];
-        __m128 *pz = (__m128 *) p->hostPosSOA[2];
-        __m128 *pmass = (__m128 *) p->hostMassSOA;
-        __m128 x0 = _mm_set_ps1( p->hostPosSOA[0][i] );
-        __m128 y0 = _mm_set_ps1( p->hostPosSOA[1][i] );
-        __m128 z0 = _mm_set_ps1( p->hostPosSOA[2][i] );
-
-        for ( int j = 0; j < p->N/4; j++ ) {
-
-            bodyBodyInteraction(
-                ax, ay, az,
-                x0, y0, z0,
-                px[j], py[j], pz[j], pmass[j],
-                _mm_set_ps1( p->softeningSquared ) );
-
-        }
-        // Accumulate sum of four floats in the SSE register
-        ax = horizontal_sum_ps( ax );
-        ay = horizontal_sum_ps( ay );
-        az = horizontal_sum_ps( az );
-
-        _mm_store_ss( (float *) &p->hostForceSOA[0][i], ax );
-        _mm_store_ss( (float *) &p->hostForceSOA[1][i], ay );
-        _mm_store_ss( (float *) &p->hostForceSOA[2][i], az );
-    }
-}
-
 float
 ComputeGravitation_SSE_openmp(
     float *force[3],
@@ -105,28 +55,37 @@ ComputeGravitation_SSE_openmp(
     chTimerTimestamp start, end;
     chTimerGetTime( &start );
 
+#pragma omp parallel for
+    for (int i = 0; i < N; i++)
     {
-        sseDelegation *psse = new sseDelegation[g_numCPUCores];
-        size_t bodiesPerCore = N / g_numCPUCores;
-#pragma omp parallel for schedule(static,1)
-        for ( size_t i = 0; i < g_numCPUCores; i++ ) {
-            psse[i].hostPosSOA[0] = pos[0];
-            psse[i].hostPosSOA[1] = pos[1];
-            psse[i].hostPosSOA[2] = pos[2];
-            psse[i].hostMassSOA = mass;
-            psse[i].hostForceSOA[0] = force[0];
-            psse[i].hostForceSOA[1] = force[1];
-            psse[i].hostForceSOA[2] = force[2];
-            psse[i].softeningSquared = softeningSquared;
+        __m128 ax = _mm_setzero_ps();
+        __m128 ay = _mm_setzero_ps();
+        __m128 az = _mm_setzero_ps();
+        __m128 *px = (__m128 *) pos[0];
+        __m128 *py = (__m128 *) pos[1];
+        __m128 *pz = (__m128 *) pos[2];
+        __m128 *pmass = (__m128 *) mass;
+        __m128 x0 = _mm_set_ps1( pos[0][i] );
+        __m128 y0 = _mm_set_ps1( pos[1][i] );
+        __m128 z0 = _mm_set_ps1( pos[2][i] );
 
-            psse[i].i = bodiesPerCore*i;
-            psse[i].n = bodiesPerCore;
-            psse[i].N = N;
+        for ( int j = 0; j < N/4; j++ ) {
 
-            sseWorkerThread(&psse[i]);
+            bodyBodyInteraction(
+                ax, ay, az,
+                x0, y0, z0,
+                px[j], py[j], pz[j], pmass[j],
+                _mm_set_ps1( softeningSquared ) );
+
         }
+        // Accumulate sum of four floats in the SSE register
+        ax = horizontal_sum_ps( ax );
+        ay = horizontal_sum_ps( ay );
+        az = horizontal_sum_ps( az );
 
-        delete[] psse;
+        _mm_store_ss( (float *) &force[0][i], ax );
+        _mm_store_ss( (float *) &force[1][i], ay );
+        _mm_store_ss( (float *) &force[2][i], az );
     }
 
     chTimerGetTime( &end );
