@@ -36,6 +36,7 @@
  */
 
 #ifdef __SSE__
+#ifdef _OPENMP
 #include <xmmintrin.h>
 
 #include <chTimer.h>
@@ -93,4 +94,5 @@ ComputeGravitation_SIMD_openmp(
 
     return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
 }
+#endif
 #endif

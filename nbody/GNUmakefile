@@ -20,6 +20,15 @@ CXXFLAGS += -fopenmp
 LDFLAGS += -fopenmp
 endif
 
+ifeq ($(NO_SIMD),)
+ifeq ($(uname_M),ppc)
+CFLAGS += -DHAVE_ALTIVEC
+endif
+ifeq ($(uname_M),x86_64)
+CFLAGS += -DHAVE_SSE
+endif
+endif
+
 CUDA_ROOT := /usr
 
 ifneq ($(uname_O),Cygwin)

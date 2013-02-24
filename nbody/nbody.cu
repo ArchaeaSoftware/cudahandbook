@@ -131,11 +131,7 @@ relError( T a, T b )
 #include "nbody_CPU_AOS.h"
 #include "nbody_CPU_AOS_tiled.h"
 #include "nbody_CPU_SOA.h"
-#include "nbody_CPU_SSE.h"
-#include "nbody_CPU_SSE_threaded.h"
-#include "nbody_CPU_SSE_openmp.h"
-#include "nbody_CPU_AltiVec.h"
-#include "nbody_CPU_AltiVec_openmp.h"
+#include "nbody_CPU_SIMD.h"
 
 #ifndef NO_CUDA
 #include "nbody_GPU_AOS.cuh"
@@ -228,6 +224,7 @@ ComputeGravitation(
     }
 
     if ( bCrossCheck ) {
+#ifdef HAVE_SIMD_THREADED
         if ( g_bUseSIMDForCrossCheck ) {
             ComputeGravitation_SIMD_threaded(
                             g_hostSOA_Force,
@@ -242,12 +239,15 @@ ComputeGravitation(
             }
         }
         else {
+#endif
             ComputeGravitation_AOS( 
                 g_hostAOS_Force_Golden,
                 g_hostAOS_PosMass,
                 g_softening*g_softening,
                 g_N );
+#ifdef HAVE_SIMD_THREADED
         }
+#endif
     }
 
     // CPU->GPU copies in case we are measuring GPU performance
@@ -279,6 +279,7 @@ ComputeGravitation(
                 g_N );
             bSOA = true;
             break;
+#ifdef HAVE_SIMD
         case CPU_SIMD:
             *ms = ComputeGravitation_SIMD(
                 g_hostSOA_Force,
@@ -288,6 +289,8 @@ ComputeGravitation(
                 g_N );
             bSOA = true;
             break;
+#endif
+#ifdef HAVE_SIMD_THREADED
         case CPU_SIMD_threaded:
             *ms = ComputeGravitation_SIMD_threaded(
                 g_hostSOA_Force,
@@ -297,7 +300,8 @@ ComputeGravitation(
                 g_N );
             bSOA = true;
             break;
-#ifdef USE_OPENMP
+#endif
+#ifdef HAVE_SIMD_OPENMP
         case CPU_SIMD_openmp:
             *ms = ComputeGravitation_SIMD_openmp(
                 g_hostSOA_Force,
@@ -535,12 +539,16 @@ main( int argc, char *argv[] )
         g_bCrossCheck ? "enabled" : "disabled",
         g_bNoCPU ? "disabled" : "enabled" );
 
-    g_Algorithm = g_bCUDAPresent ? GPU_AOS : CPU_SIMD_threaded;
-#ifdef USE_OPENMP
+#if defined(HAVE_SIMD_OPENMP)
     g_maxAlgorithm = CPU_SIMD_openmp;
-#else
+#elif defined(HAVE_SIMD_THREADED)
     g_maxAlgorithm = CPU_SIMD_threaded;
+#elif defined(HAVE_SIMD)
+    g_maxAlgorithm = CPU_SIMD;
+#else
+    g_maxAlgorithm = CPU_SOA;
 #endif
+    g_Algorithm = g_bCUDAPresent ? GPU_AOS : g_maxAlgorithm;
     if ( g_bCUDAPresent || g_bNoCPU ) {
         // max algorithm is different depending on whether SM 3.0 is present
         g_maxAlgorithm = g_bSM30Present ? GPU_AOS_tiled : multiGPU_MultiCPUThread;
@@ -668,7 +676,11 @@ main( int argc, char *argv[] )
                             g_Algorithm = g_bNoCPU ? GPU_AOS : CPU_AOS;
                             // Skip slow CPU implementations if we are using SIMD for cross-check
                             if ( g_bUseSIMDForCrossCheck ) {
+#if defined(HAVE_SIMD_THREADED)
                                 g_Algorithm = CPU_SIMD_threaded;
+#elif defined(HAVE_SIMD_OPENMP)
+                                g_Algorithm = CPU_SIMD_openmp;
+#endif
                             }
                         }
                         else {

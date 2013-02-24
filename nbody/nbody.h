@@ -36,6 +36,8 @@
 #ifndef __CUDAHANDBOOK_NBODY_H__
 #define __CUDAHANDBOOK_NBODY_H__
 
+#include "nbody_CPU_SIMD.h"
+
 #include <chThread.h>
 
 extern bool g_bCUDAPresent;
@@ -68,9 +70,13 @@ enum nbodyAlgorithm_enum {
     CPU_AOS = 0,    /* This is the golden implementation */
     CPU_AOS_tiled,
     CPU_SOA,
+#ifdef HAVE_SIMD
     CPU_SIMD,
+#endif
+#ifdef HAVE_SIMD_THREADED
     CPU_SIMD_threaded,
-#ifdef USE_OPENMP
+#endif
+#ifdef HAVE_SIMD_OPENMP
     CPU_SIMD_openmp,
 #endif
     GPU_AOS,
@@ -89,9 +95,13 @@ static const char *rgszAlgorithmNames[] = {
     "CPU_AOS", 
     "CPU_AOS_tiled", 
     "CPU_SOA", 
+#ifdef HAVE_SIMD
     "CPU_SIMD",
+#endif
+#ifdef HAVE_SIMD_THREADED
     "CPU_SIMD_threaded",
-#ifdef USE_OPENMP
+#endif
+#ifdef HAVE_SIMD_OPENMP
     "CPU_SIMD_openmp",
 #endif
     "GPU_AOS", 
