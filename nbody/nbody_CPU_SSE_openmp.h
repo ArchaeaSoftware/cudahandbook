@@ -36,7 +36,7 @@
  */
 
 float
-ComputeGravitation_SSE_openmp(
+ComputeGravitation_SIMD_openmp(
     float *force[3],
     float *pos[4],
     float *mass,

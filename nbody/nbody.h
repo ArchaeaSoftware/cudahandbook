@@ -68,10 +68,10 @@ enum nbodyAlgorithm_enum {
     CPU_AOS = 0,    /* This is the golden implementation */
     CPU_AOS_tiled,
     CPU_SOA,
-    CPU_SSE,
-    CPU_SSE_threaded,
+    CPU_SIMD,
+    CPU_SIMD_threaded,
 #ifdef USE_OPENMP
-    CPU_SSE_openmp,
+    CPU_SIMD_openmp,
 #endif
     GPU_AOS,
     GPU_Shared,
@@ -89,10 +89,10 @@ static const char *rgszAlgorithmNames[] = {
     "CPU_AOS", 
     "CPU_AOS_tiled", 
     "CPU_SOA", 
-    "CPU_SSE", 
-    "CPU_SSE_threaded", 
+    "CPU_SIMD",
+    "CPU_SIMD_threaded",
 #ifdef USE_OPENMP
-    "CPU_SSE_openmp",
+    "CPU_SIMD_openmp",
 #endif
     "GPU_AOS", 
     "GPU_Shared", 
@@ -114,7 +114,7 @@ extern enum nbodyAlgorithm_enum g_Algorithm;
 
 //
 // g_maxAlgorithm is used to determine when to rotate g_Algorithm back to CPU_AOS
-// If CUDA is present, it is CPU_SSE_threaded, otherwise GPU_Shuffle
+// If CUDA is present, it is CPU_SIMD_threaded, otherwise GPU_Shuffle
 // The CPU and GPU algorithms must be contiguous, and the logic in main() to
 // initialize this value must be modified if any new algorithms are added.
 //

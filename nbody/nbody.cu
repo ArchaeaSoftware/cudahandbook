@@ -194,7 +194,7 @@ enum nbodyAlgorithm_enum g_Algorithm;
 
 //
 // g_maxAlgorithm is used to determine when to rotate g_Algorithm back to CPU_AOS
-// If CUDA is present, it is CPU_SSE_threaded, otherwise it depends on SM version
+// If CUDA is present, it is CPU_SIMD_threaded, otherwise it depends on SM version
 //
 // The shuffle and tiled implementations are SM 3.0 only.
 //
@@ -203,7 +203,7 @@ enum nbodyAlgorithm_enum g_Algorithm;
 //
 enum nbodyAlgorithm_enum g_maxAlgorithm;
 bool g_bCrossCheck = true;
-bool g_bUseSSEForCrossCheck = true;
+bool g_bUseSIMDForCrossCheck = true;
 bool g_bNoCPU = false;
 
 bool
@@ -226,8 +226,8 @@ ComputeGravitation(
     }
 
     if ( bCrossCheck ) {
-        if ( g_bUseSSEForCrossCheck ) {
-            ComputeGravitation_SSE_threaded(
+        if ( g_bUseSIMDForCrossCheck ) {
+            ComputeGravitation_SIMD_threaded(
                             g_hostSOA_Force,
                             g_hostSOA_Pos,
                             g_hostSOA_Mass,
@@ -277,8 +277,8 @@ ComputeGravitation(
                 g_N );
             bSOA = true;
             break;
-        case CPU_SSE:
-            *ms = ComputeGravitation_SSE(
+        case CPU_SIMD:
+            *ms = ComputeGravitation_SIMD(
                 g_hostSOA_Force,
                 g_hostSOA_Pos,
                 g_hostSOA_Mass,
@@ -286,8 +286,8 @@ ComputeGravitation(
                 g_N );
             bSOA = true;
             break;
-        case CPU_SSE_threaded:
-            *ms = ComputeGravitation_SSE_threaded(
+        case CPU_SIMD_threaded:
+            *ms = ComputeGravitation_SIMD_threaded(
                 g_hostSOA_Force,
                 g_hostSOA_Pos,
                 g_hostSOA_Mass,
@@ -296,8 +296,8 @@ ComputeGravitation(
             bSOA = true;
             break;
 #ifdef USE_OPENMP
-        case CPU_SSE_openmp:
-            *ms = ComputeGravitation_SSE_openmp(
+        case CPU_SIMD_openmp:
+            *ms = ComputeGravitation_SIMD_openmp(
                 g_hostSOA_Force,
                 g_hostSOA_Pos,
                 g_hostSOA_Mass,
@@ -458,7 +458,7 @@ main( int argc, char *argv[] )
         printf( "    disable this behavior with --nocrosscheck.\n" );
         printf( "    The CPU implementation may be disabled with --nocpu.\n" );
         printf( "    --nocpu implies --nocrosscheck.\n\n" );
-        printf( "    --nosse uses serial CPU implementation instead of SSE.\n" );
+        printf( "    --nosimd uses serial CPU implementation instead of SIMD.\n" );
         return 1;
     }
 
@@ -519,7 +519,7 @@ main( int argc, char *argv[] )
         g_bCrossCheck = false;
     }
     if ( g_bCrossCheck && chCommandLineGetBool( "nosse", argc, argv ) ) {
-        g_bUseSSEForCrossCheck = false;
+        g_bUseSIMDForCrossCheck = false;
     }
 
     chCommandLineGet( &kParticles, "numbodies", argc, argv );
@@ -533,11 +533,11 @@ main( int argc, char *argv[] )
         g_bCrossCheck ? "enabled" : "disabled",
         g_bNoCPU ? "disabled" : "enabled" );
 
-    g_Algorithm = g_bCUDAPresent ? GPU_AOS : CPU_SSE_threaded;
+    g_Algorithm = g_bCUDAPresent ? GPU_AOS : CPU_SIMD_threaded;
 #ifdef USE_OPENMP
-    g_maxAlgorithm = CPU_SSE_openmp;
+    g_maxAlgorithm = CPU_SIMD_openmp;
 #else
-    g_maxAlgorithm = CPU_SSE_threaded;
+    g_maxAlgorithm = CPU_SIMD_threaded;
 #endif
     if ( g_bCUDAPresent || g_bNoCPU ) {
         // max algorithm is different depending on whether SM 3.0 is present
@@ -664,9 +664,9 @@ main( int argc, char *argv[] )
                     case ' ':
                         if ( g_Algorithm == g_maxAlgorithm ) {
                             g_Algorithm = g_bNoCPU ? GPU_AOS : CPU_AOS;
-                            // Skip slow CPU implementations if we are using SSE for cross-check
-                            if ( g_bUseSSEForCrossCheck ) {
-                                g_Algorithm = CPU_SSE_threaded;
+                            // Skip slow CPU implementations if we are using SIMD for cross-check
+                            if ( g_bUseSIMDForCrossCheck ) {
+                                g_Algorithm = CPU_SIMD_threaded;
                             }
                         }
                         else {

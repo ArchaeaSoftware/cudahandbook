@@ -36,7 +36,7 @@
  */
 
 float
-ComputeGravitation_SSE_threaded( 
+ComputeGravitation_SIMD_threaded(
     float *force[3], 
     float *pos[4],
     float *mass,

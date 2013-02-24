@@ -35,6 +35,8 @@
  *
  */
 
+#ifdef __SSE__
+
 #include <xmmintrin.h>
 
 #include <chTimer.h>
@@ -43,7 +45,7 @@
 #include "nbody_CPU_SSE.h"
 
 float
-ComputeGravitation_SSE( 
+ComputeGravitation_SIMD(
     float *force[3], 
     float *pos[4],
     float *mass,
@@ -88,3 +90,5 @@ ComputeGravitation_SSE(
     chTimerGetTime( &end );
     return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
 }
+
+#endif

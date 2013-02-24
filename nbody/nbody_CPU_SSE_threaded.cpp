@@ -35,6 +35,8 @@
  *
  */
 
+#ifdef __SSE__
+
 #include <xmmintrin.h>
 
 #include <chTimer.h>
@@ -97,7 +99,7 @@ sseWorkerThread( void *_p )
 }
 
 float
-ComputeGravitation_SSE_threaded( 
+ComputeGravitation_SIMD_threaded(
     float *force[3], 
     float *pos[4],
     float *mass,
@@ -137,3 +139,5 @@ ComputeGravitation_SSE_threaded(
 
     return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
 }
+
+#endif

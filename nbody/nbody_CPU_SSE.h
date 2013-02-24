@@ -36,7 +36,7 @@
  */
 
 float
-ComputeGravitation_SSE( 
+ComputeGravitation_SIMD(
     float *force[3], 
     float *pos[4],
     float *mass,
