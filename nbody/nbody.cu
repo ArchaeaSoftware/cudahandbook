@@ -134,6 +134,8 @@ relError( T a, T b )
 #include "nbody_CPU_SSE.h"
 #include "nbody_CPU_SSE_threaded.h"
 #include "nbody_CPU_SSE_openmp.h"
+#include "nbody_CPU_AltiVec.h"
+#include "nbody_CPU_AltiVec_openmp.h"
 
 #ifndef NO_CUDA
 #include "nbody_GPU_AOS.cuh"

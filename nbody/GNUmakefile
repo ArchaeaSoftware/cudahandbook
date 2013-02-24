@@ -57,11 +57,13 @@ SOURCES := \
 	nbody_CPU_AOS.cpp \
 	nbody_CPU_AOS_tiled.cpp \
 	nbody_CPU_SOA.cpp \
+	nbody_CPU_AltiVec.cpp \
 	nbody_CPU_SSE.cpp \
 	nbody_CPU_SSE_threaded.cpp
 
 ifeq ($(NO_OPENMP),)
 SOURCES += \
+	nbody_CPU_AltiVec_openmp.cpp \
 	nbody_CPU_SSE_openmp.cpp
 endif
 
