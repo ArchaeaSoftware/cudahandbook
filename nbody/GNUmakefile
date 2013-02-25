@@ -10,7 +10,7 @@ CXX := g++
 NVCC := nvcc
 
 NVCCFLAGS := -O3
-CFOPTIMIZE := -Os
+CFOPTIMIZE := -O3
 
 CFLAGS :=
 CXXFLAGS := $(CFOPTIMIZE)
@@ -28,7 +28,7 @@ CXXFLAGS += -maltivec
 endif
 ifeq ($(uname_M),armv7l)
 CFLAGS += -DHAVE_NEON
-CXXFLAGS += -mfpu=neon
+CXXFLAGS += -mfpu=neon -ffast-math
 endif
 ifeq ($(uname_M),x86_64)
 CFLAGS += -DHAVE_SSE
