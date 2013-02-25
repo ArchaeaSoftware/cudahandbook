@@ -13,7 +13,7 @@ NVCCFLAGS := -O3
 CFOPTIMIZE := -O3
 
 CFLAGS :=
-CXXFLAGS := $(CFOPTIMIZE)
+CXXFLAGS := $(CFOPTIMIZE) -fno-strict-aliasing
 
 ifeq ($(NO_OPENMP),)
 CFLAGS += -DUSE_OPENMP
