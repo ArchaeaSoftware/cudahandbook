@@ -9,9 +9,10 @@ uname_O := $(shell uname -o 2>/dev/null || echo "not")
 CXX := g++
 NVCC := nvcc
 
+NVCCFLAGS := -O3
 CFOPTIMIZE := -Os
 
-CFLAGS := -O3
+CFLAGS :=
 CXXFLAGS := $(CFOPTIMIZE)
 
 ifeq ($(NO_OPENMP),)
@@ -50,10 +51,10 @@ endif
 
 ifneq ($(NO_CUDA),)
 NVCC := g++
-NVCCFLAGS := -xc++
+NVCCFLAGS += -xc++
 CFLAGS += -DNO_CUDA
 else
-NVCCFLAGS :=
+NVCCFLAGS +=
 LDFLAGS += -L$(CUDA_ROOT)/lib -L$(CUDA_ROOT)/lib64 -lcudart
 endif
 
