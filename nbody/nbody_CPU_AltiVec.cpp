@@ -40,7 +40,7 @@
 
 #include "nbody.h"
 #include "bodybodyInteraction_AltiVec.h"
-#include "nbody_CPU_AltiVec.h"
+#include "nbody_CPU_SIMD.h"
 
 float
 ComputeGravitation_SIMD(

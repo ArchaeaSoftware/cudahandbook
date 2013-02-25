@@ -44,7 +44,7 @@
 
 #include "nbody.h"
 #include "bodybodyInteraction_SSE.h"
-#include "nbody_CPU_SSE.h"
+#include "nbody_CPU_SIMD.h"
 
 using namespace cudahandbook::threading;
 

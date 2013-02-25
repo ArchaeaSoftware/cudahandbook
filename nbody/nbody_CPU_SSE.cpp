@@ -42,7 +42,7 @@
 #include <chTimer.h>
 
 #include "bodybodyInteraction_SSE.h"
-#include "nbody_CPU_SSE.h"
+#include "nbody_CPU_SIMD.h"
 
 float
 ComputeGravitation_SIMD(

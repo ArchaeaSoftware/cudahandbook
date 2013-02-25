@@ -43,22 +43,11 @@
 #define HAVE_SIMD_OPENMP
 #endif
 
-#include "nbody_CPU_SSE.h"
-#include "nbody_CPU_SSE_threaded.h"
-#ifdef USE_OPENMP
-#include "nbody_CPU_SSE_openmp.h"
-#endif
-
 #elif defined(HAVE_ALTIVEC)
 
 #define HAVE_SIMD
 #ifdef USE_OPENMP
 #define HAVE_SIMD_OPENMP
-#endif
-
-#include "nbody_CPU_AltiVec.h"
-#ifdef USE_OPENMP
-#include "nbody_CPU_AltiVec_openmp.h"
 #endif
 
 #endif

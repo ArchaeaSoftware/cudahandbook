@@ -41,7 +41,7 @@
 
 #include "nbody.h"
 #include "bodybodyInteraction_AltiVec.h"
-#include "nbody_CPU_AltiVec_openmp.h"
+#include "nbody_CPU_SSE.h"
 
 float
 ComputeGravitation_SIMD_openmp(
