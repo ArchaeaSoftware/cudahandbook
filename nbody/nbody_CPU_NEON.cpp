@@ -1,10 +1,10 @@
 /*
  *
- * nbody_CPU_SSE.h
+ * nbody_CPU_NEON.cpp
  *
- * SSE CPU implementation of the O(N^2) N-body calculation.
+ * Multithreaded NEON CPU implementation of the O(N^2) N-body calculation.
  * Uses SOA (structure of arrays) representation because it is a much
- * better fit for SSE.
+ * better fit for NEON.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -35,22 +35,12 @@
  *
  */
 
-#if defined(HAVE_SSE)
+#ifdef __ARM_NEON__
+#include <chTimer.h>
 
-#define HAVE_SIMD
-#define HAVE_SIMD_THREADED
-#ifdef USE_OPENMP
-#define HAVE_SIMD_OPENMP
-#endif
-
-#elif defined(HAVE_ALTIVEC) || defined(HAVE_NEON)
-
-#define HAVE_SIMD
-#ifdef USE_OPENMP
-#define HAVE_SIMD_OPENMP
-#endif
-
-#endif
+#include "nbody.h"
+#include "bodybodyInteraction_NEON.h"
+#include "nbody_CPU_SIMD.h"
 
 float
 ComputeGravitation_SIMD(
@@ -59,22 +49,42 @@ ComputeGravitation_SIMD(
     float *mass,
     float softeningSquared,
     size_t N
-);
+)
+{
+    chTimerTimestamp start, end;
+    chTimerGetTime( &start );
 
-float
-ComputeGravitation_SIMD_threaded(
-    float *force[3],
-    float *pos[4],
-    float *mass,
-    float softeningSquared,
-    size_t N
-);
+    for (size_t i = 0; i < N; i++)
+    {
+        vf32x4_t ax = vec_zero;
+        vf32x4_t ay = vec_zero;
+        vf32x4_t az = vec_zero;
+        vf32x4_t *px = (vf32x4_t *) pos[0];
+        vf32x4_t *py = (vf32x4_t *) pos[1];
+        vf32x4_t *pz = (vf32x4_t *) pos[2];
+        vf32x4_t *pmass = (vf32x4_t *) mass;
+        vf32x4_t x0 = _vec_set_ps1( pos[0][i] );
+        vf32x4_t y0 = _vec_set_ps1( pos[1][i] );
+        vf32x4_t z0 = _vec_set_ps1( pos[2][i] );
 
-float
-ComputeGravitation_SIMD_openmp(
-    float *force[3],
-    float *pos[4],
-    float *mass,
-    float softeningSquared,
-    size_t N
-);
+        for ( size_t j = 0; j < N/4; j++ ) {
+
+            bodyBodyInteraction(
+                ax, ay, az,
+                x0, y0, z0,
+                px[j], py[j], pz[j], pmass[j],
+                _vec_set_ps1( softeningSquared ) );
+
+        }
+
+        // Accumulate sum of four floats in the NEON register
+        force[0][i] = _vec_sum( ax );
+        force[1][i] = _vec_sum( ay );
+        force[2][i] = _vec_sum( az );
+    }
+
+    chTimerGetTime( &end );
+
+    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+}
+#endif

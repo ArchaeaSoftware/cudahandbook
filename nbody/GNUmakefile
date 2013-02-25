@@ -26,6 +26,10 @@ ifeq ($(uname_M),ppc)
 CFLAGS += -DHAVE_ALTIVEC
 CXXFLAGS += -maltivec
 endif
+ifeq ($(uname_M),armv7l)
+CFLAGS += -DHAVE_NEON
+CXXFLAGS += -mfpu=neon
+endif
 ifeq ($(uname_M),x86_64)
 CFLAGS += -DHAVE_SSE
 endif
@@ -69,12 +73,14 @@ SOURCES := \
 	nbody_CPU_AOS_tiled.cpp \
 	nbody_CPU_SOA.cpp \
 	nbody_CPU_AltiVec.cpp \
+	nbody_CPU_NEON.cpp \
 	nbody_CPU_SSE.cpp \
 	nbody_CPU_SSE_threaded.cpp
 
 ifeq ($(NO_OPENMP),)
 SOURCES += \
 	nbody_CPU_AltiVec_openmp.cpp \
+	nbody_CPU_NEON_openmp.cpp \
 	nbody_CPU_SSE_openmp.cpp
 endif
 
