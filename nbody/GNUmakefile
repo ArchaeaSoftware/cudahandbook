@@ -24,6 +24,7 @@ endif
 ifeq ($(NO_SIMD),)
 ifeq ($(uname_M),ppc)
 CFLAGS += -DHAVE_ALTIVEC
+CXXFLAGS += -maltivec
 endif
 ifeq ($(uname_M),x86_64)
 CFLAGS += -DHAVE_SSE
