@@ -2,7 +2,7 @@
  *
  * bodybodyInteraction_AltiVec.h
  *
- * SSE implementation of N-body computation.
+ * PowerPC AltiVec implementation of N-body computation.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.

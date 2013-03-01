@@ -1,8 +1,8 @@
 /*
  *
- * bodybodyInteraction_AltiVec.h
+ * bodybodyInteraction_NEON.h
  *
- * SSE implementation of N-body computation.
+ * ARM NEON implementation of N-body computation.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.

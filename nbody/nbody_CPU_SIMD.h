@@ -1,10 +1,9 @@
 /*
  *
- * nbody_CPU_SSE.h
+ * nbody_CPU_SIMD.h
  *
- * SSE CPU implementation of the O(N^2) N-body calculation.
- * Uses SOA (structure of arrays) representation because it is a much
- * better fit for SSE.
+ * Defines the various SIMD-related functions and determines their
+ * availability on the current platform.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
