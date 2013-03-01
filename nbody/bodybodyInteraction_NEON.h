@@ -109,7 +109,7 @@ bodyBodyInteraction(
 
     // (m_1 * r_01) / (d^2 + e^2)^(3/2)  [6 FLOPS]
 	fx = fx + (dx * s);
-	fy = fy + (dx * s);
+	fy = fy + (dy * s);
 	fz = fz + (dz * s);
 }
 
