@@ -28,7 +28,7 @@ CXXFLAGS += -maltivec
 endif
 ifeq ($(uname_M),armv7l)
 CFLAGS += -DHAVE_NEON
-CXXFLAGS += -mfpu=neon -ffast-math
+CXXFLAGS += -marm -mfpu=neon -ffast-math
 endif
 ifeq ($(uname_M),x86_64)
 CFLAGS += -DHAVE_SSE
