@@ -455,16 +455,17 @@ main( int argc, char *argv[] )
 {
     cudaError_t status;
     // kiloparticles
-    int kParticles = 4;
+    int kParticles = 4, kMaxIterations = 0;
 
     if ( 1 == argc ) {
-        printf( "Usage: nbody --numbodies <N> [--nocpu] [--nocrosscheck]\n" );
+        printf( "Usage: nbody --numbodies <N> [--nocpu] [--nocrosscheck] [--iterations <N>]\n" );
         printf( "    --numbodies is multiplied by 1024 (default is 4)\n" );
         printf( "    By default, the app checks results against a CPU implementation; \n" );
         printf( "    disable this behavior with --nocrosscheck.\n" );
         printf( "    The CPU implementation may be disabled with --nocpu.\n" );
         printf( "    --nocpu implies --nocrosscheck.\n\n" );
         printf( "    --nosimd uses serial CPU implementation instead of SIMD.\n" );
+        printf( "    --iterations specifies a fixed number of iterations to execute\n");
         return 1;
     }
 
@@ -530,6 +531,8 @@ main( int argc, char *argv[] )
 
     chCommandLineGet( &kParticles, "numbodies", argc, argv );
     g_N = kParticles*1024;
+
+    chCommandLineGet( &kMaxIterations, "iterations", argc, argv);
 
     // Round down to the nearest multiple of the CPU count (e.g. if we have
     // a system with a CPU count that isn't a power of two, we need to round)
@@ -645,6 +648,7 @@ main( int argc, char *argv[] )
     return 0;
 #endif
     {
+        int kIterations = 0;
         bool bStop = false;
         while ( ! bStop ) {
             float ms, err;
@@ -667,6 +671,12 @@ main( int argc, char *argv[] )
                     ms, 
                     interactionsPerSecond/1e6, 
                     err );
+            }
+            if (kMaxIterations) {
+                kIterations++;
+                if (kIterations >= kMaxIterations) {
+                    bStop = true;
+                }
             }
             if ( kbhit() ) {
                 char c = getch();
