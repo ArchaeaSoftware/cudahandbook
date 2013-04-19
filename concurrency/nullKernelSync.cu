@@ -49,7 +49,7 @@ NullKernel()
 int
 main( int argc, char *argv[] )
 {
-    const int cIterations = 10000;
+    const int cIterations = 100000;
     printf( "Measuring synchronous launch time... " ); fflush( stdout );
 
     chTimerTimestamp start, stop;
