@@ -133,13 +133,13 @@ TestSort( size_t N, int mask = 0 )
     // depending on where it wound up in the ping-pong
     // between output arrays.
     //
-    radixSortedArray = RadixSort<1>( sortOutput, sortInput, N );
+    radixSortedArray = RadixSort<4>( sortOutput, sortInput, N );
 
 
     for ( size_t i = 0; i < N; i++ ) {
         if ( radixSortedArray[i] != sortedOutput[i] ) {
 #ifdef _WIN32
-            _asm int 3
+            __debugbreak();
 #endif
             goto Error;
         }
