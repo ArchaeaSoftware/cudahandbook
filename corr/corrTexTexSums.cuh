@@ -80,8 +80,7 @@ corrTexTexSums_kernel(
             SumTSq += T*T;
             SumIT += I*T;
         }
-        float fDenomExp = (float) 
-            ((double) cPixels*SumTSq - (double) SumT*SumT);
+        float fDenomExp = float ((double) cPixels*SumTSq - (double) SumT*SumT);
         pI[col] = SumI;
         pISq[col] = SumISq;
         pIT[col] = SumIT;

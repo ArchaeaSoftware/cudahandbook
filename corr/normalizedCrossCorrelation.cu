@@ -144,7 +144,7 @@ CopyToTemplate(
     fSumT = (float) SumT;
     CUDART_CHECK( cudaMemcpyToSymbol(g_SumT, &fSumT, sizeof(float)) );
 
-    fDenomExp = (float) ( (double)cPixels*SumTSq - (double) SumT*SumT);
+    fDenomExp = float( (double)cPixels*SumTSq - (double) SumT*SumT);
     CUDART_CHECK( cudaMemcpyToSymbol(g_fDenomExp, &fDenomExp, sizeof(float)) );
 
     fcPixels = (float) cPixels;
@@ -246,7 +246,7 @@ corrCPU( float *pCorr,
                 SumTSq += T*T;
                 SumIT += I*T;
             }
-            float fDenomExp = (float) ((double) cPixels*SumTSq - (double) SumT*SumT);
+            float fDenomExp = float((double) cPixels*SumTSq - (double) SumT*SumT);
             pI[col] = SumI;
             pISq[col] = SumISq;
             pIT[col] = SumIT;
@@ -305,7 +305,7 @@ TestCorrelation(
     size_t CorrPitch;
 
     float cPixels = (float) wTemplate*hTemplate;
-    float fDenomExp = (float) ((double) cPixels*g_cpuSumTSq - (double) g_cpuSumT*g_cpuSumT);
+    float fDenomExp = float((double) cPixels*g_cpuSumTSq - (double) g_cpuSumT*g_cpuSumT);
 
     float *hCorr = NULL, *dCorr = NULL;
     int *hSumI = NULL, *dSumI = NULL;

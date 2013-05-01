@@ -71,8 +71,7 @@ corrTexTex_kernel(
             SumTSq += T*T;
             SumIT += I*T;
         }
-        float fDenomExp = (float) 
-            ( (double) cPixels*SumTSq - (double) SumT*SumT);
+        float fDenomExp = float( (double) cPixels*SumTSq - (double) SumT*SumT);
         pCorr[col] = CorrelationValue( SumI, SumISq, SumIT, SumT, cPixels, fDenomExp );
     }
 }
