@@ -659,14 +659,14 @@ main( int argc, char *argv[] )
             }
             double interactionsPerSecond = (double) g_N*g_N*1000.0f / ms;
             if ( interactionsPerSecond > 1e9 ) {
-                printf ( "\r%s: %.2f ms = %.3fx10^9 interactions/s (Rel. error: %E)\n",
+                printf ( "\r%s: %8.2f ms = %8.3fx10^9 interactions/s (Rel. error: %E)\n",
                     rgszAlgorithmNames[g_Algorithm], 
                     ms, 
                     interactionsPerSecond/1e9, 
                     err );
             }
             else {
-                printf ( "\r%s: %.2f ms = %.3fx10^6 interactions/s (Rel. error: %E)\n",
+                printf ( "\r%s: %8.2f ms = %8.3fx10^6 interactions/s (Rel. error: %E)\n",
                     rgszAlgorithmNames[g_Algorithm], 
                     ms, 
                     interactionsPerSecond/1e6, 
