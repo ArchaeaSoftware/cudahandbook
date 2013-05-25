@@ -43,27 +43,99 @@
 #include <algorithm>
 #include <vector>
 
+#include <chTimer.h>
+#include <chError.h>
+
+
+#define NUM_THREADS 64
+
+template<const int b>
+__global__ void
+RadixHistogram_device( int *dptrHistogram, const int *in, size_t N, int shift, int mask )
+{
+    for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
+              i < N;
+              i += blockDim.x*gridDim.x ) {
+        int index = (in[i] & mask) >> shift;
+        atomicAdd( dptrHistogram+index, 1 );
+    }
+#if 0
+    const int cBuckets = 1<<b;
+    __shared__ unsigned char sharedHistogram[NUM_THREADS][cBuckets];
+
+    for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
+              i < N;
+              i += blockDim.x*gridDim.x ) {
+        int index = (in[i] & mask) >> shift;
+        if ( 0 == ++sharedHistogram[threadIdx.x][index] ) {
+            atomicAdd( dptrHistogram+index, 256 );
+        }
+    }
+    __syncthreads();
+    for ( int i = 0; i < cBuckets; i++ ) {
+        if ( sharedHistogram[threadIdx.x][i] ) {
+            atomicAdd( dptrHistogram+i, sharedHistogram[threadIdx.x][i] );
+        }
+    }
+#endif
+}
+
 template<const int b>
 void
+RadixHistogram( int *dptrHistogram, const int *in, size_t N, int shift, int mask, int cBlocks, int cThreads )
+{
+    RadixHistogram_device<b><<<cBlocks,cThreads>>>( dptrHistogram, in, N, shift, mask );
+}
+
+
+template<const int b>
+bool
 RadixPass( int *out, const int *in, size_t N, int shift, int mask )
 {
+    bool ret = false;
+    cudaError_t status;
     const int numCounts = 1<<b;
     int counts[numCounts];
     memset( counts, 0, sizeof(counts) );
+
+int *gpuIn = 0;
+int *gpuHistogram = 0;
+int *cpuHistogram = 0;
+CUDART_CHECK( cudaMalloc( &gpuIn, N*sizeof(int) ) );
+CUDART_CHECK( cudaMemcpy( gpuIn, in, N*sizeof(int), cudaMemcpyHostToDevice ) );
+CUDART_CHECK( cudaMalloc( &gpuHistogram, (1<<b)*sizeof(int) ) );
+CUDART_CHECK( cudaMemset( gpuHistogram, 0, (1<<b)*sizeof(int) ) );
+cpuHistogram = (int *) malloc( (1<<b)*sizeof(int) );
+if ( ! cpuHistogram ) {
+    status = cudaErrorMemoryAllocation;
+    goto Error;
+}
+
+RadixHistogram<b>( gpuHistogram, gpuIn, N, shift, mask, 1500, 512 );
+CUDART_CHECK( cudaMemcpy( cpuHistogram, gpuHistogram, (1<<b)*sizeof(int), cudaMemcpyDeviceToHost ) );
+
+
     for ( size_t i = 0; i < N; i++ ) {
         int value = in[i];
         int index = (value & mask) >> shift;
         counts[index] += 1;
     }
 
+for ( int j = 0; j < (1<<b); j++ ) {
+    if ( counts[j] != cpuHistogram[j] )
+        __debugbreak();
+}
+
     //
     // compute exclusive scan of counts
     //
-    int sum = 0;
-    for ( int i = 0; i < numCounts; i++ ) { 
-        int temp = counts[i];
-        counts[i] = sum;
-        sum += temp;
+    {
+        int sum = 0;
+        for ( int i = 0; i < numCounts; i++ ) { 
+            int temp = counts[i];
+            counts[i] = sum;
+            sum += temp;
+        }
     }
 
     //
@@ -75,6 +147,13 @@ RadixPass( int *out, const int *in, size_t N, int shift, int mask )
         out[ counts[index] ] = value;
         counts[index] += 1;
     }
+    ret = true;
+Error:
+    cudaFree( gpuIn );
+    cudaFree( gpuHistogram );
+    free( cpuHistogram );
+    
+    return ret;
 }
 
 template<const int b>
@@ -101,8 +180,9 @@ RadixSort( int *out[2], const int *in, size_t N )
 }
 
 bool
-TestSort( size_t N, int mask = 0 )
+TestSort( float *et, int *(*pfnSort)( int *[2], const int *, size_t ), size_t N, int mask = -1 )
 {
+    chTimerTimestamp start, stop;
     bool ret = false;
     int *sortInput = new int[ N ];
     int *sortOutput[2];
@@ -117,24 +197,25 @@ TestSort( size_t N, int mask = 0 )
         goto Error;
     }
 
-    if ( mask == 0 ) {
-        mask = -1;
-    }
     for ( int i = 0; i < N; i++ ) {
-        sortedOutput[i] = sortInput[i] = rand() & mask;
+        sortedOutput[i] = sortInput[i] = (rand()|(rand()<<16)) & mask;
     }
 
     {
         std::sort( sortedOutput.begin(), sortedOutput.end() );
     }
 
+    chTimerGetTime( &start );
+
     //
     // RadixSort returns sortOutput[0] or sortOutput[1],
     // depending on where it wound up in the ping-pong
     // between output arrays.
     //
-    radixSortedArray = RadixSort<4>( sortOutput, sortInput, N );
+    radixSortedArray = pfnSort( sortOutput, sortInput, N );
 
+    chTimerGetTime( &stop );
+    *et = chTimerElapsedTime( &start, &stop );
 
     for ( size_t i = 0; i < N; i++ ) {
         if ( radixSortedArray[i] != sortedOutput[i] ) {
@@ -155,15 +236,21 @@ Error:
 int
 main()
 {
+    float ms;
 
-#define TEST_VECTOR( N, mask )  \
-    if ( ! TestSort( N, mask ) ) {  \
-        printf( "%s(N=%d, mask=%d) FAILED\n", "RadixSort<1>", (int) N, mask );  \
+#define TEST_VECTOR( fn, N, mask )  \
+    if ( ! TestSort( &ms, fn, N, mask ) ) {  \
+        printf( "%s (N=%d, mask=%d) FAILED\n", #fn, (int) N, mask );  \
         exit(1);    \
+    } \
+    else { \
+        printf( "%s (N=%d, mask=%d): %.2f Melements/s\n", #fn, (int) N, mask, (double) (N/1e6)/(ms/1000.0f) ); \
     }
 
-    TEST_VECTOR( 32, 0xf );
+//    TEST_VECTOR( 32, 0xf );
 
-    TEST_VECTOR( 1048576, 0 );
+    TEST_VECTOR( RadixSort<1>, 1048576, 0xffffffff );
+    TEST_VECTOR( RadixSort<2>, 1048576, 0xffffffff );
+    TEST_VECTOR( RadixSort<4>, 1048576, 0xffffffff );
 
 }
