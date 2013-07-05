@@ -2,7 +2,7 @@
  *
  * bodybodyInteraction_SSE.h
  *
- * SSE implementation of N-body computation.
+ * Intel x86/x86_64 SSE implementation of N-body computation.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.

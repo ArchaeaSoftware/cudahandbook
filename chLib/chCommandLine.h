@@ -37,6 +37,7 @@
 #define __CUDAHANDBOOK_COMMANDLINE__
 
 #include <string.h>
+#include <stdlib.h>
 
 static void
 chCommandLinePassback( int *p, char *s )
