@@ -44,7 +44,7 @@ ifneq ($(DEBUG),0)
 CFLAGS += -DDEBUG=1
 endif
 
-CUDA_ROOT := /usr
+CUDA_ROOT := $(dir $(shell which nvcc 2>/dev/null))..
 
 ifneq ($(uname_O),Cygwin)
 CXXFLAGS += -pthread
