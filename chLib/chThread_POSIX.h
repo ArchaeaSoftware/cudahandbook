@@ -1,6 +1,6 @@
 /*
  *
- * chThread_Linux.h
+ * chThread_POSIX.h
  *
  * Header file for helper classes and functions for threads.
  *
