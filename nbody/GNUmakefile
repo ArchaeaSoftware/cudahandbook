@@ -16,6 +16,7 @@ CFOPTIMIZE := -O3
 
 ifneq ($(DEBUG),0)
 CFOPTIMIZE := -O0 -ggdb
+NVCCFLAGS := -O0 -g
 endif
 
 CFLAGS :=
