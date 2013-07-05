@@ -9,8 +9,14 @@ uname_O := $(shell uname -o 2>/dev/null || echo "not")
 CXX := g++
 NVCC := nvcc
 
+DEBUG = 0
+
 NVCCFLAGS := -O3
 CFOPTIMIZE := -O3
+
+ifneq ($(DEBUG),0)
+CFOPTIMIZE := -O0 -ggdb
+endif
 
 CFLAGS :=
 CXXFLAGS := $(CFOPTIMIZE) -fno-strict-aliasing
@@ -32,6 +38,10 @@ endif
 ifeq ($(uname_M),x86_64)
 CFLAGS += -DHAVE_SSE
 endif
+endif
+
+ifneq ($(DEBUG),0)
+CFLAGS += -DDEBUG=1
 endif
 
 CUDA_ROOT := /usr
