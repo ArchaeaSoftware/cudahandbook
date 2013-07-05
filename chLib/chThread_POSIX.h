@@ -66,50 +66,50 @@ processorCount()
 class Semaphore
 {
 private:
-	sem_t *m_semaphore;
+    sem_t *m_semaphore;
 public:
-	Semaphore() {
-		m_semaphore = new sem_t;
-		if ( !m_semaphore )
-			return;
+    Semaphore() {
+        m_semaphore = new sem_t;
+        if ( !m_semaphore )
+            return;
 #ifdef USE_NAMED_SEMAPHORES
-		char semName[32];
-		sprintf( semName, "/chSema%p", this );
-		m_semaphore = sem_open( semName, O_CREAT | O_EXCL, 0644, 0 );
-		if (m_semaphore == SEM_FAILED)
-			m_semaphore = NULL;
+        char semName[32];
+        sprintf( semName, "/chSema%p", this );
+        m_semaphore = sem_open( semName, O_CREAT | O_EXCL, 0644, 0 );
+        if (m_semaphore == SEM_FAILED)
+            m_semaphore = NULL;
 #else
-		if ( sem_init( m_semaphore, 0, 0 ) ) {
-			delete m_semaphore;
-			m_semaphore = NULL;
-		}
+        if ( sem_init( m_semaphore, 0, 0 ) ) {
+            delete m_semaphore;
+            m_semaphore = NULL;
+        }
 #endif
-	}
+    }
 
-	~Semaphore() {
+    ~Semaphore() {
 #ifdef USE_NAMED_SEMAPHORES
-		sem_close( m_semaphore );
+        sem_close( m_semaphore );
 #else
-		sem_destroy( m_semaphore );
+        sem_destroy( m_semaphore );
 #endif
-		delete m_semaphore;
-		m_semaphore = NULL;
-	}
+        delete m_semaphore;
+        m_semaphore = NULL;
+    }
 
-	bool valid()
-	{
-		return m_semaphore != NULL;
-	}
+    bool valid()
+    {
+        return m_semaphore != NULL;
+    }
 
-	int wait()
-	{
-		return sem_wait( m_semaphore );
-	}
+    int wait()
+    {
+        return sem_wait( m_semaphore );
+    }
 
-	int post()
-	{
-		return sem_post( m_semaphore );
-	}
+    int post()
+    {
+        return sem_post( m_semaphore );
+    }
 };
 
 class workerThread
@@ -129,10 +129,10 @@ public:
         int ret = pthread_attr_init( &attr );
         if ( 0 != ret )
             goto Error;
-		if ( !m_semWait.valid() )
-			goto Error;
-		if ( !m_semDone.valid() )
-			goto Error;
+        if ( !m_semWait.valid() )
+            goto Error;
+        if ( !m_semDone.valid() )
+            goto Error;
         ret = pthread_create( &m_thread, &attr, threadRoutine, this );
         if ( 0 != ret )
             goto Error;
@@ -162,8 +162,8 @@ public:
 private:
     unsigned int m_cpuThreadId;
     pthread_t m_thread;
-	Semaphore m_semWait;
-	Semaphore m_semDone;
+    Semaphore m_semWait;
+    Semaphore m_semDone;
 
     void (*m_pfnDelegatedWork)(void *);
     void *m_Parameter;
@@ -181,7 +181,7 @@ workerThread::threadRoutine( void *_p )
         }
         else {
             (*p->m_pfnDelegatedWork)( p->m_Parameter );
-			p->m_semDone.post();
+            p->m_semDone.post();
         }
     } while ( bLoop );
     // fall through to exit if bLoop was set to false
