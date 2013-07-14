@@ -13,7 +13,7 @@
  * target gpu-architecture, e.g.:
  * nvcc --gpu-architecture sm_13 -I ../chLib <options> histogram.cu ..\chLib\pgm.cu
  *
- * Requires: No minimum SM requirement.
+ * Requires: SM 1.1, for global atomics.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -150,8 +150,7 @@ TestHistogram(
     CUDART_CHECK( cudaMemcpy( hHist, dHist, sizeof(hHist), cudaMemcpyDeviceToHost ) );
 
     if ( bCompareHistograms( hHist, hrefHist, 256 ) ) {
-        //CH_ASSERT(0);
-        printf( "Sums miscompare\n" );
+        printf( "Histograms miscompare\n" );
         goto Error;
     }
 
@@ -165,16 +164,21 @@ TestHistogram(
 
     CUDART_CHECK( cudaMemcpy( hHist, dHist, sizeof(hHist), cudaMemcpyDeviceToHost ) );
 
-    if ( bCompareHistograms( hHist, hrefHist, 256 ) ) {
-        //CH_ASSERT(0);
-        printf( "Sums miscompare\n" );
-        goto Error;
-    }
-
     {
         float ms;
         CUDART_CHECK( cudaEventElapsedTime( &ms, start, stop ) );
         *pixelsPerSecond = (double) w*h*cIterations*1000.0 / ms;
+    }
+
+    if ( outputFilename ) {
+        FILE *f = fopen( outputFilename, "w" );
+        if ( ! f )
+            goto Error;
+        for ( int i = 0; i < 256; i++ ) {
+            fprintf( f, "%d\t", hHist[i] );
+        }
+        fprintf( f, "\n" );
+        fclose( f );
     }
 
     ret = true;
@@ -206,7 +210,6 @@ main(int argc, char *argv[])
     char *outputFilename = NULL;
 
     cudaArray *pArrayImage = NULL;
-    cudaArray *pArrayTemplate = NULL;
     cudaChannelFormatDesc desc = cudaCreateChannelDesc<unsigned char>();
 
     if ( chCommandLineGetBool( "help", argc, argv ) ) {
@@ -215,12 +218,8 @@ main(int argc, char *argv[])
         printf( "    --output <filename>: Write PGM of correlation values (0..255) to <filename>.\n" );
         printf( "    --padWidth <value>: pad input image width to specified value\n" );
         printf( "    --padHeight <value>: pad input image height to specified value\n" );
-        printf( "    --xTemplate <value>: X coordinate of upper left corner of template\n" );
-        printf( "    --yTemplate <value>: Y coordinate of upper left corner of template\n" );
-        printf( "    --wTemplate <value>: Width of template\n" );
-        printf( "    --hTemplate <value>: Height of template\n" );
-        printf( "\nDefault values are coins.pgm, no output file or padding, and template of the dime in the\n" );
-        printf("lower right corner of coins.pgm: xTemplate=210, yTemplate=148, wTemplate=hTemplate=52\n" );
+        printf( "    --random <numvalues>: overrides input filename and fills image with random data in the range [0..numvalues)\n" );
+        printf( "\nDefault values are coins.pgm and no output file or padding\n" );
 
         return 0;
     }
@@ -235,6 +234,7 @@ main(int argc, char *argv[])
     {
         int padWidth = 0;
         int padHeight = 0;
+        int numvalues = 0;
         if ( chCommandLineGet( &padWidth, "padWidth", argc, argv ) ) {
             if ( ! chCommandLineGet( &padHeight, "padHeight", argc, argv ) ) {
                 printf( "Must specify both --padWidth and --padHeight\n" );
@@ -247,16 +247,37 @@ main(int argc, char *argv[])
                 goto Error;
             }
         }
-        if ( pgmLoad(inputFilename, &hidata, &HostPitch, &didata, &DevicePitch, &w, &h, padWidth, padHeight) )
-            goto Error;
+        if ( chCommandLineGet( &numvalues, "random", argc, argv ) ) {
+            if ( 0==padWidth || 0==padHeight ) {
+                printf( "--random requires --padWidth and padHeight (to specify input size)\n" );
+                goto Error;
+            }
+            w = padWidth;
+            h = padWidth;
+            hidata = (unsigned char *) malloc( w*h );
+            if ( ! hidata )
+                goto Error;
+            CUDART_CHECK( cudaMallocPitch( &didata, &DevicePitch, padWidth, padHeight ) );
+            srand(42);
+            for ( int row = 0; row < h; row++ ) {
+                unsigned char *p = hidata+row*w;
+                for ( int col = 0; col < w; col++ ) {
+                    int val = rand() % numvalues;
+                    p[col] = (unsigned char) val;
+                }
+            }
+            CUDART_CHECK( cudaMemcpy2D( didata, DevicePitch, hidata, padWidth, padWidth, padHeight, cudaMemcpyHostToDevice ) );
+        }
+        else {
+            if ( pgmLoad( inputFilename, &hidata, &HostPitch, &didata, &DevicePitch, &w, &h, padWidth, padHeight) )
+                goto Error;
+        }
     }
 
+
     CUDART_CHECK( cudaMallocArray( &pArrayImage, &desc, w, h ) );
-    CUDART_CHECK( cudaMallocArray( &pArrayTemplate, &desc, w, h ) );
     CUDART_CHECK( cudaMemcpyToArray( pArrayImage, 0, 0, hidata, w*h, cudaMemcpyHostToDevice ) );
         
-    CUDART_CHECK( cudaMemcpy2DArrayToArray( pArrayTemplate, 0, 0, pArrayImage, 0, 0, w, h, cudaMemcpyDeviceToDevice ) );
-    
     CUDART_CHECK( cudaBindTextureToArray( texImage, pArrayImage ) );
 
     histCPU( cpuHist, w, h, hidata, w );
@@ -271,6 +292,8 @@ main(int argc, char *argv[])
             baseName, \
             cIterations, outfile ) ) { \
             printf( "Error\n" ); \
+            ret = 1; \
+            goto Error; \
         } \
         printf( "%s: %.2f Mpix/s\n", \
             #baseName, pixelsPerSecond/1e6 ); \
@@ -279,7 +302,7 @@ main(int argc, char *argv[])
     threads = dim3( 16, 4, 1 );
     blocks = dim3( 40, 40, 1 );
 
-    TEST_VECTOR( GPUhistogramNaiveAtomic, false, 100, NULL );
+    TEST_VECTOR( GPUhistogramNaiveAtomic, false, 1, NULL );
 
     ret = 0;
 Error:
@@ -287,7 +310,6 @@ Error:
     cudaFree(didata); 
 
     cudaFreeArray(pArrayImage);
-    cudaFreeArray(pArrayTemplate);
    
     return ret;
 
