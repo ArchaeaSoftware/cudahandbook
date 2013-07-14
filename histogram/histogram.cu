@@ -59,34 +59,7 @@
 
 texture<unsigned char, 2> texImage;
 
-__global__ void
-histogramNaiveAtomic( 
-    unsigned int *pHist, 
-    int x, int y, 
-    int w, int h )
-{
-    for ( int row = blockIdx.y*blockDim.y+threadIdx.y; 
-              row < h;
-              row += blockDim.y*gridDim.y ) {
-        for ( int col = blockIdx.x*blockDim.x+threadIdx.x;
-                  col < w;
-                  col += blockDim.x*gridDim.x ) {
-            unsigned char pixval = tex2D( texImage, (float) col, (float) row );
-            atomicAdd( &pHist[pixval], 1 );
-        }
-    }
-}
-
-void
-GPUhistogramNaiveAtomic(
-    unsigned int *pHist,
-    int x, int y,
-    int w, int h, 
-    dim3 threads, dim3 blocks )
-{
-    histogramNaiveAtomic<<<blocks,threads>>>( pHist, x, y, w, h );
-}
-    
+#include "histogramNaiveAtomic.cuh"
 
 int
 bCompareHistograms( const unsigned int *p, const unsigned int *q, int N )
