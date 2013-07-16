@@ -44,9 +44,9 @@
 #include <stdio.h>
 #endif
 
-#ifndef __cuda_drvapi_dynlink_h__
-#include <cuda.h>
-#endif
+#include <chCUDA.h>
+
+#ifndef NO_CUDA
 
 template<typename T>
 inline const char *
@@ -132,7 +132,7 @@ chGetErrorString( CUresult status )
                 __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
             goto Error; \
         } \
-    } while (0); 
+    } while (0);
 
 #define CUDA_CHECK( fn ) do { \
         (status) =  (fn); \
@@ -142,7 +142,7 @@ chGetErrorString( CUresult status )
                 __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
             goto Error; \
         } \
-    } while (0); 
+    } while (0);
 
 #else
 
@@ -151,15 +151,45 @@ chGetErrorString( CUresult status )
     if ( cudaSuccess != (status) ) { \
             goto Error; \
         } \
-    } while (0); 
+    } while (0);
 
 #define CUDA_CHECK( fn ) do { \
         (status) =  (fn); \
         if ( CUDA_SUCCESS != (status) ) { \
             goto Error; \
         } \
-    } while (0); 
-    
+    } while (0);
+
+#endif
+
+#else
+
+template<typename T>
+inline const char *
+chGetErrorString( T status )
+{
+    return "CUDA support is not built in.";
+}
+
+static inline const char* cudaGetErrorString( cudaError_t error )
+{
+	return "CUDA support is not built in.";
+}
+
+#define CUDART_CHECK( fn ) do { \
+    status = (fn); \
+    if ( cudaSuccess != (status) ) { \
+            goto Error; \
+        } \
+    } while (0);
+
+#define CUDA_CHECK( fn ) do { \
+        (status) =  (fn); \
+        if ( CUDA_SUCCESS != (status) ) { \
+            goto Error; \
+        } \
+    } while (0);
+
 #endif
 
 #endif

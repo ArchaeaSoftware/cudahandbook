@@ -35,6 +35,14 @@
  *
  */
 
+#ifndef NO_CUDA
+#define NO_CUDA
+#endif
+#include <chCUDA.h>
+#include <chTimer.h>
+
+#include "bodybodyInteraction.cuh"
+
 float
 ComputeGravitation_SOA(
     float *force[3],
@@ -42,4 +50,49 @@ ComputeGravitation_SOA(
     float *mass,
     float softeningSquared,
     size_t N
-);
+)
+{
+    chTimerTimestamp start, end;
+    memset( force[0], 0, N*sizeof(float) );
+    memset( force[1], 0, N*sizeof(float) );
+    memset( force[2], 0, N*sizeof(float) );
+    chTimerGetTime( &start );
+    for (size_t i = 0; i < N; i++)
+    {
+        float acc[3] = {0, 0, 0};
+        float myX = pos[0][i];
+        float myY = pos[1][i];
+        float myZ = pos[2][i];
+
+        for ( size_t j = 0; j < i; j++ ) {
+
+            if ( j==i ) continue;
+
+            float bodyX = pos[0][j];
+            float bodyY = pos[1][j];
+            float bodyZ = pos[2][j];
+            float bodyMass = mass[j];
+
+            float fx, fy, fz;
+            bodyBodyInteraction<float>(
+                &fx, &fy, &fz,
+                myX, myY, myZ,
+                bodyX, bodyY, bodyZ, bodyMass,
+                softeningSquared );
+
+            acc[0] += fx;
+            acc[1] += fy;
+            acc[2] += fz;
+
+            force[0][j] += -fx;
+            force[1][j] += -fy;
+            force[2][j] += -fz;
+        }
+
+        force[0][i] += acc[0];
+        force[1][i] += acc[1];
+        force[2][i] += acc[2];
+    }
+    chTimerGetTime( &end );
+    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+}

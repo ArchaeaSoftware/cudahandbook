@@ -131,15 +131,16 @@ relError( T a, T b )
 #include "nbody_CPU_AOS.h"
 #include "nbody_CPU_AOS_tiled.h"
 #include "nbody_CPU_SOA.h"
-#include "nbody_CPU_SSE.h"
-#include "nbody_CPU_SSE_threaded.h"
+#include "nbody_CPU_SIMD.h"
 
+#ifndef NO_CUDA
 #include "nbody_GPU_AOS.cuh"
-#include "nbody_GPU_AOS_Const.cuh"
+#include "nbody_GPU_AOS_const.cuh"
 #include "nbody_GPU_AOS_tiled.cuh"
 //#include "nbody_GPU_SOA_tiled.cuh"
 #include "nbody_GPU_Shuffle.cuh"
 #include "nbody_GPU_Atomic.cuh"
+#endif
 
 void
 integrateGravitation_AOS( float *ppos, float *pvel, float *pforce, float dt, float damping, size_t N )
@@ -191,7 +192,7 @@ enum nbodyAlgorithm_enum g_Algorithm;
 
 //
 // g_maxAlgorithm is used to determine when to rotate g_Algorithm back to CPU_AOS
-// If CUDA is present, it is CPU_SSE_threaded, otherwise it depends on SM version
+// If CUDA is present, it is CPU_SIMD_threaded, otherwise it depends on SM version
 //
 // The shuffle and tiled implementations are SM 3.0 only.
 //
@@ -200,7 +201,7 @@ enum nbodyAlgorithm_enum g_Algorithm;
 //
 enum nbodyAlgorithm_enum g_maxAlgorithm;
 bool g_bCrossCheck = true;
-bool g_bUseSSEForCrossCheck = true;
+bool g_bUseSIMDForCrossCheck = true;
 bool g_bNoCPU = false;
 
 bool
@@ -223,8 +224,9 @@ ComputeGravitation(
     }
 
     if ( bCrossCheck ) {
-        if ( g_bUseSSEForCrossCheck ) {
-            ComputeGravitation_SSE_threaded(
+#ifdef HAVE_SIMD_THREADED
+        if ( g_bUseSIMDForCrossCheck ) {
+            ComputeGravitation_SIMD_threaded(
                             g_hostSOA_Force,
                             g_hostSOA_Pos,
                             g_hostSOA_Mass,
@@ -237,12 +239,15 @@ ComputeGravitation(
             }
         }
         else {
+#endif
             ComputeGravitation_AOS( 
                 g_hostAOS_Force_Golden,
                 g_hostAOS_PosMass,
                 g_softening*g_softening,
                 g_N );
+#ifdef HAVE_SIMD_THREADED
         }
+#endif
     }
 
     // CPU->GPU copies in case we are measuring GPU performance
@@ -274,8 +279,9 @@ ComputeGravitation(
                 g_N );
             bSOA = true;
             break;
-        case CPU_SSE:
-            *ms = ComputeGravitation_SSE(
+#ifdef HAVE_SIMD
+        case CPU_SIMD:
+            *ms = ComputeGravitation_SIMD(
                 g_hostSOA_Force,
                 g_hostSOA_Pos,
                 g_hostSOA_Mass,
@@ -283,8 +289,10 @@ ComputeGravitation(
                 g_N );
             bSOA = true;
             break;
-        case CPU_SSE_threaded:
-            *ms = ComputeGravitation_SSE_threaded(
+#endif
+#ifdef HAVE_SIMD_THREADED
+        case CPU_SIMD_threaded:
+            *ms = ComputeGravitation_SIMD_threaded(
                 g_hostSOA_Force,
                 g_hostSOA_Pos,
                 g_hostSOA_Mass,
@@ -292,6 +300,19 @@ ComputeGravitation(
                 g_N );
             bSOA = true;
             break;
+#endif
+#ifdef HAVE_SIMD_OPENMP
+        case CPU_SIMD_openmp:
+            *ms = ComputeGravitation_SIMD_openmp(
+                g_hostSOA_Force,
+                g_hostSOA_Pos,
+                g_hostSOA_Mass,
+                g_softening*g_softening,
+                g_N );
+            bSOA = true;
+            break;
+#endif
+#ifndef NO_CUDA
         case GPU_AOS:
             *ms = ComputeGravitation_GPU_AOS( 
                 g_dptrAOS_Force,
@@ -363,6 +384,11 @@ ComputeGravitation(
                 g_softening*g_softening,
                 g_N );
             break;
+#endif
+        default:
+            fprintf(stderr, "Unrecognized algorithm index: %d\n", algorithm);
+            abort();
+            break;
     }
 
     // SOA -> AOS
@@ -429,16 +455,18 @@ main( int argc, char *argv[] )
 {
     cudaError_t status;
     // kiloparticles
-    int kParticles = 4;
+    int kParticles = 4, kMaxIterations = 0;
 
     if ( 1 == argc ) {
-        printf( "Usage: nbody --numbodies <N> [--nocpu] [--nocrosscheck]\n" );
+        printf( "Usage: nbody --numbodies <N> [--nocpu] [--nocrosscheck] [--iterations <N>]\n" );
         printf( "    --numbodies is multiplied by 1024 (default is 4)\n" );
         printf( "    By default, the app checks results against a CPU implementation; \n" );
         printf( "    disable this behavior with --nocrosscheck.\n" );
         printf( "    The CPU implementation may be disabled with --nocpu.\n" );
         printf( "    --nocpu implies --nocrosscheck.\n\n" );
-        printf( "    --nosse uses serial CPU implementation instead of SSE.\n" );
+        printf( "    --nosimd uses serial CPU implementation instead of SIMD.\n" );
+        printf( "    --iterations specifies a fixed number of iterations to execute\n");
+        return 1;
     }
 
     // for reproducible results for a given N
@@ -462,6 +490,7 @@ main( int argc, char *argv[] )
         CUDART_CHECK( cudaGetDeviceProperties( &prop, 0 ) );
         g_bSM30Present = prop.major >= 3;
     }
+    g_bNoCPU = chCommandLineGetBool( "nocpu", argc, argv );
     if ( g_bNoCPU && ! g_bCUDAPresent ) {
         printf( "--nocpu specified, but no CUDA present...exiting\n" );
         exit(1);
@@ -493,22 +522,36 @@ main( int argc, char *argv[] )
     }
 
     g_bCrossCheck = ! chCommandLineGetBool( "nocrosscheck", argc, argv );
-    g_bNoCPU = chCommandLineGetBool( "nocpu", argc, argv );
     if ( g_bNoCPU ) {
         g_bCrossCheck = false;
     }
     if ( g_bCrossCheck && chCommandLineGetBool( "nosse", argc, argv ) ) {
-        g_bUseSSEForCrossCheck = false;
+        g_bUseSIMDForCrossCheck = false;
     }
 
     chCommandLineGet( &kParticles, "numbodies", argc, argv );
     g_N = kParticles*1024;
+
+    chCommandLineGet( &kMaxIterations, "iterations", argc, argv);
+
+    // Round down to the nearest multiple of the CPU count (e.g. if we have
+    // a system with a CPU count that isn't a power of two, we need to round)
+    g_N -= g_N % g_numCPUCores;
+
     printf( "Running simulation with %d particles, crosscheck %s, CPU %s\n", (int) g_N,
         g_bCrossCheck ? "enabled" : "disabled",
         g_bNoCPU ? "disabled" : "enabled" );
 
-    g_Algorithm = g_bCUDAPresent ? GPU_AOS : CPU_SSE_threaded;
-    g_maxAlgorithm = CPU_SSE_threaded;
+#if defined(HAVE_SIMD_OPENMP)
+    g_maxAlgorithm = CPU_SIMD_openmp;
+#elif defined(HAVE_SIMD_THREADED)
+    g_maxAlgorithm = CPU_SIMD_threaded;
+#elif defined(HAVE_SIMD)
+    g_maxAlgorithm = CPU_SIMD;
+#else
+    g_maxAlgorithm = CPU_SOA;
+#endif
+    g_Algorithm = g_bCUDAPresent ? GPU_AOS : g_maxAlgorithm;
     if ( g_bCUDAPresent || g_bNoCPU ) {
         // max algorithm is different depending on whether SM 3.0 is present
         g_maxAlgorithm = g_bSM30Present ? GPU_AOS_tiled : multiGPU_MultiCPUThread;
@@ -605,6 +648,7 @@ main( int argc, char *argv[] )
     return 0;
 #endif
     {
+        int kIterations = 0;
         bool bStop = false;
         while ( ! bStop ) {
             float ms, err;
@@ -615,18 +659,24 @@ main( int argc, char *argv[] )
             }
             double interactionsPerSecond = (double) g_N*g_N*1000.0f / ms;
             if ( interactionsPerSecond > 1e9 ) {
-                printf ( "%s: %.2f ms = %.3fx10^9 interactions/s (Rel. error: %E)\n", 
+                printf ( "\r%s: %8.2f ms = %8.3fx10^9 interactions/s (Rel. error: %E)\n",
                     rgszAlgorithmNames[g_Algorithm], 
                     ms, 
                     interactionsPerSecond/1e9, 
                     err );
             }
             else {
-                printf ( "%s: %.2f ms = %.3fx10^6 interactions/s (Rel. error: %E)\n", 
+                printf ( "\r%s: %8.2f ms = %8.3fx10^6 interactions/s (Rel. error: %E)\n",
                     rgszAlgorithmNames[g_Algorithm], 
                     ms, 
                     interactionsPerSecond/1e6, 
                     err );
+            }
+            if (kMaxIterations) {
+                kIterations++;
+                if (kIterations >= kMaxIterations) {
+                    bStop = true;
+                }
             }
             if ( kbhit() ) {
                 char c = getch();
@@ -634,9 +684,13 @@ main( int argc, char *argv[] )
                     case ' ':
                         if ( g_Algorithm == g_maxAlgorithm ) {
                             g_Algorithm = g_bNoCPU ? GPU_AOS : CPU_AOS;
-                            // Skip slow CPU implementations if we are using SSE for cross-check
-                            if ( g_bUseSSEForCrossCheck ) {
-                                g_Algorithm = CPU_SSE_threaded;
+                            // Skip slow CPU implementations if we are using SIMD for cross-check
+                            if ( g_bUseSIMDForCrossCheck ) {
+#if defined(HAVE_SIMD_THREADED)
+                                g_Algorithm = CPU_SIMD_threaded;
+#elif defined(HAVE_SIMD_OPENMP)
+                                g_Algorithm = CPU_SIMD_openmp;
+#endif
                             }
                         }
                         else {

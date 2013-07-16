@@ -1,10 +1,9 @@
 /*
  *
- * nbody_CPU_SOA.h
+ * nbody_CPU_SIMD.h
  *
- * Scalar CPU implementation of the O(N^2) N-body calculation.
- * This SOA (structure of arrays) formulation blazes the trail
- * for an SSE implementation.
+ * Defines the various SIMD-related functions and determines their
+ * availability on the current platform.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -35,8 +34,43 @@
  *
  */
 
+#if defined(HAVE_SSE)
+
+#define HAVE_SIMD
+#define HAVE_SIMD_THREADED
+#ifdef _OPENMP
+#define HAVE_SIMD_OPENMP
+#endif
+
+#elif defined(HAVE_ALTIVEC) || defined(HAVE_NEON)
+
+#define HAVE_SIMD
+#ifdef _OPENMP
+#define HAVE_SIMD_OPENMP
+#endif
+
+#endif
+
 float
-ComputeGravitation_SOA(
+ComputeGravitation_SIMD(
+    float *force[3],
+    float *pos[4],
+    float *mass,
+    float softeningSquared,
+    size_t N
+);
+
+float
+ComputeGravitation_SIMD_threaded(
+    float *force[3],
+    float *pos[4],
+    float *mass,
+    float softeningSquared,
+    size_t N
+);
+
+float
+ComputeGravitation_SIMD_openmp(
     float *force[3],
     float *pos[4],
     float *mass,

@@ -71,6 +71,39 @@ chTimerElapsedTime( chTimerTimestamp *pStart, chTimerTimestamp *pStop )
     return diff / (double) freq.QuadPart;
 }
 
+#elif defined(__MACH__)
+
+#include <stdint.h>
+#include <mach/mach_time.h>
+
+typedef uint64_t chTimerTimestamp;
+
+inline void
+chTimerGetTime( chTimerTimestamp *p )
+{
+    if (!p)
+        return;
+    *p = mach_absolute_time();
+}
+
+inline double
+chTimerElapsedTime( chTimerTimestamp *pStart, chTimerTimestamp *pStop )
+{
+    mach_timebase_info_data_t timebaseInfo;
+    static double conversion = -1.0;
+
+    if (!pStart || !pStop)
+        return 0.0;
+
+    if (conversion < 0.0) {
+        mach_timebase_info(&timebaseInfo);
+        conversion = 1e-9 * (double)timebaseInfo.numer /
+            (double)timebaseInfo.denom;
+    }
+
+    return conversion * (double)(*pStop - *pStart);
+}
+
 #else
 
 #include <time.h>
