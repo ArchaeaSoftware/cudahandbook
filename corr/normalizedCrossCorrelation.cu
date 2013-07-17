@@ -5,7 +5,7 @@
  * Microbenchmark for normalized cross correlation, a template-
  * matching algorithm for computer vision.
  *
- * Build with: nvcc -I ../chLib <options> normalizedCrossCorrelation.cu pgm.cu
+ * Build with: nvcc -I ../chLib <options> normalizedCrossCorrelation.cu ..\chLib\pgm.cu
  *
  * Make sure to include pgm.cu for the image file I/O support.
  *

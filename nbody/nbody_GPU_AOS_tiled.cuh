@@ -35,8 +35,7 @@
  *
  */
 
-
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH>300)
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 300
 
 template<int nTile>
 __device__ void

@@ -149,12 +149,8 @@ Error:
         cudaStreamDestroy( streams[i] );
     }
     free( streams );
-    if ( hostOut ) {
-        cudaFreeHost( hostOut );
-    }
-    if ( hostIn ) {
-        cudaFreeHost( hostIn );
-    }
+    cudaFreeHost( hostOut );
+    cudaFreeHost( hostIn );
     return ret;
 }
 

@@ -169,6 +169,7 @@ workerThread::waitAll( workerThread *p, size_t N )
     bool ret = false;
     HANDLE *pH = new HANDLE[N];
     if ( ! p ) {
+        delete[] pH;
         return false;
     }
     for ( size_t i = 0; i < N; i++ ) {

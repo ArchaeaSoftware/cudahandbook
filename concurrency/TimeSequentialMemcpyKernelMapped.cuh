@@ -103,12 +103,8 @@ Error:
     for ( int i = 0; i < numEvents; i++ ) {
         cudaEventDestroy( events[i] );
     }
-    if ( hostOut ) {
-        cudaFreeHost( hostOut );
-    }
-    if ( hostIn ) {
-        cudaFreeHost( hostIn );
-    }
+    cudaFreeHost( hostOut );
+    cudaFreeHost( hostIn );
     return ret;
 }
 

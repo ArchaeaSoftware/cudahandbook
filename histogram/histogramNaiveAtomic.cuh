@@ -1,10 +1,13 @@
 /*
  *
- * nbody_CPU_SSE.h
+ * histogramNaiveAtomic.cuh
  *
- * SSE CPU implementation of the O(N^2) N-body calculation.
- * Uses SOA (structure of arrays) representation because it is a much
- * better fit for SSE.
+ * Implementation of histogram that uses one global atomic per pixel.
+ * This results in very data-dependent performance, as the hardware
+ * facilities for mutual exclusion contend when trying to increment
+ * the same histogram value concurrently.
+ *
+ * Requires: SM 1.1, for global atomics.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -35,11 +38,30 @@
  *
  */
 
-float
-ComputeGravitation_SSE( 
-    float *force[3], 
-    float *pos[4],
-    float *mass,
-    float softeningSquared,
-    size_t N
-);
+__global__ void
+histogramNaiveAtomic( 
+    unsigned int *pHist, 
+    int x, int y, 
+    int w, int h )
+{
+    for ( int row = blockIdx.y*blockDim.y+threadIdx.y; 
+              row < h;
+              row += blockDim.y*gridDim.y ) {
+        for ( int col = blockIdx.x*blockDim.x+threadIdx.x;
+                  col < w;
+                  col += blockDim.x*gridDim.x ) {
+            unsigned char pixval = tex2D( texImage, (float) col, (float) row );
+            atomicAdd( &pHist[pixval], 1 );
+        }
+    }
+}
+
+void
+GPUhistogramNaiveAtomic(
+    unsigned int *pHist,
+    int x, int y,
+    int w, int h, 
+    dim3 threads, dim3 blocks )
+{
+    histogramNaiveAtomic<<<blocks,threads>>>( pHist, x, y, w, h );
+}

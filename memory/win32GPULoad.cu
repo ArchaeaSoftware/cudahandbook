@@ -83,7 +83,7 @@ elapsedTimeCopyToGPU( void *dst, void *src, size_t bytes, int cIterations )
     
     chTimerGetTime( &end );
 
-    ret = chTimerElapsedTime( &start, &end );
+    ret = chTimerElapsedTime( &start, &end ) / cIterations;
 Error:
     return ret;
 }
@@ -106,7 +106,7 @@ elapsedTimeCopyFromGPU( void *dst, void *src, size_t bytes, int cIterations )
     
     chTimerGetTime( &end );
 
-    ret = chTimerElapsedTime( &start, &end );
+    ret = chTimerElapsedTime( &start, &end ) / cIterations;
 Error:
     return ret;
 }
@@ -177,7 +177,7 @@ threadBandwidthToSocket( LPVOID _p )
             goto Error;
         }
         EnterCriticalSection( &globals.cs );
-            globals.totalBytes += g_cIterations*p->size;
+            globals.totalBytes += p->size;
             globals.totalTime += et;
         LeaveCriticalSection( &globals.cs );
     }
