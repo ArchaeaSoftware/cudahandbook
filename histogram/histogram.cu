@@ -61,6 +61,7 @@ texture<unsigned char, 2> texImage;
 
 #include "histogramNaiveAtomic.cuh"
 #include "histogramPrivatized8.cuh"
+#include "histogramNPP.cuh"
 
 int
 bCompareHistograms( const unsigned int *p, const unsigned int *q, int N )
@@ -92,11 +93,13 @@ histCPU(
 bool
 TestHistogram( 
     double *pixelsPerSecond,    // passback to report performance
+    const unsigned char *dptrBase, size_t dPitch,
     int w, int h,               // width and height of input
     const unsigned int *hrefHist, // host reference data
     dim3 threads, dim3 blocks,
     void (*pfnHistogram)( 
         unsigned int *pHist,
+        const unsigned char *dptrBase, size_t dPitch,
         int xUL, int yUL, int w, int h,
         dim3 threads, dim3 blocks ),
     int cIterations = 1,
@@ -119,7 +122,7 @@ TestHistogram(
     CUDART_CHECK( cudaEventCreate( &start, 0 ) );
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
 
-    pfnHistogram( dHist, 0, 0, w, h, threads, blocks );
+    pfnHistogram( dHist, dptrBase, dPitch, 0, 0, w, h, threads, blocks );
 
     CUDART_CHECK( cudaMemcpy( hHist, dHist, sizeof(hHist), cudaMemcpyDeviceToHost ) );
 
@@ -131,7 +134,7 @@ TestHistogram(
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
 
     for ( int i = 0; i < cIterations; i++ ) {
-        pfnHistogram( dHist, 0, 0, w, h, threads, blocks );
+        pfnHistogram( dHist, dptrBase, dPitch, 0, 0, w, h, threads, blocks );
     }
 
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
@@ -193,6 +196,8 @@ main(int argc, char *argv[])
         printf( "    --padWidth <value>: pad input image width to specified value\n" );
         printf( "    --padHeight <value>: pad input image height to specified value\n" );
         printf( "    --random <numvalues>: overrides input filename and fills image with random data in the range [0..numvalues)\n" );
+        printf( "    --stride <value>: specifies stride for random values (e.g., 2 means use even values only)\n" );
+        printf( "    The random parameter must be in the range 1..256, and random/stride must be 256 or less.\n" );
         printf( "\nDefault values are coins.pgm and no output file or padding\n" );
 
         return 0;
@@ -222,6 +227,13 @@ main(int argc, char *argv[])
             }
         }
         if ( chCommandLineGet( &numvalues, "random", argc, argv ) ) {
+            int stride = 1;
+            if ( chCommandLineGet( &stride, "stride", argc, argv ) ) {
+                if ( numvalues*stride > 256 ) {
+                    printf( "stride*random must be <= 256\n" );
+                    goto Error;
+                }
+            }
             if ( 0==padWidth || 0==padHeight ) {
                 printf( "--random requires --padWidth and padHeight (to specify input size)\n" );
                 goto Error;
@@ -231,12 +243,17 @@ main(int argc, char *argv[])
             hidata = (unsigned char *) malloc( w*h );
             if ( ! hidata )
                 goto Error;
-            CUDART_CHECK( cudaMallocPitch( &didata, &DevicePitch, padWidth, padHeight ) );
+
+            size_t dPitch;
+            CUDART_CHECK( cudaMallocPitch( &didata, &dPitch, padWidth, padHeight ) );
+            DevicePitch = dPitch;
+
             srand(42);
             for ( int row = 0; row < h; row++ ) {
                 unsigned char *p = hidata+row*w;
                 for ( int col = 0; col < w; col++ ) {
                     int val = rand() % numvalues;
+                    val *= stride;
                     p[col] = (unsigned char) val;
                 }
             }
@@ -260,6 +277,7 @@ main(int argc, char *argv[])
     { \
         double pixelsPerSecond; \
         if ( ! TestHistogram( &pixelsPerSecond, \
+            didata, DevicePitch, \
             w, h,  \
             cpuHist, \
             threads, blocks,  \
@@ -279,6 +297,8 @@ main(int argc, char *argv[])
     TEST_VECTOR( GPUhistogramNaiveAtomic, false, 1, NULL );
     threads = dim3( 8, 4, 1 );
     TEST_VECTOR( GPUhistogramPrivatized8, false, 1, NULL );
+
+    TEST_VECTOR( GPUhistogramNPP, false, 1, NULL );
 
     ret = 0;
 Error:

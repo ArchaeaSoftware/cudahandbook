@@ -90,6 +90,7 @@ histogramPrivatized8(
 void
 GPUhistogramPrivatized8(
     unsigned int *pHist,
+    const unsigned char *dptrBase, size_t dPitch,
     int x, int y,
     int w, int h, 
     dim3 threads, dim3 blocks )
@@ -105,5 +106,5 @@ GPUhistogramPrivatized8(
     CUDART_CHECK( cudaDeviceSynchronize() );
     
 Error:
-    
+    return;
 }

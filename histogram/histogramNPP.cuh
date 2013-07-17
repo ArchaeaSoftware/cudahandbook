@@ -1,15 +1,12 @@
 /*
  *
- * histogramNaiveAtomic.cuh
+ * histogramNPP.cuh
  *
- * Implementation of histogram that uses one global atomic per pixel.
- * This results in very data-dependent performance, as the hardware
- * facilities for mutual exclusion contend when trying to increment
- * the same histogram value concurrently.
+ * Implementation of histogram that uses the NVIDIA Performance Primitives.
  *
- * Requires: SM 1.1, for global atomics.
+ * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2013, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,31 +35,40 @@
  *
  */
 
-__global__ void
-histogramNaiveAtomic( 
-    unsigned int *pHist, 
-    int x, int y, 
-    int w, int h )
-{
-    for ( int row = blockIdx.y*blockDim.y+threadIdx.y; 
-              row < h;
-              row += blockDim.y*gridDim.y ) {
-        for ( int col = blockIdx.x*blockDim.x+threadIdx.x;
-                  col < w;
-                  col += blockDim.x*gridDim.x ) {
-            unsigned char pixval = tex2D( texImage, (float) col, (float) row );
-            atomicAdd( &pHist[pixval], 1 );
-        }
-    }
-}
+#include <npp.h>
 
 void
-GPUhistogramNaiveAtomic(
+GPUhistogramNPP(
     unsigned int *pHist,
-    const unsigned char *dptrBase, size_t dPitch,
+    const unsigned char *dptrBase, size_t dptrPitch,
     int x, int y,
     int w, int h, 
     dim3 threads, dim3 blocks )
 {
-    histogramNaiveAtomic<<<blocks,threads>>>( pHist, x, y, w, h );
+    cudaError_t status;
+    Npp8u *pDeviceBuffer = 0;
+    NppiSize oSizeROI = {w, h};
+
+    const int binCount = 256;
+    const int levelCount = binCount+1;
+
+    // create device scratch buffer for nppiHistogram
+    int nDeviceBufferSize;
+    nppiHistogramEvenGetBufferSize_8u_C1R(oSizeROI, levelCount ,&nDeviceBufferSize);
+    CUDART_CHECK( cudaMalloc((void **)&pDeviceBuffer, nDeviceBufferSize) );
+
+
+    // compute the histogram
+    if ( NPP_NO_ERROR != nppiHistogramEven_8u_C1R(
+        (const Npp8u *) dptrBase, 
+        dptrPitch, 
+        oSizeROI,
+        (Npp32s *) pHist, 
+        levelCount, 0, binCount,
+        pDeviceBuffer ) )
+        goto Error;
+Error:
+    cudaFree( pDeviceBuffer );
+    return;
 }
+
