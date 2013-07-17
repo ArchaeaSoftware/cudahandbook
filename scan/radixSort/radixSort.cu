@@ -237,6 +237,7 @@ int
 main()
 {
     float ms;
+    size_t N = 16*1048576;
 
 #define TEST_VECTOR( fn, N, mask )  \
     if ( ! TestSort( &ms, fn, N, mask ) ) {  \
@@ -249,8 +250,16 @@ main()
 
 //    TEST_VECTOR( 32, 0xf );
 
-    TEST_VECTOR( RadixSort<1>, 1048576, 0xffffffff );
-    TEST_VECTOR( RadixSort<2>, 1048576, 0xffffffff );
-    TEST_VECTOR( RadixSort<4>, 1048576, 0xffffffff );
+    TEST_VECTOR( RadixSort<1>, N, 0xffffffff );
+    TEST_VECTOR( RadixSort<2>, N, 0xffffffff );
+    TEST_VECTOR( RadixSort<4>, N, 0xffffffff );
+
+    TEST_VECTOR( RadixSort<1>, N, 0xf );
+    TEST_VECTOR( RadixSort<2>, N, 0xf );
+    TEST_VECTOR( RadixSort<4>, N, 0xf );
+
+    TEST_VECTOR( RadixSort<1>, N, 0x1 );
+    TEST_VECTOR( RadixSort<2>, N, 0x1 );
+    TEST_VECTOR( RadixSort<4>, N, 0x1 );
 
 }
