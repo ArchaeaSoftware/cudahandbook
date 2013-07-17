@@ -58,11 +58,26 @@ histogramNaiveAtomic(
 
 void
 GPUhistogramNaiveAtomic(
+    float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
     int x, int y,
     int w, int h, 
     dim3 threads, dim3 blocks )
 {
+    cudaError_t status;
+    cudaEvent_t start = 0, stop = 0;
+
+    CUDART_CHECK( cudaEventCreate( &start, 0 ) );
+    CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
+
+    CUDART_CHECK( cudaEventRecord( start, 0 ) );
     histogramNaiveAtomic<<<blocks,threads>>>( pHist, x, y, w, h );
+    CUDART_CHECK( cudaEventRecord( stop, 0 ) );
+    CUDART_CHECK( cudaDeviceSynchronize() );
+    CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
+Error:
+    cudaEventDestroy( start );
+    cudaEventDestroy( stop );
+    return;
 }

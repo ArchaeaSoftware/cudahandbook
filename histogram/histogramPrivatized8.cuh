@@ -89,6 +89,7 @@ histogramPrivatized8(
 
 void
 GPUhistogramPrivatized8(
+    float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
     int x, int y,
@@ -98,13 +99,23 @@ GPUhistogramPrivatized8(
     unsigned char *hptrPrivateHistograms;
     unsigned char *dptrPrivateHistograms;
     cudaError_t status;
+    cudaEvent_t start = 0, stop = 0;
     
+    CUDART_CHECK( cudaEventCreate( &start, 0 ) );
+    CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
+
     CUDART_CHECK( cudaHostAlloc( &hptrPrivateHistograms, threads.x*threads.y*256, cudaHostAllocMapped ) );
     CUDART_CHECK( cudaHostGetDevicePointer( &dptrPrivateHistograms, hptrPrivateHistograms, 0 ) );
     
+    CUDART_CHECK( cudaEventRecord( start, 0 ) );
     histogramPrivatized8<<<blocks,threads, threads.x*threads.y*256>>>( dptrPrivateHistograms, pHist, x, y, w, h );
+    CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
+    CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
     
 Error:
+    cudaEventDestroy( start );
+    cudaEventDestroy( stop );
+    cudaFreeHost( hptrPrivateHistograms );
     return;
 }

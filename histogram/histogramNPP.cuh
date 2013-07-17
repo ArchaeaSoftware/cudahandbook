@@ -39,6 +39,7 @@
 
 void
 GPUhistogramNPP(
+    float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dptrPitch,
     int x, int y,
@@ -52,11 +53,17 @@ GPUhistogramNPP(
     const int binCount = 256;
     const int levelCount = binCount+1;
 
+    cudaEvent_t start = 0, stop = 0;
+
+    CUDART_CHECK( cudaEventCreate( &start, 0 ) );
+    CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
+
     // create device scratch buffer for nppiHistogram
     int nDeviceBufferSize;
     nppiHistogramEvenGetBufferSize_8u_C1R(oSizeROI, levelCount ,&nDeviceBufferSize);
     CUDART_CHECK( cudaMalloc((void **)&pDeviceBuffer, nDeviceBufferSize) );
 
+    CUDART_CHECK( cudaEventRecord( start, 0 ) );
 
     // compute the histogram
     if ( NPP_NO_ERROR != nppiHistogramEven_8u_C1R(
@@ -67,7 +74,13 @@ GPUhistogramNPP(
         levelCount, 0, binCount,
         pDeviceBuffer ) )
         goto Error;
+    CUDART_CHECK( cudaEventRecord( stop, 0 ) );
+    CUDART_CHECK( cudaDeviceSynchronize() );
+    CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
+
 Error:
+    cudaEventDestroy( start );
+    cudaEventDestroy( stop );
     cudaFree( pDeviceBuffer );
     return;
 }

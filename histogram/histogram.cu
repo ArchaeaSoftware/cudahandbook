@@ -98,6 +98,7 @@ TestHistogram(
     const unsigned int *hrefHist, // host reference data
     dim3 threads, dim3 blocks,
     void (*pfnHistogram)( 
+        float *ms, 
         unsigned int *pHist,
         const unsigned char *dptrBase, size_t dPitch,
         int xUL, int yUL, int w, int h,
@@ -113,16 +114,12 @@ TestHistogram(
     unsigned int hHist[256];
     
     unsigned int *dHist = NULL;
-
-    cudaEvent_t start = 0, stop = 0;
+    float ms;
 
     CUDART_CHECK( cudaMalloc( (void **) &dHist, 256*sizeof(int) ) );
     CUDART_CHECK( cudaMemset( dHist, 0, 256*sizeof(int) ) );
 
-    CUDART_CHECK( cudaEventCreate( &start, 0 ) );
-    CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
-
-    pfnHistogram( dHist, dptrBase, dPitch, 0, 0, w, h, threads, blocks );
+    pfnHistogram( &ms, dHist, dptrBase, dPitch, 0, 0, w, h, threads, blocks );
 
     CUDART_CHECK( cudaMemcpy( hHist, dHist, sizeof(hHist), cudaMemcpyDeviceToHost ) );
 
@@ -131,21 +128,12 @@ TestHistogram(
         goto Error;
     }
 
-    CUDART_CHECK( cudaEventRecord( start, 0 ) );
-
     for ( int i = 0; i < cIterations; i++ ) {
-        pfnHistogram( dHist, dptrBase, dPitch, 0, 0, w, h, threads, blocks );
+        pfnHistogram( &ms, dHist, dptrBase, dPitch, 0, 0, w, h, threads, blocks );
     }
 
-    CUDART_CHECK( cudaEventRecord( stop, 0 ) );
-
+    *pixelsPerSecond = (double) w*h*cIterations*1000.0 / ms;
     CUDART_CHECK( cudaMemcpy( hHist, dHist, sizeof(hHist), cudaMemcpyDeviceToHost ) );
-
-    {
-        float ms;
-        CUDART_CHECK( cudaEventElapsedTime( &ms, start, stop ) );
-        *pixelsPerSecond = (double) w*h*cIterations*1000.0 / ms;
-    }
 
     if ( outputFilename ) {
         FILE *f = fopen( outputFilename, "w" );
@@ -161,8 +149,6 @@ TestHistogram(
     ret = true;
 
 Error:
-    cudaEventDestroy( start );
-    cudaEventDestroy( stop );
     cudaFree( dHist );
     return ret;
 }
@@ -295,7 +281,7 @@ main(int argc, char *argv[])
     blocks = dim3( 40, 40, 1 );
 
     TEST_VECTOR( GPUhistogramNaiveAtomic, false, 1, NULL );
-    threads = dim3( 8, 4, 1 );
+    threads = dim3( 16, 4, 1 );
     TEST_VECTOR( GPUhistogramPrivatized8, false, 1, NULL );
 
     TEST_VECTOR( GPUhistogramNPP, false, 1, NULL );
@@ -308,5 +294,4 @@ Error:
     cudaFreeArray(pArrayImage);
    
     return ret;
-
 }
