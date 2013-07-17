@@ -84,8 +84,6 @@ pgmLoad(
     idata = (unsigned char *) malloc( padWidth*padHeight );
     if ( ! idata )
         goto Error;
-/*    if (((size_t)w*h) != fread(idata, sizeof(unsigned char), w*h, fp))
-        goto Error;*/
     for ( int row = 0; row < h; row++ ) {
         if ( (size_t) w != fread( idata+row*padWidth, 1, w, fp ) )
             goto Error;
