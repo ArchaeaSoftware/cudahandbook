@@ -68,11 +68,21 @@ histogramPrivatized8(
     __syncthreads();
     for ( int iHistogram = 0; iHistogram < blockDim.x*blockDim.y; iHistogram++ ) {
         unsigned char *myHistogram = privateHistogram+256*iHistogram;
-        unsigned char *myOutHistogram = privateHistograms+256*iHistogram;
-        for ( int i = tid; i < 256; i += blockDim.x*blockDim.y ) {
-            myOutHistogram[i] = myHistogram[i];
-            unsigned char myHistVal = myHistogram[i];
-            if ( myHistVal ) atomicAdd( pHist+i, myHistVal );
+//        unsigned char *myOutHistogram = privateHistograms+256*iHistogram;
+        for ( int i = tid; i < 256/4; i += blockDim.x*blockDim.y ) {
+//            myOutHistogram[i] = myHistogram[i];
+            unsigned int myHistVal = ((unsigned int *) myHistogram)[i];
+            {
+                if ( 0xff&myHistVal ) atomicAdd( pHist+i*4+0, myHistVal & 0xff );
+                    myHistVal >>= 8;
+                if ( 0xff&myHistVal ) atomicAdd( pHist+i*4+1, myHistVal & 0xff );
+                    myHistVal >>= 8;
+                if ( 0xff&myHistVal ) atomicAdd( pHist+i*4+2, myHistVal & 0xff );
+                    myHistVal >>= 8;
+                if (      myHistVal ) atomicAdd( pHist+i*4+3, myHistVal );
+            }
+//            unsigned char myHistVal = myHistogram[i];
+//            if ( myHistVal ) atomicAdd( pHist+i, myHistVal );
         }
     }
 }
