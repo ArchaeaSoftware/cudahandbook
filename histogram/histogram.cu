@@ -60,6 +60,7 @@
 texture<unsigned char, 2> texImage;
 
 #include "histogramNaiveAtomic.cuh"
+#include "histogramPrivatized8.cuh"
 
 int
 bCompareHistograms( const unsigned int *p, const unsigned int *q, int N )
@@ -276,6 +277,8 @@ main(int argc, char *argv[])
     blocks = dim3( 40, 40, 1 );
 
     TEST_VECTOR( GPUhistogramNaiveAtomic, false, 1, NULL );
+    threads = dim3( 8, 4, 1 );
+    TEST_VECTOR( GPUhistogramPrivatized8, false, 1, NULL );
 
     ret = 0;
 Error:
