@@ -159,16 +159,16 @@ Reduction4( int *out, int *partial,
             int numBlocks, int numThreads )
 {
     switch (numThreads) {
-        case 1024: Reduction4_template<512>(out, partial, in, N, numBlocks); break;
-        case  512: Reduction4_template<512>(out, partial, in, N, numBlocks); break;
-        case  256: Reduction4_template<256>(out, partial, in, N, numBlocks); break;
-        case  128: Reduction4_template<128>(out, partial, in, N, numBlocks); break;
-        case   64: Reduction4_template< 64>(out, partial, in, N, numBlocks); break;
-        case   32: Reduction4_template< 32>(out, partial, in, N, numBlocks); break;
-        case   16: Reduction4_template< 16>(out, partial, in, N, numBlocks); break;
-        case    8: Reduction4_template<  8>(out, partial, in, N, numBlocks); break;
-        case    4: Reduction4_template<  4>(out, partial, in, N, numBlocks); break;
-        case    2: Reduction4_template<  2>(out, partial, in, N, numBlocks); break;
-        case    1: Reduction4_template<  1>(out, partial, in, N, numBlocks); break;
+        case 1024: Reduction4_template<1024>(out, partial, in, N, numBlocks); break;
+        case  512: Reduction4_template< 512>(out, partial, in, N, numBlocks); break;
+        case  256: Reduction4_template< 256>(out, partial, in, N, numBlocks); break;
+        case  128: Reduction4_template< 128>(out, partial, in, N, numBlocks); break;
+        case   64: Reduction4_template<  64>(out, partial, in, N, numBlocks); break;
+        case   32: Reduction4_template<  32>(out, partial, in, N, numBlocks); break;
+        case   16: Reduction4_template<  16>(out, partial, in, N, numBlocks); break;
+        case    8: Reduction4_template<   8>(out, partial, in, N, numBlocks); break;
+        case    4: Reduction4_template<   4>(out, partial, in, N, numBlocks); break;
+        case    2: Reduction4_template<   2>(out, partial, in, N, numBlocks); break;
+        case    1: Reduction4_template<   1>(out, partial, in, N, numBlocks); break;
     }
 }
