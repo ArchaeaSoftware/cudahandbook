@@ -61,6 +61,7 @@ texture<unsigned char, 2> texImage;
 
 #include "histogramNaiveAtomic.cuh"
 #include "histogramPrivatized8.cuh"
+#include "histogramPrivatized8Pitch.cuh"
 #include "histogramNPP.cuh"
 
 int
@@ -283,6 +284,7 @@ main(int argc, char *argv[])
     TEST_VECTOR( GPUhistogramNaiveAtomic, false, 1, NULL );
     threads = dim3( 16, 4, 1 );
     TEST_VECTOR( GPUhistogramPrivatized8, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPrivatized8Pitch, false, 1, NULL );
 
     TEST_VECTOR( GPUhistogramNPP, false, 1, NULL );
 
