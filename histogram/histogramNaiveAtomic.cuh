@@ -41,7 +41,6 @@
 __global__ void
 histogramNaiveAtomic( 
     unsigned int *pHist, 
-    int x, int y, 
     int w, int h )
 {
     for ( int row = blockIdx.y*blockDim.y+threadIdx.y; 
@@ -53,6 +52,18 @@ histogramNaiveAtomic(
             unsigned char pixval = tex2D( texImage, (float) col, (float) row );
             atomicAdd( &pHist[pixval], 1 );
         }
+    }
+}
+
+__global__ void
+histogram1DNaiveAtomic(
+    unsigned int *pHist,
+    const unsigned char *base, size_t N )
+{
+    for ( size_t i = blockIdx.x*blockDim.x+threadIdx.x;
+                 i < N;
+                 i += blockDim.x*gridDim.x ) {
+        atomicAdd( &pHist[ base[i] ], 1 );
     }
 }
 
@@ -72,7 +83,8 @@ GPUhistogramNaiveAtomic(
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    histogramNaiveAtomic<<<blocks,threads>>>( pHist, x, y, w, h );
+//    histogramNaiveAtomic<<<blocks,threads>>>( pHist, w, h );
+    histogram1DNaiveAtomic<<<400, threads.x*threads.y>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );

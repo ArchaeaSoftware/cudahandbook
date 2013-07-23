@@ -1,11 +1,12 @@
 /*
  *
- * histogramPrivatized8.cuh
+ * histogramSharedPrivatized.cuh
  *
- * Implementation of histogram that uses a separate histogram per
- * thread, and accumulates overflows by firing global atomics.
+ * Implementation of histogram that uses 8-bit privatized counters
+ * and periodically accumulates those into a block-wide histogram
+ * in shared memory.
  *
- * Requires: SM 1.1, for global atomics.
+ * Requires: SM 1.2, for shared atomics.
  *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
@@ -36,57 +37,76 @@
  *
  */
 
-__device__ inline
-void incHistElement( unsigned int *pHist, unsigned char *myHistogram, int pixval )
-{
-    const int tid = threadIdx.y*blockDim.x+threadIdx.x;
-    unsigned char *phistElement = myHistogram+blockDim.x*blockDim.y*pixval+tid;
-    unsigned char newval = ++(*phistElement);
-    if ( ! newval ) {
-        atomicAdd( pHist+pixval, 256 );
-    }
-}
-
-
 __global__ void
-histogramPrivatized8Pitch( 
+histogramSharedPrivatized( 
     unsigned int *pHist, 
-    const unsigned char *dptrBase, size_t dPitch,
     int x, int y, 
     int w, int h )
 {
-    extern __shared__ unsigned char privateHistogram[];
+    __shared__ int sHist[256];
     const int tid = threadIdx.y*blockDim.x+threadIdx.x;
-    unsigned char *myHistogram = privateHistogram;//+256*tid;
-
-    for ( int i = tid; i < 256*blockDim.x*blockDim.y/4; i += blockDim.x*blockDim.y ) {
-        ((unsigned int *) privateHistogram)[i] = 0;
+    for ( int i = tid; i < 256; i += blockDim.x*blockDim.y ) {
+        sHist[i] = 0;
     }
     __syncthreads();
-
     for ( int row = blockIdx.y*blockDim.y+threadIdx.y; 
               row < h;
               row += blockDim.y*gridDim.y ) {
-        unsigned int *pRow = (unsigned int *) (dptrBase+row*dPitch);
         for ( int col = blockIdx.x*blockDim.x+threadIdx.x;
-                  col < w/4;
+                  col < w;
                   col += blockDim.x*gridDim.x ) {
-            unsigned int pixval4 = pRow[col];
-            incHistElement( pHist, myHistogram, pixval4 & 0xff ); pixval4 >>= 8;
-            incHistElement( pHist, myHistogram, pixval4 & 0xff ); pixval4 >>= 8;
-            incHistElement( pHist, myHistogram, pixval4 & 0xff ); pixval4 >>= 8;
-            incHistElement( pHist, myHistogram, pixval4 );
+            unsigned char pixval = tex2D( texImage, (float) col, (float) row );
+            atomicAdd( &sHist[pixval], 1 );
         }
     }
     __syncthreads();
-    for ( int iHistogram = 0; iHistogram < 256; iHistogram++ ) {
-        unsigned char myHistVal = privateHistogram[iHistogram*blockDim.x*blockDim.y+tid];
-        if ( myHistVal ) atomicAdd( pHist+iHistogram, myHistVal );
+    for ( int i = tid; i < 256; i += blockDim.x*blockDim.y ) {
+        int value = sHist[i];
+        if ( value ) {
+            atomicAdd( &pHist[i], value );
+        }
     }
 }
 
+__global__ void
+histogram1DSharedPrivatized(
+    unsigned int *pHist,
+    const unsigned char *base, size_t N )
+{
+    __shared__ int sHist[256];
+    extern __shared__ unsigned char privatizedHist[];
+    unsigned char *myHist = privatizedHist+256*threadIdx.x;
+    for ( int i = threadIdx.x;
+              i < 256;
+              i += blockDim.x ) {
+        sHist[i] = 0;
+    }
+    for ( int i = 0; i < 256; i++ ) myHist[i] = 0;
+    __syncthreads();
+    for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
+              i < N;
+              i += blockDim.x*gridDim.x ) {
+        unsigned char val = ++myHist[ base[i] ];
+        if ( 0==val ) {
+            atomicAdd( &sHist[val], 256 );
+        }
+    }
+    __syncthreads();
+    for ( int i = 0; i < 256; i++ ) {
+        unsigned char val = myHist[i];
+        if ( val ) atomicAdd( &sHist[i], val );
+    }
+    __syncthreads();
+    for ( int i = threadIdx.x;
+              i < 256;
+              i += blockDim.x ) {
+        atomicAdd( &pHist[i], sHist[i] );
+    }
+      
+}
+
 void
-GPUhistogramPrivatized8Pitch(
+GPUhistogramSharedPrivatized(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -96,16 +116,16 @@ GPUhistogramPrivatized8Pitch(
 {
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
-    
+
     CUDART_CHECK( cudaEventCreate( &start, 0 ) );
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    histogramPrivatized8Pitch<<<blocks,threads, threads.x*threads.y*256>>>( pHist, dptrBase, dPitch, x, y, w, h );
+    //histogramSharedPrivatized<<<blocks,threads>>>( pHist, x, y, w, h );
+    histogram1DSharedPrivatized<<<400,threads.x*threads.y,threads.x*threads.y*256>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
-    
 Error:
     cudaEventDestroy( start );
     cudaEventDestroy( stop );

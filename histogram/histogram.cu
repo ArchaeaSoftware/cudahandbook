@@ -60,6 +60,8 @@
 texture<unsigned char, 2> texImage;
 
 #include "histogramNaiveAtomic.cuh"
+#include "histogramSharedAtomic.cuh"
+#include "histogramSharedPrivatized.cuh"
 #include "histogramPrivatized8.cuh"
 #include "histogramPrivatized8Pitch.cuh"
 #include "histogramNPP.cuh"
@@ -198,8 +200,8 @@ main(int argc, char *argv[])
     }
     chCommandLineGet( &outputFilename, "output", argc, argv );
     {
-        int padWidth = 0;
-        int padHeight = 0;
+        int padWidth = 1024;//0;
+        int padHeight = 1024;//0;
         int numvalues = 0;
         if ( chCommandLineGet( &padWidth, "padWidth", argc, argv ) ) {
             if ( ! chCommandLineGet( &padHeight, "padHeight", argc, argv ) ) {
@@ -225,6 +227,8 @@ main(int argc, char *argv[])
                 printf( "--random requires --padWidth and padHeight (to specify input size)\n" );
                 goto Error;
             }
+            printf( "%d pixels, random, %d values with stride %d\n",
+                padWidth*padHeight, numvalues, stride );
             w = padWidth;
             h = padWidth;
             hidata = (unsigned char *) malloc( w*h );
@@ -249,6 +253,7 @@ main(int argc, char *argv[])
         else {
             if ( pgmLoad( inputFilename, &hidata, &HostPitch, &didata, &DevicePitch, &w, &h, padWidth, padHeight) )
                 goto Error;
+             printf( "%d pixels, sourced from image file %s\n", w*h, inputFilename );
         }
     }
 
@@ -278,11 +283,19 @@ main(int argc, char *argv[])
             #baseName, pixelsPerSecond/1e6 ); \
     }
 
-    threads = dim3( 16, 4, 1 );
+    if ( w != DevicePitch ) {
+        printf( "1D versions only work if width and pitch are the same\n" );
+    }
+
+    threads = dim3( 32, 8, 1 );
     blocks = dim3( 40, 40, 1 );
 
     TEST_VECTOR( GPUhistogramNaiveAtomic, false, 1, NULL );
     threads = dim3( 16, 4, 1 );
+    TEST_VECTOR( GPUhistogramSharedAtomic, false, 1, NULL );
+    threads = dim3( 16, 4, 1 );
+    TEST_VECTOR( GPUhistogramSharedPrivatized, false, 1, NULL );
+
     TEST_VECTOR( GPUhistogramPrivatized8, false, 1, NULL );
     TEST_VECTOR( GPUhistogramPrivatized8Pitch, false, 1, NULL );
 
