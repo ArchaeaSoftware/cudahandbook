@@ -80,12 +80,31 @@ histogram1DSharedPrivatized32(
         privHist[i] = 0;
     }
     __syncthreads();
+#define CACHE_IN_REGISTER 1
+#if CACHE_IN_REGISTER
+    int cacheIndex = 0;
+    unsigned int cacheValue = 0;
+#endif
     for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
               i < N;
               i += blockDim.x*gridDim.x ) {
         unsigned char pixval = base[i];
-        myHist[ pixval>>2 ] += (1<<8*(pixval&3));
+        unsigned int increment = 1<<8*(pixval&3);
+        int index = pixval>>2;
+#if CACHE_IN_REGISTER
+        if ( index != cacheIndex ) {
+            myHist[cacheIndex] = cacheValue;
+            cacheIndex = index;
+            cacheValue = myHist[index];
+        }
+        cacheValue += increment;
+#else
+        myHist[index] += increment;
+#endif
     }
+#if CACHE_IN_REGISTER
+    myHist[cacheIndex] = cacheValue;
+#endif
     __syncthreads();
     for ( int i = threadIdx.x;
               i < 64*blockDim.x;
