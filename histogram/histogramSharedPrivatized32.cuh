@@ -73,14 +73,14 @@ histogram1DSharedPrivatized32(
     const unsigned char *base, size_t N )
 {
     extern __shared__ unsigned int privHist[];
-    unsigned int *myHist = privHist+64*threadIdx.x;
+//    unsigned int *myHist = privHist+64*threadIdx.x;
     for ( int i = threadIdx.x;
               i < 64*blockDim.x;
               i += blockDim.x ) {
         privHist[i] = 0;
     }
     __syncthreads();
-#define CACHE_IN_REGISTER 1
+#define CACHE_IN_REGISTER 0
 #if CACHE_IN_REGISTER
     int cacheIndex = 0;
     unsigned int cacheValue = 0;
@@ -93,17 +93,17 @@ histogram1DSharedPrivatized32(
         int index = pixval>>2;
 #if CACHE_IN_REGISTER
         if ( index != cacheIndex ) {
-            myHist[cacheIndex] = cacheValue;
+            privHist[64*threadIdx.x+cacheIndex] = cacheValue;
             cacheIndex = index;
-            cacheValue = myHist[index];
+            cacheValue = privHist[64*threadIdx.x+index];
         }
         cacheValue += increment;
 #else
-        myHist[index] += increment;
+        privHist[64*threadIdx.x+index] += increment;
 #endif
     }
 #if CACHE_IN_REGISTER
-    myHist[cacheIndex] = cacheValue;
+    privHist[64*threadIdx.x+cacheIndex] = cacheValue;
 #endif
     __syncthreads();
     for ( int i = threadIdx.x;
