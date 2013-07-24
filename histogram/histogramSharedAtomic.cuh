@@ -1,10 +1,11 @@
 /*
  *
- * histogramSharedPrivatized.cuh
+ * histogramSharedAtomic.cuh
  *
- * Implementation of histogram that uses 8-bit privatized counters
- * and periodically accumulates those into a block-wide histogram
- * in shared memory.
+ * Implementation of histogram that uses one shared atomic per pixel.
+ * This results in very data-dependent performance, as the hardware
+ * facilities for mutual exclusion contend when trying to increment
+ * the same histogram value concurrently.
  *
  * Requires: SM 1.2, for shared atomics.
  *
@@ -38,7 +39,7 @@
  */
 
 __global__ void
-histogramSharedPrivatized( 
+histogramSharedAtomic( 
     unsigned int *pHist, 
     int x, int y, 
     int w, int h )
@@ -69,29 +70,21 @@ histogramSharedPrivatized(
 }
 
 __global__ void
-histogram1DSharedPrivatized(
+histogram1DSharedAtomic(
     unsigned int *pHist,
     const unsigned char *base, size_t N )
 {
     __shared__ int sHist[256];
-    extern __shared__ unsigned char privatizedHist[];
-    unsigned char *myHist = privatizedHist+256*threadIdx.x;
     for ( int i = threadIdx.x;
               i < 256;
               i += blockDim.x ) {
         sHist[i] = 0;
     }
-    for ( int i = 0; i < 256; i++ ) myHist[i] = 0;
     __syncthreads();
     for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
               i < N;
               i += blockDim.x*gridDim.x ) {
-        myHist[ base[i] ] += 1;
-    }
-    __syncthreads();
-    for ( int i = 0; i < 256; i++ ) {
-        unsigned char val = myHist[i];
-        if ( val ) atomicAdd( &sHist[i], val );
+        atomicAdd( &sHist[ base[i] ], 1 );
     }
     __syncthreads();
     for ( int i = threadIdx.x;
@@ -103,7 +96,7 @@ histogram1DSharedPrivatized(
 }
 
 void
-GPUhistogramSharedPrivatized(
+GPUhistogramSharedAtomic(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -118,8 +111,8 @@ GPUhistogramSharedPrivatized(
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    //histogramSharedPrivatized<<<blocks,threads>>>( pHist, x, y, w, h );
-    histogram1DSharedPrivatized<<<400,threads.x*threads.y,threads.x*threads.y*256>>>( pHist, dptrBase, w*h );
+    //histogramSharedAtomic<<<blocks,threads>>>( pHist, x, y, w, h );
+    histogram1DSharedAtomic<<<400,threads.x*threads.y>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );

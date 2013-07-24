@@ -1,10 +1,9 @@
 /*
  *
- * histogramSharedPrivatized.cuh
+ * histogramSharedPrivatized32.cuh
  *
  * Implementation of histogram that uses 8-bit privatized counters
- * and periodically accumulates those into a block-wide histogram
- * in shared memory.
+ * and uses 32-bit increments to process them.
  *
  * Requires: SM 1.2, for shared atomics.
  *
@@ -38,7 +37,7 @@
  */
 
 __global__ void
-histogramSharedPrivatized( 
+histogramSharedPrivatized32( 
     unsigned int *pHist, 
     int x, int y, 
     int w, int h )
@@ -69,41 +68,40 @@ histogramSharedPrivatized(
 }
 
 __global__ void
-histogram1DSharedPrivatized(
+histogram1DSharedPrivatized32(
     unsigned int *pHist,
     const unsigned char *base, size_t N )
 {
-    __shared__ int sHist[256];
-    extern __shared__ unsigned char privatizedHist[];
-    unsigned char *myHist = privatizedHist+256*threadIdx.x;
+    extern __shared__ unsigned int privHist[];
+    unsigned int *myHist = privHist+64*threadIdx.x;
     for ( int i = threadIdx.x;
-              i < 256;
+              i < 64*blockDim.x;
               i += blockDim.x ) {
-        sHist[i] = 0;
+        privHist[i] = 0;
     }
-    for ( int i = 0; i < 256; i++ ) myHist[i] = 0;
     __syncthreads();
     for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
               i < N;
               i += blockDim.x*gridDim.x ) {
-        myHist[ base[i] ] += 1;
-    }
-    __syncthreads();
-    for ( int i = 0; i < 256; i++ ) {
-        unsigned char val = myHist[i];
-        if ( val ) atomicAdd( &sHist[i], val );
+        unsigned char pixval = base[i];
+        myHist[ pixval>>2 ] += (1<<8*(pixval&3));
     }
     __syncthreads();
     for ( int i = threadIdx.x;
-              i < 256;
+              i < 64*blockDim.x;
               i += blockDim.x ) {
-        atomicAdd( &pHist[i], sHist[i] );
+        int idx = i & 63;
+        unsigned int count = privHist[i];
+        atomicAdd( &pHist[idx*4+0], count & 0xff );  count >>= 8;
+        atomicAdd( &pHist[idx*4+1], count & 0xff );  count >>= 8;
+        atomicAdd( &pHist[idx*4+2], count & 0xff );  count >>= 8;
+        atomicAdd( &pHist[idx*4+3], count );
     }
-      
+
 }
 
 void
-GPUhistogramSharedPrivatized(
+GPUhistogramSharedPrivatized32(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -117,9 +115,10 @@ GPUhistogramSharedPrivatized(
     CUDART_CHECK( cudaEventCreate( &start, 0 ) );
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
 
+    CUDART_CHECK( cudaMemset( pHist, 0, 256*sizeof(unsigned int) ) );
+
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    //histogramSharedPrivatized<<<blocks,threads>>>( pHist, x, y, w, h );
-    histogram1DSharedPrivatized<<<400,threads.x*threads.y,threads.x*threads.y*256>>>( pHist, dptrBase, w*h );
+    histogram1DSharedPrivatized32<<<400,threads.x*threads.y,threads.x*threads.y*256>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
