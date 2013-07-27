@@ -95,6 +95,8 @@ GPUhistogramPrivatized8(
     unsigned char *dptrPrivateHistograms;
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
+    int numblocks = (w*h)/(threads.x*threads.y);
+    numblocks = (numblocks+254)/255;
     
     CUDART_CHECK( cudaEventCreate( &start, 0 ) );
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
