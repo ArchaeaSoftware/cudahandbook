@@ -79,7 +79,7 @@ histogram1DSharedPrivatized32(
         privHist[i] = 0;
     }
     __syncthreads();
-#define CACHE_IN_REGISTER 1
+#define CACHE_IN_REGISTER 0
 #if CACHE_IN_REGISTER
     int cacheIndex = 0;
     unsigned int cacheValue = 0;
@@ -183,7 +183,6 @@ GPUhistogramSharedPrivatized32(
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
 
     CUDART_CHECK( cudaMemset( pHist, 0, 256*sizeof(unsigned int) ) );
-printf("%d blocks\n", numblocks );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
     histogram1DSharedPrivatized32<<<numblocks,threads.x*threads.y,threads.x*threads.y*256>>>( pHist, dptrBase, w*h );
