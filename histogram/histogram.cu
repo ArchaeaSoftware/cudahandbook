@@ -61,6 +61,7 @@ texture<unsigned char, 2> texImage;
 
 #include "histogramNaiveAtomic.cuh"
 #include "histogramSharedAtomic.cuh"
+#include "histogramSharedAtomicReduce.cuh"
 #include "histogramSharedPrivatized.cuh"
 #include "histogramSharedPrivatized32.cuh"
 
@@ -92,6 +93,17 @@ histCPU(
         for ( int col = 0; col < w; col += 1 ) {
             pHist[pi[col]] += 1;
         }
+    }
+}
+
+void 
+hist1DCPU( 
+    unsigned int *pHist, 
+    unsigned char *p, size_t N )
+{
+    memset( pHist, 0, 256*sizeof(int) );
+    for ( size_t i = 0; i < N; i++ ) {
+        pHist[ p[i] ] += 1;
     }
 }
 
@@ -170,6 +182,7 @@ main(int argc, char *argv[])
     unsigned int cpuHist[256];
     unsigned int HostPitch, DevicePitch;
     int w, h;
+    bool bTesla = false;
 
     dim3 threads;
     dim3 blocks;
@@ -265,7 +278,24 @@ main(int argc, char *argv[])
         
     CUDART_CHECK( cudaBindTextureToArray( texImage, pArrayImage ) );
 
+    {
+        cudaDeviceProp prop;
+        CUDART_CHECK( cudaGetDeviceProperties( &prop, 0 ) );
+        if ( prop.major < 2 ) {
+            bTesla = true;
+        }
+    }
+
     histCPU( cpuHist, w, h, hidata, w );
+    {
+        unsigned int cpuHist2[256];
+        hist1DCPU( cpuHist2, hidata, w*h );
+        if ( bCompareHistograms( cpuHist, cpuHist2, 256 ) ) {
+            printf( "Linear and 2D histograms do not agree\n" );
+            exit(1);
+        }
+    }
+    
 
 #define TEST_VECTOR( baseName, bPrintNeighborhood, cIterations, outfile ) \
     { \
@@ -295,12 +325,15 @@ main(int argc, char *argv[])
     TEST_VECTOR( GPUhistogramNaiveAtomic, false, 1, NULL );
     threads = dim3( 16, 4, 1 );
     TEST_VECTOR( GPUhistogramSharedAtomic, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramSharedAtomicReduce, false, 1, NULL );
     threads = dim3( 16, 4, 1 );
-    TEST_VECTOR( GPUhistogramSharedPrivatized, false, 1, NULL );
-    TEST_VECTOR( GPUhistogramSharedPrivatized32, false, 1, NULL );
+    if ( ! bTesla ) {
+        TEST_VECTOR( GPUhistogramSharedPrivatized, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramSharedPrivatized32, false, 1, NULL );
 
-    TEST_VECTOR( GPUhistogramPrivatized8, false, 1, NULL );
-    TEST_VECTOR( GPUhistogramPrivatized8Pitch, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPrivatized8, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPrivatized8Pitch, false, 1, NULL );
+    }
 
     TEST_VECTOR( GPUhistogramNPP, false, 1, NULL );
 
