@@ -9,6 +9,9 @@
  *
  * Requires: SM 1.1, for global atomics.
  *
+ * Build with:
+ *    nvcc -I ..\chLib --gpu-architecture sm_xx histogram.cu ..\chLib\pgm.cu -lnpp
+ *
  * Copyright (c) 2011-2012, Archaea Software, LLC.
  * All rights reserved.
  *
@@ -61,9 +64,13 @@ histogram1DNaiveAtomic(
     const unsigned char *base, size_t N )
 {
     for ( size_t i = blockIdx.x*blockDim.x+threadIdx.x;
-                 i < N;
+                 i < N/4;
                  i += blockDim.x*gridDim.x ) {
-        atomicAdd( &pHist[ base[i] ], 1 );
+        unsigned int value = ((unsigned int *) base)[i];
+        atomicAdd( &pHist[ value & 0xff ], 1 ); value >>= 8;
+        atomicAdd( &pHist[ value & 0xff ], 1 ); value >>= 8;
+        atomicAdd( &pHist[ value & 0xff ], 1 ); value >>= 8;
+        atomicAdd( &pHist[ value ]       , 1 );
     }
 }
 
@@ -84,7 +91,7 @@ GPUhistogramNaiveAtomic(
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
 //    histogramNaiveAtomic<<<blocks,threads>>>( pHist, w, h );
-    histogram1DNaiveAtomic<<<400, threads.x*threads.y>>>( pHist, dptrBase, w*h );
+    histogram1DNaiveAtomic<<<400, 256>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );

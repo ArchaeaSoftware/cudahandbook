@@ -69,12 +69,18 @@ histogramSharedAtomic(
     }
 }
 
+static __device__ unsigned int
+value_to_index( unsigned int i, unsigned int offset ) 
+{
+    return i;//return (i+offset)&0xff;
+}
+
 __global__ void
 histogram1DSharedAtomic(
     unsigned int *pHist,
-    const unsigned char *base, size_t N )
+    const unsigned char *base, size_t N, unsigned int offset )
 {
-    __shared__ int sHist[256];
+    __shared__ int sHist[257];
     for ( int i = threadIdx.x;
               i < 256;
               i += blockDim.x ) {
@@ -82,15 +88,22 @@ histogram1DSharedAtomic(
     }
     __syncthreads();
     for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
-              i < N;
+              i < N/4;
               i += blockDim.x*gridDim.x ) {
-        atomicAdd( &sHist[ base[i] ], 1 );
+        unsigned int value = ((unsigned int *) base)[i];
+
+        atomicAdd( &sHist[ value_to_index( value & 0xff, offset ) ], 1 ); value >>= 8;
+        atomicAdd( &sHist[ value_to_index( value & 0xff, offset ) ], 1 ); value >>= 8;
+        atomicAdd( &sHist[ value_to_index( value & 0xff, offset ) ], 1 ); value >>= 8;
+        atomicAdd( &sHist[ value_to_index( value, offset ) ]       , 1 );
+
+//        atomicAdd( &sHist[ base[i] ], 1 );
     }
     __syncthreads();
     for ( int i = threadIdx.x;
               i < 256;
               i += blockDim.x ) {
-        atomicAdd( &pHist[i], sHist[i] );
+        atomicAdd( &pHist[i], sHist[ value_to_index(i, offset) ] );
     }
       
 }
@@ -102,7 +115,7 @@ GPUhistogramSharedAtomic(
     const unsigned char *dptrBase, size_t dPitch,
     int x, int y,
     int w, int h, 
-    dim3 threads, dim3 blocks )
+    dim3 threads, dim3 blocks, unsigned int offset=0 )
 {
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
@@ -112,7 +125,7 @@ GPUhistogramSharedAtomic(
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
     //histogramSharedAtomic<<<blocks,threads>>>( pHist, x, y, w, h );
-    histogram1DSharedAtomic<<<400,threads.x*threads.y>>>( pHist, dptrBase, w*h );
+    histogram1DSharedAtomic<<<400,256/*threads.x*threads.y*/>>>( pHist, dptrBase, w*h, offset );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
@@ -120,4 +133,16 @@ Error:
     cudaEventDestroy( start );
     cudaEventDestroy( stop );
     return;
+}
+
+void
+GPUhistogramSharedAtomic(
+    float *ms,
+    unsigned int *pHist,
+    const unsigned char *dptrBase, size_t dPitch,
+    int x, int y,
+    int w, int h, 
+    dim3 threads, dim3 blocks )
+{
+    GPUhistogramSharedAtomic( ms, pHist, dptrBase, dPitch, x, y, w, h, threads, blocks, 1 );
 }
