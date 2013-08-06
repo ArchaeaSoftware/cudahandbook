@@ -62,6 +62,7 @@ texture<unsigned char, 2> texImage;
 #include "histogramNaiveAtomic.cuh"
 #include "histogramSharedAtomic.cuh"
 #include "histogramSharedAtomicPCache.cuh"
+#include "histogramSharedAtomicPCache2.cuh"
 #include "histogramSharedAtomicReduce.cuh"
 #include "histogramSharedPrivatized.cuh"
 #include "histogramSharedPrivatized32.cuh"
@@ -329,7 +330,7 @@ main(int argc, char *argv[])
     TEST_VECTOR( GPUhistogramSharedAtomic4x, false, 1, NULL );
 
     TEST_VECTOR( GPUhistogramSharedAtomicPCache, false, 1, NULL );
-
+    TEST_VECTOR( GPUhistogramSharedAtomicPCache2, false, 1, NULL );
 
     TEST_VECTOR( GPUhistogramSharedAtomicReduce, false, 1, NULL );
     threads = dim3( 16, 4, 1 );
