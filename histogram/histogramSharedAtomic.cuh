@@ -81,7 +81,7 @@ histogram1DSharedAtomic(
     unsigned int *pHist,
     const unsigned char *base, size_t N, unsigned int offset )
 {
-    __shared__ int sHist[257];
+    __shared__ int sHist[256];
     for ( int i = threadIdx.x;
               i < 256;
               i += blockDim.x ) {
