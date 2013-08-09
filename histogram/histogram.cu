@@ -47,6 +47,9 @@
 #include <chError.h>
 #include <chCommandLine.h>
 #include <chAssert.h>
+#include <chThread.h>
+#include <chTimer.h>
+#include <chUtil.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -70,6 +73,12 @@ texture<unsigned char, 2> texImage;
 #include "histogramPrivatized8.cuh"
 #include "histogramPrivatized8Pitch.cuh"
 #include "histogramNPP.cuh"
+
+using namespace cudahandbook::threading;
+
+workerThread *g_CPUThreadPool;
+int g_numCPUCores;
+
 
 int
 bCompareHistograms( const unsigned int *p, const unsigned int *q, int N )
@@ -98,15 +107,79 @@ histCPU(
     }
 }
 
-void 
+float
 hist1DCPU( 
     unsigned int *pHist, 
     unsigned char *p, size_t N )
 {
+    chTimerTimestamp start, end;
+    chTimerGetTime( &start );
     memset( pHist, 0, 256*sizeof(int) );
     for ( size_t i = 0; i < N; i++ ) {
         pHist[ p[i] ] += 1;
     }
+    chTimerGetTime( &end );
+
+    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+}
+
+
+struct histDelegation {
+    // input data for this thread only
+    unsigned char *pData;
+    size_t N;
+
+    // output histogram for this thread only
+    unsigned int privateHist[256];
+};
+
+static void
+histWorkerThread( void *_p )
+{
+    histDelegation *p = (histDelegation *) _p;
+    unsigned char *pData = p->pData;
+
+    memset( p->privateHist, 0, sizeof(p->privateHist) );
+    
+    for (size_t i = 0; i < p->N; i++ ) {
+        p->privateHist[ pData[i] ] += 1;
+    }
+}
+
+float
+hist1DCPU_threaded( 
+    unsigned int *pHist, 
+    unsigned char *p, size_t N )
+{
+    chTimerTimestamp start, end;
+    chTimerGetTime( &start );
+
+    histDelegation *phist = new histDelegation[ g_numCPUCores ];
+    size_t elementsPerCore = INTDIVIDE_CEILING( N, g_numCPUCores );
+    for ( size_t i = 0; i < g_numCPUCores; i++ ) {
+        phist[i].pData = p;
+        phist[i].N = (N) ? elementsPerCore : 0;
+        p += elementsPerCore;
+        N -= elementsPerCore;
+
+        g_CPUThreadPool[i].delegateAsynchronous( 
+            histWorkerThread, 
+            &phist[i] );
+    }
+    workerThread::waitAll( g_CPUThreadPool, g_numCPUCores );
+
+    memset( pHist, 0, 256*sizeof(unsigned int) );
+    for ( size_t i = 0; i < g_numCPUCores; i++ ) {
+        for ( int j = 0; j < 256; j++ ) {
+            pHist[j] += phist[i].privateHist[j];
+        }
+    }
+
+    delete[] phist;
+
+    chTimerGetTime( &end );
+
+    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
 }
 
 bool
@@ -194,6 +267,17 @@ main(int argc, char *argv[])
 
     cudaArray *pArrayImage = NULL;
     cudaChannelFormatDesc desc = cudaCreateChannelDesc<unsigned char>();
+
+    {
+        g_numCPUCores = processorCount();
+        g_CPUThreadPool = new workerThread[g_numCPUCores];
+        for ( size_t i = 0; i < g_numCPUCores; i++ ) {
+            if ( ! g_CPUThreadPool[i].initialize( ) ) {
+                fprintf( stderr, "Error initializing thread pool\n" );
+                return 1;
+            }
+        }
+    }
 
     if ( chCommandLineGetBool( "help", argc, argv ) ) {
         printf( "Usage:\n" );
@@ -290,12 +374,22 @@ main(int argc, char *argv[])
 
     histCPU( cpuHist, w, h, hidata, w );
     {
-        unsigned int cpuHist2[256];
-        hist1DCPU( cpuHist2, hidata, w*h );
+        unsigned int cpuHist2[256], cpuHist3[256];
+        float timeST = hist1DCPU( cpuHist2, hidata, w*h );
         if ( bCompareHistograms( cpuHist, cpuHist2, 256 ) ) {
             printf( "Linear and 2D histograms do not agree\n" );
             exit(1);
         }
+        float timeMT = hist1DCPU_threaded( cpuHist3, hidata, w*h );
+        if ( bCompareHistograms( cpuHist, cpuHist3, 256 ) ) {
+            printf( "Multithreaded and 2D histograms do not agree\n" );
+            exit(1);
+        }
+        double pixPerSecond = w*h/timeMT;
+        printf( "Multithreaded (%d cores) is %.2fx faster (%.2f Mpix/s)\n", 
+            g_numCPUCores, 
+            timeST/timeMT, 
+            pixPerSecond/1e6 );
     }
     
 
