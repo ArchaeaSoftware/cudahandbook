@@ -1,9 +1,10 @@
 /*
  *
- * histogramSharedPrivatized32.cuh
+ * histogramPrivatizedPerThread.cuh
  *
  * Implementation of histogram that uses 8-bit privatized counters
- * and uses 32-bit increments to process them.
+ * and periodically accumulates those into a block-wide histogram
+ * in shared memory.
  *
  * Requires: SM 1.2, for shared atomics.
  *
@@ -37,7 +38,7 @@
  */
 
 __global__ void
-histogramSharedPrivatized32( 
+histogramPrivatizedPerThread( 
     unsigned int *pHist, 
     int x, int y, 
     int w, int h )
@@ -68,104 +69,41 @@ histogramSharedPrivatized32(
 }
 
 __global__ void
-histogram1DSharedPrivatized32(
+histogram1DPrivatizedPerThread(
     unsigned int *pHist,
     const unsigned char *base, size_t N )
 {
-    extern __shared__ unsigned int privHist[];
+    __shared__ int sHist[256];
+    extern __shared__ unsigned char privatizedHist[];
+    unsigned char *myHist = privatizedHist+256*threadIdx.x;
     for ( int i = threadIdx.x;
-              i < 64*blockDim.x;
+              i < 256;
               i += blockDim.x ) {
-        privHist[i] = 0;
+        sHist[i] = 0;
     }
+    for ( int i = 0; i < 256; i++ ) myHist[i] = 0;
     __syncthreads();
-#define CACHE_IN_REGISTER 0
-#if CACHE_IN_REGISTER
-    int cacheIndex = 0;
-    unsigned int cacheValue = 0;
-#endif
     for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
               i < N;
               i += blockDim.x*gridDim.x ) {
-        unsigned char pixval = base[i];
-        unsigned int increment = 1<<8*(pixval&3);
-        int index = pixval>>2;
-#if CACHE_IN_REGISTER
-        if ( index != cacheIndex ) {
-            privHist[cacheIndex*blockDim.x+threadIdx.x] = cacheValue;
-            cacheIndex = index;
-            cacheValue = privHist[index*blockDim.x+threadIdx.x];
-        }
-        cacheValue += increment;
-#else
-        privHist[index*blockDim.x+threadIdx.x] += increment;
-#endif
+        myHist[ base[i] ] += 1;
     }
-#if CACHE_IN_REGISTER
-    privHist[cacheIndex*blockDim.x+threadIdx.x] = cacheValue;
-#endif
     __syncthreads();
-#if 1
-    for ( int i = 0; i < 64; i++ ) {
-        unsigned int sum;
-        volatile unsigned int *histBase = &privHist[i*64+threadIdx.x];
-        unsigned int myValue = histBase[0];
-        privHist[i*64+threadIdx.x] = myValue & 0xff00ff;
-        __syncthreads();
-        myValue >>= 8;
-        if ( threadIdx.x < 32 ) {
-            histBase[0] += histBase[32];
-            histBase[0] += histBase[16];
-            histBase[0] += histBase[ 8];
-            histBase[0] += histBase[ 4];
-            histBase[0] += histBase[ 2];
-            sum = histBase[0] + histBase[1];
-            if ( threadIdx.x==0 && (sum&0xffff) ) atomicAdd( &pHist[i*4+0], sum&0xffff );
-            sum >>= 16;
-            if ( threadIdx.x==0 && sum ) atomicAdd( &pHist[i*4+2], sum );
-        }
-
-        histBase[0] = myValue & 0xff00ff;
-        __syncthreads();
-        if ( threadIdx.x < 32 ) {
-            histBase[0] += histBase[32];
-            histBase[0] += histBase[16];
-            histBase[0] += histBase[ 8];
-            histBase[0] += histBase[ 4];
-            histBase[0] += histBase[ 2];
-            sum = histBase[0] + histBase[1];
-            if ( threadIdx.x==0 && (sum&0xffff) ) atomicAdd( &pHist[i*4+1], sum&0xffff );
-            sum >>= 16;
-            if ( threadIdx.x==0 && sum ) atomicAdd( &pHist[i*4+3], sum );
-        }
-        
+    for ( int i = 0; i < 256; i++ ) {
+        unsigned char val = myHist[i];
+        if ( val ) atomicAdd( &sHist[i], val );
     }
-#if 0
-    for ( int i = 0; i < 64; i++ ) {
-        unsigned int count = privHist[i*64/*blockDim.x*/+threadIdx.x];
-        atomicAdd( &pHist[i*4+0], count & 0xff );  count >>= 8;
-        atomicAdd( &pHist[i*4+1], count & 0xff );  count >>= 8;
-        atomicAdd( &pHist[i*4+2], count & 0xff );  count >>= 8;
-        atomicAdd( &pHist[i*4+3], count );
-    }
-#endif
-#else
-
+    __syncthreads();
     for ( int i = threadIdx.x;
-              i < 64*blockDim.x;
+              i < 256;
               i += blockDim.x ) {
-        int idx = i & 63;
-        unsigned int count = privHist[i];
-        atomicAdd( &pHist[idx*4+0], count & 0xff );  count >>= 8;
-        atomicAdd( &pHist[idx*4+1], count & 0xff );  count >>= 8;
-        atomicAdd( &pHist[idx*4+2], count & 0xff );  count >>= 8;
-        atomicAdd( &pHist[idx*4+3], count );
+        atomicAdd( &pHist[i], sHist[i] );
     }
-#endif
+      
 }
 
 void
-GPUhistogramSharedPrivatized32(
+GPUhistogramPrivatizedPerThread(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -175,16 +113,14 @@ GPUhistogramSharedPrivatized32(
 {
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
-    int numthreads = threads.x*threads.y;
-    int numblocks = INTDIVIDE_CEILING( w*h, numthreads*255 );
+    int cBlocks = INTDIVIDE_CEILING( w*h, threads.x*threads.y*255 );
 
     CUDART_CHECK( cudaEventCreate( &start, 0 ) );
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
 
-    CUDART_CHECK( cudaMemset( pHist, 0, 256*sizeof(unsigned int) ) );
-
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    histogram1DSharedPrivatized32<<<numblocks,numthreads,numthreads*256>>>( pHist, dptrBase, w*h );
+    //histogramPrivatizedPerThread<<<blocks,threads>>>( pHist, x, y, w, h );
+    histogram1DPrivatizedPerThread<<<cBlocks,threads.x*threads.y,threads.x*threads.y*256>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
