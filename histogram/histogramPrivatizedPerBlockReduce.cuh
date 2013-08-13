@@ -113,10 +113,11 @@ GPUhistogramPrivatizedPerBlockReduce(
     const unsigned char *dptrBase, size_t dPitch,
     int x, int y,
     int w, int h, 
-    dim3 threads, dim3 blocks )
+    dim3 threads )
 {
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
+    
 
     CUDART_CHECK( cudaEventCreate( &start, 0 ) );
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );

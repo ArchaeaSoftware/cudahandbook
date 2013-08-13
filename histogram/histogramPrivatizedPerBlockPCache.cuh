@@ -134,7 +134,7 @@ GPUhistogramPrivatizedPerBlockPCache(
     const unsigned char *dptrBase, size_t dPitch,
     int x, int y,
     int w, int h, 
-    dim3 threads, dim3 blocks )
+    dim3 threads )
 {
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
@@ -162,9 +162,9 @@ GPUhistogramPrivatizedPerBlockPCache(
     const unsigned char *dptrBase, size_t dPitch,
     int x, int y,
     int w, int h, 
-    dim3 threads, dim3 blocks )
+    dim3 threads )
 {
-    GPUhistogramPrivatizedPerBlockPCache<false>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads, blocks );
+    GPUhistogramPrivatizedPerBlockPCache<false>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
 }
 
 void
@@ -174,8 +174,8 @@ GPUhistogramPrivatizedPerBlockPCache4x(
     const unsigned char *dptrBase, size_t dPitch,
     int x, int y,
     int w, int h, 
-    dim3 threads, dim3 blocks )
+    dim3 threads )
 {
-    GPUhistogramPrivatizedPerBlockPCache<true>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads, blocks );
+    GPUhistogramPrivatizedPerBlockPCache<true>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
 }
 

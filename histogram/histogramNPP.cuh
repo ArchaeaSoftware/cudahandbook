@@ -44,7 +44,7 @@ GPUhistogramNPP(
     const unsigned char *dptrBase, size_t dptrPitch,
     int x, int y,
     int w, int h, 
-    dim3 threads, dim3 blocks )
+    dim3 threads )
 {
     cudaError_t status;
     Npp8u *pDeviceBuffer = 0;

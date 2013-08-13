@@ -171,13 +171,12 @@ GPUhistogramSharedPrivatized32(
     const unsigned char *dptrBase, size_t dPitch,
     int x, int y,
     int w, int h, 
-    dim3 threads, dim3 blocks )
+    dim3 threads )
 {
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
     int numthreads = threads.x*threads.y;
-    int numblocks = (w*h)/numthreads;
-    numblocks = (numblocks+254)/255;
+    int numblocks = INTDIVIDE_CEILING( w*h, numthreads*255 );
 
     CUDART_CHECK( cudaEventCreate( &start, 0 ) );
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
@@ -185,7 +184,7 @@ GPUhistogramSharedPrivatized32(
     CUDART_CHECK( cudaMemset( pHist, 0, 256*sizeof(unsigned int) ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    histogram1DSharedPrivatized32<<<numblocks,threads.x*threads.y,threads.x*threads.y*256>>>( pHist, dptrBase, w*h );
+    histogram1DSharedPrivatized32<<<numblocks,numthreads,numthreads*256>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );

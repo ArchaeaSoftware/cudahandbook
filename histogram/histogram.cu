@@ -189,13 +189,13 @@ TestHistogram(
     const unsigned char *dptrBase, size_t dPitch,
     int w, int h,               // width and height of input
     const unsigned int *hrefHist, // host reference data
-    dim3 threads, dim3 blocks,
+    dim3 threads,
     void (*pfnHistogram)( 
         float *ms, 
         unsigned int *pHist,
         const unsigned char *dptrBase, size_t dPitch,
         int xUL, int yUL, int w, int h,
-        dim3 threads, dim3 blocks ),
+        dim3 threads ),
     int cIterations = 1,
     const char *outputFilename = NULL
 )
@@ -212,7 +212,7 @@ TestHistogram(
     CUDART_CHECK( cudaMalloc( (void **) &dHist, 256*sizeof(int) ) );
     CUDART_CHECK( cudaMemset( dHist, 0, 256*sizeof(int) ) );
 
-    pfnHistogram( &ms, dHist, dptrBase, dPitch, 0, 0, w, h, threads, blocks );
+    pfnHistogram( &ms, dHist, dptrBase, dPitch, 0, 0, w, h, threads );
 
     CUDART_CHECK( cudaMemcpy( hHist, dHist, sizeof(hHist), cudaMemcpyDeviceToHost ) );
 
@@ -222,7 +222,7 @@ TestHistogram(
     }
 
     for ( int i = 0; i < cIterations; i++ ) {
-        pfnHistogram( &ms, dHist, dptrBase, dPitch, 0, 0, w, h, threads, blocks );
+        pfnHistogram( &ms, dHist, dptrBase, dPitch, 0, 0, w, h, threads );
     }
 
     *pixelsPerSecond = (double) w*h*cIterations*1000.0 / ms;
@@ -261,7 +261,6 @@ main(int argc, char *argv[])
     bool bTesla = false;
 
     dim3 threads;
-    dim3 blocks;
 
     char *inputFilename = "coins.pgm";
     char *outputFilename = NULL;
@@ -402,7 +401,7 @@ main(int argc, char *argv[])
             didata, DevicePitch, \
             w, h,  \
             cpuHist, \
-            threads, blocks,  \
+            threads,  \
             baseName, \
             cIterations, outfile ) ) { \
             printf( "Error\n" ); \
@@ -418,7 +417,6 @@ main(int argc, char *argv[])
     }
 
     threads = dim3( 32, 8, 1 );
-    blocks = dim3( 40, 40, 1 );
 
     TEST_VECTOR( GPUhistogramNaiveAtomic, false, 1, NULL );
     threads = dim3( 16, 4, 1 );
