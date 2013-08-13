@@ -1,12 +1,11 @@
 /*
  *
- * histogramSharedAtomicPCache.cuh
+ * histogramPrivatizedPerBlockReduce.cuh
  *
  * Implementation of histogram that uses one shared atomic per pixel,
- * but caches the last few intermediate results in registers.
- * This results in very data-dependent performance, as the hardware
- * facilities for mutual exclusion contend when trying to increment
- * the same histogram value concurrently.
+ * then writes the shared histogram to a temporary buffer that is
+ * then reduced to the output histogram by a subsequent kernel launch.
+ * This method is reminiscent of early methods of doing Scan in CUDA.
  *
  * Requires: SM 1.2, for shared atomics.
  *
@@ -39,8 +38,10 @@
  *
  */
 
+__device__ unsigned int tempHist[400][256];
+
 __global__ void
-histogramSharedAtomicPCache( 
+histogramPrivatizedPerBlockReduce( 
     unsigned int *pHist, 
     int x, int y, 
     int w, int h )
@@ -62,73 +63,51 @@ histogramSharedAtomicPCache(
         }
     }
     __syncthreads();
+    unsigned int *outputHist = &tempHist[blockIdx.x][0];
     for ( int i = tid; i < 256; i += blockDim.x*blockDim.y ) {
-        int value = sHist[i];
-        if ( value ) {
-            atomicAdd( &pHist[i], value );
-        }
+        outputHist[i] = sHist[i];
     }
 }
 
-template<bool bUnroll>
 __global__ void
-histogram1DSharedAtomicPCache(
+histogram1DPrivatizedPerBlockReduce(
     unsigned int *pHist,
     const unsigned char *base, size_t N )
 {
-    __shared__ int sHist[257];
-    unsigned int indexCache;
-    unsigned int valueCache;
-
-    indexCache = 0;
-    valueCache = 0;
-
+    __shared__ int sHist[256];
     for ( int i = threadIdx.x;
               i < 256;
               i += blockDim.x ) {
         sHist[i] = 0;
     }
     __syncthreads();
-    if ( 0/*bUnroll*/ ) {
-        N /= 4;
-    }
     for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
               i < N;
               i += blockDim.x*gridDim.x ) {
-        if ( 0/*bUnroll*/ ) {
-            unsigned int value = ((unsigned int *) base)[i];
-
-            atomicAdd( &sHist[ value & 0xff ], 1 ); value >>= 8;
-            atomicAdd( &sHist[ value & 0xff ], 1 ); value >>= 8;
-            atomicAdd( &sHist[ value & 0xff ], 1 ); value >>= 8;
-            atomicAdd( &sHist[ value ]       , 1 );
-        }
-        else {
-            unsigned int value = base[i];
-            
-            if ( indexCache != value ) {
-                atomicAdd( &sHist[ indexCache ], valueCache );
-                valueCache = 1;
-            }
-            else {
-                valueCache += 1;
-            }
-            indexCache = value;
-        }
+        atomicAdd( &sHist[ base[i] ], 1 );
     }
-    atomicAdd( &sHist[indexCache], valueCache );
     __syncthreads();
-    for ( int i = threadIdx.x;
-              i < 256;
-              i += blockDim.x ) {
-        atomicAdd( &pHist[i], sHist[ i ] );
+    unsigned int *outputHist = &tempHist[blockIdx.x][0];
+    for ( int i = threadIdx.x; i < 256; i += blockDim.x*blockDim.y ) {
+        outputHist[i] = sHist[i];
     }
-      
 }
 
-template<bool bUnroll>
+// Must be invoked with 256 threads, one for each output histogram element
+__global__ void
+histogramPrivatizedPerBlockFinalReduction( 
+    unsigned int *pHist, 
+    unsigned int cHist )
+{
+    unsigned int sum = 0;
+    for ( int i = 0; i < cHist; i++ ) {
+        sum += tempHist[i][threadIdx.x];
+    }
+    pHist[threadIdx.x] = sum;
+}
+
 void
-GPUhistogramSharedAtomicPCache(
+GPUhistogramPrivatizedPerBlockReduce(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -143,8 +122,15 @@ GPUhistogramSharedAtomicPCache(
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    //histogramSharedAtomic<<<blocks,threads>>>( pHist, x, y, w, h );
-    histogram1DSharedAtomicPCache<bUnroll><<<400,256/*threads.x*threads.y*/>>>( pHist, dptrBase, w*h );
+    {
+        void *ptempHist;
+        CUDART_CHECK( cudaGetSymbolAddress( &ptempHist, tempHist ) );
+        CUDART_CHECK( cudaMemset( ptempHist, 0, sizeof(tempHist ) ) );
+    }
+    //histogramPrivatizedPerBlock<<<blocks,threads>>>( pHist, x, y, w, h );
+    histogram1DPrivatizedPerBlockReduce<<<240,threads.x*threads.y>>>( pHist, dptrBase, w*h );
+    histogramPrivatizedPerBlockFinalReduction<<<1,256>>>( pHist, 240 );
+    
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
@@ -153,29 +139,3 @@ Error:
     cudaEventDestroy( stop );
     return;
 }
-
-
-void
-GPUhistogramSharedAtomicPCache(
-    float *ms,
-    unsigned int *pHist,
-    const unsigned char *dptrBase, size_t dPitch,
-    int x, int y,
-    int w, int h, 
-    dim3 threads, dim3 blocks )
-{
-    GPUhistogramSharedAtomicPCache<false>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads, blocks );
-}
-
-void
-GPUhistogramSharedAtomicPCache4x(
-    float *ms,
-    unsigned int *pHist,
-    const unsigned char *dptrBase, size_t dPitch,
-    int x, int y,
-    int w, int h, 
-    dim3 threads, dim3 blocks )
-{
-    GPUhistogramSharedAtomicPCache<true>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads, blocks );
-}
-

@@ -63,10 +63,10 @@
 texture<unsigned char, 2> texImage;
 
 #include "histogramNaiveAtomic.cuh"
-#include "histogramSharedAtomic.cuh"
-#include "histogramSharedAtomicPCache.cuh"
-#include "histogramSharedAtomicPCache2.cuh"
-#include "histogramSharedAtomicReduce.cuh"
+#include "histogramPrivatizedPerBlock.cuh"
+#include "histogramPrivatizedPerBlockPCache.cuh"
+#include "histogramPrivatizedPerBlockPCache2.cuh"
+#include "histogramPrivatizedPerBlockReduce.cuh"
 #include "histogramSharedPrivatized.cuh"
 #include "histogramSharedPrivatized32.cuh"
 
@@ -270,7 +270,7 @@ main(int argc, char *argv[])
     cudaChannelFormatDesc desc = cudaCreateChannelDesc<unsigned char>();
 
     {
-        g_numCPUCores = processorCount()/2;
+        g_numCPUCores = processorCount();
         g_CPUThreadPool = new workerThread[g_numCPUCores];
         for ( size_t i = 0; i < g_numCPUCores; i++ ) {
             if ( ! g_CPUThreadPool[i].initialize( ) ) {
@@ -422,13 +422,13 @@ main(int argc, char *argv[])
 
     TEST_VECTOR( GPUhistogramNaiveAtomic, false, 1, NULL );
     threads = dim3( 16, 4, 1 );
-    TEST_VECTOR( GPUhistogramSharedAtomic, false, 1, NULL );
-    TEST_VECTOR( GPUhistogramSharedAtomic4x, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPrivatizedPerBlock, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPrivatizedPerBlock4x, false, 1, NULL );
 
-    TEST_VECTOR( GPUhistogramSharedAtomicPCache, false, 1, NULL );
-    TEST_VECTOR( GPUhistogramSharedAtomicPCache2, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPrivatizedPerBlockPCache, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPrivatizedPerBlockPCache2, false, 1, NULL );
 
-    TEST_VECTOR( GPUhistogramSharedAtomicReduce, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPrivatizedPerBlockReduce, false, 1, NULL );
     threads = dim3( 16, 4, 1 );
     if ( ! bTesla ) {
         TEST_VECTOR( GPUhistogramSharedPrivatized, false, 1, NULL );
