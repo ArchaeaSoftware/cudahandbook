@@ -5,7 +5,7 @@
  * Microbenchmark for histogram, a statistical computation
  * for image processing.
  *
- * Build with: nvcc -I ../chLib <options> histogram.cu ..\chLib\pgm.cu
+ * Build with: nvcc -I ../chLib <options> histogram.cu ..\chLib\pgm.cu -lnpp -lpthread -lrt
  *
  * Make sure to include pgm.cu for the image file I/O support.
  *
