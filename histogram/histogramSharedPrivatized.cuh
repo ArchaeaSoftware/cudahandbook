@@ -113,13 +113,14 @@ GPUhistogramSharedPrivatized(
 {
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
+    int cBlocks = INTDIVIDE_CEILING( w*h, threads.x*threads.y*255 );
 
     CUDART_CHECK( cudaEventCreate( &start, 0 ) );
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
     //histogramSharedPrivatized<<<blocks,threads>>>( pHist, x, y, w, h );
-    histogram1DSharedPrivatized<<<400,threads.x*threads.y,threads.x*threads.y*256>>>( pHist, dptrBase, w*h );
+    histogram1DSharedPrivatized<<<cBlocks,threads.x*threads.y,threads.x*threads.y*256>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );

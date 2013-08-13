@@ -185,6 +185,7 @@ hist1DCPU_threaded(
 bool
 TestHistogram( 
     double *pixelsPerSecond,    // passback to report performance
+    const char *name,
     const unsigned char *dptrBase, size_t dPitch,
     int w, int h,               // width and height of input
     const unsigned int *hrefHist, // host reference data
@@ -216,7 +217,7 @@ TestHistogram(
     CUDART_CHECK( cudaMemcpy( hHist, dHist, sizeof(hHist), cudaMemcpyDeviceToHost ) );
 
     if ( bCompareHistograms( hHist, hrefHist, 256 ) ) {
-        printf( "Histograms miscompare\n" );
+        printf( "%s: Histograms miscompare\n", name );
         goto Error;
     }
 
@@ -269,7 +270,7 @@ main(int argc, char *argv[])
     cudaChannelFormatDesc desc = cudaCreateChannelDesc<unsigned char>();
 
     {
-        g_numCPUCores = processorCount();
+        g_numCPUCores = processorCount()/2;
         g_CPUThreadPool = new workerThread[g_numCPUCores];
         for ( size_t i = 0; i < g_numCPUCores; i++ ) {
             if ( ! g_CPUThreadPool[i].initialize( ) ) {
@@ -397,6 +398,7 @@ main(int argc, char *argv[])
     { \
         double pixelsPerSecond; \
         if ( ! TestHistogram( &pixelsPerSecond, \
+            #baseName, \
             didata, DevicePitch, \
             w, h,  \
             cpuHist, \
