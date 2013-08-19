@@ -42,23 +42,6 @@
  */
 
 __global__ void
-histogramNaiveAtomic( 
-    unsigned int *pHist, 
-    int w, int h )
-{
-    for ( int row = blockIdx.y*blockDim.y+threadIdx.y; 
-              row < h;
-              row += blockDim.y*gridDim.y ) {
-        for ( int col = blockIdx.x*blockDim.x+threadIdx.x;
-                  col < w;
-                  col += blockDim.x*gridDim.x ) {
-            unsigned char pixval = tex2D( texImage, (float) col, (float) row );
-            atomicAdd( &pHist[pixval], 1 );
-        }
-    }
-}
-
-__global__ void
 histogram1DNaiveAtomic(
     unsigned int *pHist,
     const unsigned char *base, size_t N )

@@ -38,37 +38,6 @@
  */
 
 __global__ void
-histogramPrivatizedPerThread( 
-    unsigned int *pHist, 
-    int x, int y, 
-    int w, int h )
-{
-    __shared__ int sHist[256];
-    const int tid = threadIdx.y*blockDim.x+threadIdx.x;
-    for ( int i = tid; i < 256; i += blockDim.x*blockDim.y ) {
-        sHist[i] = 0;
-    }
-    __syncthreads();
-    for ( int row = blockIdx.y*blockDim.y+threadIdx.y; 
-              row < h;
-              row += blockDim.y*gridDim.y ) {
-        for ( int col = blockIdx.x*blockDim.x+threadIdx.x;
-                  col < w;
-                  col += blockDim.x*gridDim.x ) {
-            unsigned char pixval = tex2D( texImage, (float) col, (float) row );
-            atomicAdd( &sHist[pixval], 1 );
-        }
-    }
-    __syncthreads();
-    for ( int i = tid; i < 256; i += blockDim.x*blockDim.y ) {
-        int value = sHist[i];
-        if ( value ) {
-            atomicAdd( &pHist[i], value );
-        }
-    }
-}
-
-__global__ void
 histogram1DPrivatizedPerThread(
     unsigned int *pHist,
     const unsigned char *base, size_t N )
@@ -113,14 +82,14 @@ GPUhistogramPrivatizedPerThread(
 {
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
-    int cBlocks = INTDIVIDE_CEILING( w*h, threads.x*threads.y*255 );
+    int numthreads = threads.x*threads.y;
+    int cBlocks = INTDIVIDE_CEILING( w*h, numthreads*255 );
 
     CUDART_CHECK( cudaEventCreate( &start, 0 ) );
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    //histogramPrivatizedPerThread<<<blocks,threads>>>( pHist, x, y, w, h );
-    histogram1DPrivatizedPerThread<<<cBlocks,threads.x*threads.y,threads.x*threads.y*256>>>( pHist, dptrBase, w*h );
+    histogram1DPrivatizedPerThread<<<cBlocks,numthreads,numthreads*256>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );

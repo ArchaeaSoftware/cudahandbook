@@ -41,35 +41,6 @@
 __device__ unsigned int tempHist[400][256];
 
 __global__ void
-histogramPrivatizedPerBlockReduce( 
-    unsigned int *pHist, 
-    int x, int y, 
-    int w, int h )
-{
-    __shared__ int sHist[256];
-    const int tid = threadIdx.y*blockDim.x+threadIdx.x;
-    for ( int i = tid; i < 256; i += blockDim.x*blockDim.y ) {
-        sHist[i] = 0;
-    }
-    __syncthreads();
-    for ( int row = blockIdx.y*blockDim.y+threadIdx.y; 
-              row < h;
-              row += blockDim.y*gridDim.y ) {
-        for ( int col = blockIdx.x*blockDim.x+threadIdx.x;
-                  col < w;
-                  col += blockDim.x*gridDim.x ) {
-            unsigned char pixval = tex2D( texImage, (float) col, (float) row );
-            atomicAdd( &sHist[pixval], 1 );
-        }
-    }
-    __syncthreads();
-    unsigned int *outputHist = &tempHist[blockIdx.x][0];
-    for ( int i = tid; i < 256; i += blockDim.x*blockDim.y ) {
-        outputHist[i] = sHist[i];
-    }
-}
-
-__global__ void
 histogram1DPrivatizedPerBlockReduce(
     unsigned int *pHist,
     const unsigned char *base, size_t N )
@@ -128,7 +99,6 @@ GPUhistogramPrivatizedPerBlockReduce(
         CUDART_CHECK( cudaGetSymbolAddress( &ptempHist, tempHist ) );
         CUDART_CHECK( cudaMemset( ptempHist, 0, sizeof(tempHist ) ) );
     }
-    //histogramPrivatizedPerBlock<<<blocks,threads>>>( pHist, x, y, w, h );
     histogram1DPrivatizedPerBlockReduce<<<240,threads.x*threads.y>>>( pHist, dptrBase, w*h );
     histogramPrivatizedPerBlockFinalReduction<<<1,256>>>( pHist, 240 );
     
