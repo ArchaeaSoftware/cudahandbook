@@ -132,7 +132,6 @@ histogram1DPrivatizedPerThread32(
 // but we should be able to do a log-step reduction instead of looping 64 times.
 
     for ( int i = 0; i < 64; i++ ) {
-        const int subtid = threadIdx.x&31;
         unsigned int sum;
         volatile unsigned int *histBase = &privHist[i*64+threadIdx.x];
         unsigned int myValue = histBase[0];
@@ -144,16 +143,17 @@ histogram1DPrivatizedPerThread32(
             histBase[32] = (myValue & 0xff00ff) + (upperValue & 0xff00ff);
         }
         __syncthreads();
-        if ( subtid < 16 ) histBase[0] += histBase[16];
-        if ( subtid <  8 ) histBase[0] += histBase[ 8];
-        if ( subtid <  4 ) histBase[0] += histBase[ 4];
-        if ( subtid <  2 ) histBase[0] += histBase[ 2];
-        if ( subtid <  1 ) sum = histBase[0] + histBase[ 1];
+        int offset = threadIdx.x<32 ? 16 : -16;
+        histBase[0] += histBase[offset]; offset >>= 1;
+        histBase[0] += histBase[offset]; offset >>= 1;
+        histBase[0] += histBase[offset]; offset >>= 1;
+        histBase[0] += histBase[offset]; offset >>= 1;
+        sum = histBase[0] + histBase[offset];
         if ( threadIdx.x==0 ) atomicAdd( &pHist[i*4+0], sum&0xffff );
-        else if (threadIdx.x==32) atomicAdd( &pHist[i*4+1], sum&0xffff );
+        if ( threadIdx.x==63 ) atomicAdd( &pHist[i*4+1], sum&0xffff );
         sum >>= 16;
         if ( threadIdx.x==0 ) atomicAdd( &pHist[i*4+2], sum&0xffff );
-        else if (threadIdx.x==32) atomicAdd( &pHist[i*4+3], sum&0xffff );
+        if (threadIdx.x==63) atomicAdd( &pHist[i*4+3], sum&0xffff );
     }
 #if 0
     for ( int i = 0; i < 64; i++ ) {
