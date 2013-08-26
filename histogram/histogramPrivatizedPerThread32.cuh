@@ -36,6 +36,26 @@
  *
  */
 
+#define CACHE_IN_REGISTER 0
+
+inline __device__ void
+incPrivatized32Element( unsigned char pixval, int& cacheIndex, unsigned int& cacheValue )
+{
+    extern __shared__ unsigned int privHist[];
+    unsigned int increment = 1<<8*(pixval&3);
+    int index = pixval>>2;
+#if CACHE_IN_REGISTER
+    if ( index != cacheIndex ) {
+        privHist[cacheIndex*blockDim.x+threadIdx.x] = cacheValue;
+        cacheIndex = index;
+        cacheValue = privHist[index*blockDim.x+threadIdx.x];
+    }
+    cacheValue += increment;
+#else
+    privHist[index*blockDim.x+threadIdx.x] += increment;
+#endif
+}
+
 __global__ void
 histogram1DPrivatizedPerThread32(
     unsigned int *pHist,
@@ -48,27 +68,12 @@ histogram1DPrivatizedPerThread32(
         privHist[i] = 0;
     }
     __syncthreads();
-#define CACHE_IN_REGISTER 0
-#if CACHE_IN_REGISTER
     int cacheIndex = 0;
     unsigned int cacheValue = 0;
-#endif
     for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
               i < N;
               i += blockDim.x*gridDim.x ) {
-        unsigned char pixval = base[i];
-        unsigned int increment = 1<<8*(pixval&3);
-        int index = pixval>>2;
-#if CACHE_IN_REGISTER
-        if ( index != cacheIndex ) {
-            privHist[cacheIndex*blockDim.x+threadIdx.x] = cacheValue;
-            cacheIndex = index;
-            cacheValue = privHist[index*blockDim.x+threadIdx.x];
-        }
-        cacheValue += increment;
-#else
-        privHist[index*blockDim.x+threadIdx.x] += increment;
-#endif
+        incPrivatized32Element( base[i], cacheIndex, cacheValue );
     }
 #if CACHE_IN_REGISTER
     privHist[cacheIndex*blockDim.x+threadIdx.x] = cacheValue;
