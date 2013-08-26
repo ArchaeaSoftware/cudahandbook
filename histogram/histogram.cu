@@ -430,6 +430,7 @@ main(int argc, char *argv[])
     if ( ! bTesla ) {
         TEST_VECTOR( GPUhistogramPrivatizedPerThread, false, 1, NULL );
         TEST_VECTOR( GPUhistogramPrivatizedPerThread32, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPrivatizedPerThread32_PCache, false, 1, NULL );
 
         TEST_VECTOR( GPUhistogramPrivatized8Pitch, false, 1, NULL );
     }
