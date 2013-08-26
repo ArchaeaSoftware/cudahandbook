@@ -145,6 +145,25 @@ histogram1DPrivatizedPerThread32Unroll(
 #endif
 
 #if 1
+
+    unsigned int sum02 = 0;
+    unsigned int sum13 = 0;
+    for ( int i = 0; i < 64; i++ ) {
+        unsigned int myValue = privHist[threadIdx.x*64+i];
+        sum02 += myValue & 0xff00ff;
+        myValue >>= 8;
+        sum13 += myValue & 0xff00ff;
+        
+    }
+    atomicAdd( &pHist[threadIdx.x*4+0], sum02&0xffff );
+    sum02 >>= 16;
+    atomicAdd( &pHist[threadIdx.x*4+2], sum02 );
+
+    atomicAdd( &pHist[threadIdx.x*4+1], sum13&0xffff );
+    sum13 >>= 16;
+    atomicAdd( &pHist[threadIdx.x*4+3], sum13 );
+    
+#if 0
 // this works and there is still room for improvement (by having threads 32-63 of the block do half the work)
 // but we should be able to do a log-step reduction instead of looping 64 times.
 
@@ -172,6 +191,7 @@ histogram1DPrivatizedPerThread32Unroll(
         if ( threadIdx.x==0 ) atomicAdd( &pHist[i*4+2], sum&0xffff );
         if (threadIdx.x==63) atomicAdd( &pHist[i*4+3], sum&0xffff );
     }
+#endif
 
 #if 0
     // Using warp shuffle to do the reduction is actually slower.
