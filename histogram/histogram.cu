@@ -435,6 +435,8 @@ main(int argc, char *argv[])
 
         TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32, false, 1, NULL );
         TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_PCache, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_CheckOverflow, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_PCache_CheckOverflow, false, 1, NULL );
 
         TEST_VECTOR( GPUhistogramPrivatized8Pitch, false, 1, NULL );
     }
