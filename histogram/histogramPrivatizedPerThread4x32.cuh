@@ -1,6 +1,6 @@
 /*
  *
- * histogramPrivatizedPerThread32Unroll.cuh
+ * histogramPrivatizedPerThread4x32.cuh
  *
  * Implementation of histogram that uses 8-bit privatized counters
  * and uses 32-bit increments to process them.
@@ -65,7 +65,7 @@ incPrivatized32Element( unsigned char pixval, int& cacheIndex, unsigned int& cac
 
 template<bool bCacheInRegister>
 __global__ void
-histogram1DPrivatizedPerThread32Unroll(
+histogram1DPrivatizedPerThread4x32(
     unsigned int *pHist,
     const unsigned char *base, size_t N )
 {
@@ -259,7 +259,7 @@ histogram1DPrivatizedPerThread32Unroll(
 
 template<bool bCacheInRegister>
 void
-GPUhistogramPrivatizedPerThread32Unroll(
+GPUhistogramPrivatizedPerThread4x32(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -278,7 +278,7 @@ GPUhistogramPrivatizedPerThread32Unroll(
     CUDART_CHECK( cudaMemset( pHist, 0, 256*sizeof(unsigned int) ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    histogram1DPrivatizedPerThread32Unroll<bCacheInRegister><<<numblocks,numthreads,numthreads*256>>>( pHist, dptrBase, w*h );
+    histogram1DPrivatizedPerThread4x32<bCacheInRegister><<<numblocks,numthreads,numthreads*256>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
@@ -289,7 +289,7 @@ Error:
 }
 
 void
-GPUhistogramPrivatizedPerThread32Unroll(
+GPUhistogramPrivatizedPerThread4x32(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -297,11 +297,11 @@ GPUhistogramPrivatizedPerThread32Unroll(
     int w, int h, 
     dim3 threads )
 {
-    GPUhistogramPrivatizedPerThread32Unroll<false>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
+    GPUhistogramPrivatizedPerThread4x32<false>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
 }
 
 void
-GPUhistogramPrivatizedPerThread32Unroll_PCache(
+GPUhistogramPrivatizedPerThread4x32_PCache(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -309,5 +309,5 @@ GPUhistogramPrivatizedPerThread32Unroll_PCache(
     int w, int h, 
     dim3 threads )
 {
-    GPUhistogramPrivatizedPerThread32Unroll<true>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
+    GPUhistogramPrivatizedPerThread4x32<true>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
 }

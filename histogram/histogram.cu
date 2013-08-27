@@ -69,7 +69,7 @@ texture<unsigned char, 2> texImage;
 #include "histogramPrivatizedPerBlockReduce.cuh"
 #include "histogramPrivatizedPerThread.cuh"
 #include "histogramPrivatizedPerThread32.cuh"
-#include "histogramPrivatizedPerThread32Unroll.cuh"
+#include "histogramPrivatizedPerThread4x32.cuh"
 
 #include "histogramPrivatized8Pitch.cuh"
 #include "histogramNPP.cuh"
@@ -433,8 +433,8 @@ main(int argc, char *argv[])
         TEST_VECTOR( GPUhistogramPrivatizedPerThread32, false, 1, NULL );
         TEST_VECTOR( GPUhistogramPrivatizedPerThread32_PCache, false, 1, NULL );
 
-        TEST_VECTOR( GPUhistogramPrivatizedPerThread32Unroll, false, 1, NULL );
-        TEST_VECTOR( GPUhistogramPrivatizedPerThread32Unroll_PCache, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_PCache, false, 1, NULL );
 
         TEST_VECTOR( GPUhistogramPrivatized8Pitch, false, 1, NULL );
     }
