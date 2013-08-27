@@ -7,7 +7,7 @@
  *
  * Requires: SM 1.2, for shared atomics.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2013, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

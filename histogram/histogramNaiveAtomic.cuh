@@ -12,7 +12,7 @@
  * Build with:
  *    nvcc -I ..\chLib --gpu-architecture sm_xx histogram.cu ..\chLib\pgm.cu -lnpp
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2013, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
