@@ -36,27 +36,6 @@
  *
  */
 
-template<bool bCacheInRegister>
-inline __device__ void
-incPrivatized32Element( unsigned char pixval, int& cacheIndex, unsigned int& cacheValue )
-{
-    extern __shared__ unsigned int privHist[];
-    unsigned int increment = 1<<8*(pixval&3);
-    int index = pixval>>2;
-    if ( bCacheInRegister ) {
-        if ( index != cacheIndex ) {
-            privHist[cacheIndex*blockDim.x+threadIdx.x] = cacheValue;
-            cacheIndex = index;
-            cacheValue = privHist[index*blockDim.x+threadIdx.x];
-        }
-        cacheValue += increment;
-    }
-    else {
-        privHist[index*blockDim.x+threadIdx.x] += increment;
-    }
-}
-
-template<bool bCacheInRegister>
 __global__ void
 histogram1DPrivatizedPerThread32(
     unsigned int *pHist,
@@ -69,15 +48,13 @@ histogram1DPrivatizedPerThread32(
         privHist[i] = 0;
     }
     __syncthreads();
-    int cacheIndex = 0;
-    unsigned int cacheValue = 0;
     for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
               i < N;
               i += blockDim.x*gridDim.x ) {
-        incPrivatized32Element<bCacheInRegister>( base[i], cacheIndex, cacheValue );
-    }
-    if ( bCacheInRegister ) {
-        privHist[cacheIndex*blockDim.x+threadIdx.x] = cacheValue;
+        unsigned char pixval = base[i];
+        unsigned int increment = 1<<8*(pixval&3);
+        int index = pixval>>2;
+        privHist[index*blockDim.x+threadIdx.x] += increment;
     }
     __syncthreads();
 
@@ -109,7 +86,6 @@ histogram1DPrivatizedPerThread32(
 #endif
 }
 
-template<bool bCacheInRegister>
 void
 GPUhistogramPrivatizedPerThread32(
     float *ms,
@@ -130,7 +106,7 @@ GPUhistogramPrivatizedPerThread32(
     CUDART_CHECK( cudaMemset( pHist, 0, 256*sizeof(unsigned int) ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    histogram1DPrivatizedPerThread32<bCacheInRegister><<<numblocks,numthreads,numthreads*256>>>( pHist, dptrBase, w*h );
+    histogram1DPrivatizedPerThread32<<<numblocks,numthreads,numthreads*256>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
@@ -138,28 +114,4 @@ Error:
     cudaEventDestroy( start );
     cudaEventDestroy( stop );
     return;
-}
-
-void
-GPUhistogramPrivatizedPerThread32(
-    float *ms,
-    unsigned int *pHist,
-    const unsigned char *dptrBase, size_t dPitch,
-    int x, int y,
-    int w, int h, 
-    dim3 threads )
-{
-    GPUhistogramPrivatizedPerThread32<false>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
-}
-
-void
-GPUhistogramPrivatizedPerThread32_PCache(
-    float *ms,
-    unsigned int *pHist,
-    const unsigned char *dptrBase, size_t dPitch,
-    int x, int y,
-    int w, int h, 
-    dim3 threads )
-{
-    GPUhistogramPrivatizedPerThread32<true>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
 }
