@@ -3,7 +3,8 @@
  * histogramPrivatizedPerThread4x33.cuh
  *
  * This version is the same as histogramPrivatizedPerThread4x32.cuh,
- * but uses just one warp per block and 32 privatized histograms.
+ * but uses just one warp per block and 32 privatized histograms
+ * and pads the shared memory allocation to 33 elements per row.
  *
  * Requires: SM 1.2, for shared atomics.
  *
@@ -36,7 +37,6 @@
  *
  */
 
-// this function declared in histogramPrivatizedPerThread32.cuh
 template<bool bCacheInRegister, bool bCheckOverflow>
 inline __device__ void
 incPrivatized32Element4x33( unsigned int *pHist, unsigned int privHist[64][33], unsigned char pixval, int& cacheIndex, unsigned int& cacheValue )
@@ -133,6 +133,7 @@ histogram1DPrivatizedPerThread4x33(
     atomicAdd( &pHist[(threadIdx.x+32)*4+1], sum13&0xffff );
     sum13 >>= 16;
     atomicAdd( &pHist[(threadIdx.x+32)*4+3], sum13 );
+#endif
     
 #if 0
 // this works and there is still room for improvement (by having threads 32-63 of the block do half the work)
@@ -203,29 +204,7 @@ histogram1DPrivatizedPerThread4x33(
         }
     }
 #endif
-    
-#if 0
-    for ( int i = 0; i < 64; i++ ) {
-        unsigned int count = privHist[i*64/*blockDim.x*/+threadIdx.x];
-        atomicAdd( &pHist[i*4+0], count & 0xff );  count >>= 8;
-        atomicAdd( &pHist[i*4+1], count & 0xff );  count >>= 8;
-        atomicAdd( &pHist[i*4+2], count & 0xff );  count >>= 8;
-        atomicAdd( &pHist[i*4+3], count );
-    }
-#endif
-#else
-
-    for ( int i = threadIdx.x;
-              i < 64*blockDim.x;
-              i += blockDim.x ) {
-        int idx = i & 63;
-        unsigned int count = privHist[i];
-        atomicAdd( &pHist[idx*4+0], count & 0xff );  count >>= 8;
-        atomicAdd( &pHist[idx*4+1], count & 0xff );  count >>= 8;
-        atomicAdd( &pHist[idx*4+2], count & 0xff );  count >>= 8;
-        atomicAdd( &pHist[idx*4+3], count );
-    }
-#endif
+   
 }
 
 template<bool bCacheInRegister, bool bCheckOverflow>
