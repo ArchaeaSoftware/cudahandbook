@@ -1,6 +1,6 @@
 /*
  *
- * histogramNaiveAtomic.cuh
+ * histogramPerGrid.cuh
  *
  * Implementation of histogram that uses one global atomic per pixel.
  * This results in very data-dependent performance, as the hardware
@@ -42,7 +42,7 @@
  */
 
 __global__ void
-histogram1DNaiveAtomic(
+histogram1DPerGrid(
     unsigned int *pHist,
     const unsigned char *base, size_t N )
 {
@@ -58,7 +58,7 @@ histogram1DNaiveAtomic(
 }
 
 void
-GPUhistogramNaiveAtomic(
+GPUhistogramPerGrid(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -73,8 +73,8 @@ GPUhistogramNaiveAtomic(
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-//    histogramNaiveAtomic<<<blocks,threads>>>( pHist, w, h );
-    histogram1DNaiveAtomic<<<400, 256>>>( pHist, dptrBase, w*h );
+//    histogramPerGrid<<<blocks,threads>>>( pHist, w, h );
+    histogram1DPerGrid<<<400, 256>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );

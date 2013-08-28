@@ -62,7 +62,7 @@
 
 texture<unsigned char, 2> texImage;
 
-#include "histogramNaiveAtomic.cuh"
+#include "histogramPerGrid.cuh"
 #include "histogramPerBlock.cuh"
 #include "histogramPerBlockOffset.cuh"
 #include "histogramPerBlockReduce.cuh"
@@ -418,7 +418,7 @@ main(int argc, char *argv[])
 
     threads = dim3( 32, 8, 1 );
 
-    TEST_VECTOR( GPUhistogramNaiveAtomic, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPerGrid, false, 1, NULL );
     threads = dim3( 16, 4, 1 );
     TEST_VECTOR( GPUhistogramPerBlock, false, 1, NULL );
     TEST_VECTOR( GPUhistogramPerBlock4x, false, 1, NULL );
