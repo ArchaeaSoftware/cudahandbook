@@ -44,7 +44,7 @@ histogram1DPrivatizedPerBlock(
     unsigned int *pHist,
     const unsigned char *base, size_t N )
 {
-    __shared__ int sHist[256];
+    __shared__ int sHist[257];
     for ( int i = threadIdx.x;
               i < 256;
               i += blockDim.x ) {
