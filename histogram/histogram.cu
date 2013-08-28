@@ -63,9 +63,9 @@
 texture<unsigned char, 2> texImage;
 
 #include "histogramNaiveAtomic.cuh"
-#include "histogramPrivatizedPerBlock.cuh"
-#include "histogramPrivatizedPerBlockOffset.cuh"
-#include "histogramPrivatizedPerBlockReduce.cuh"
+#include "histogramPerBlock.cuh"
+#include "histogramPerBlockOffset.cuh"
+#include "histogramPerBlockReduce.cuh"
 #include "histogramPrivatizedPerThread.cuh"
 #include "histogramPrivatizedPerThread32.cuh"
 #include "histogramPrivatizedPerThread4x32.cuh"
@@ -420,13 +420,13 @@ main(int argc, char *argv[])
 
     TEST_VECTOR( GPUhistogramNaiveAtomic, false, 1, NULL );
     threads = dim3( 16, 4, 1 );
-    TEST_VECTOR( GPUhistogramPrivatizedPerBlock, false, 1, NULL );
-    TEST_VECTOR( GPUhistogramPrivatizedPerBlock4x, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPerBlock, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPerBlock4x, false, 1, NULL );
 
-    TEST_VECTOR( GPUhistogramPrivatizedPerBlockOffset, false, 1, NULL );
-    TEST_VECTOR( GPUhistogramPrivatizedPerBlock4xOffset, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPerBlockOffset, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPerBlock4xOffset, false, 1, NULL );
 
-    TEST_VECTOR( GPUhistogramPrivatizedPerBlockReduce, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPerBlockReduce, false, 1, NULL );
     threads = dim3( 16, 4, 1 );
     if ( ! bTesla ) {
         TEST_VECTOR( GPUhistogramPrivatizedPerThread, false, 1, NULL );
