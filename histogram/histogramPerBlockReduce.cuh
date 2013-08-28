@@ -40,12 +40,13 @@
 
 __device__ unsigned int tempHist[400][256];
 
+template<bool bOffset>
 __global__ void
 histogram1DPerBlockReduce(
     unsigned int *pHist,
     const unsigned char *base, size_t N )
 {
-    __shared__ int sHist[256];
+    __shared__ unsigned int sHist[256];
     for ( int i = threadIdx.x;
               i < 256;
               i += blockDim.x ) {
@@ -53,14 +54,19 @@ histogram1DPerBlockReduce(
     }
     __syncthreads();
     for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
-              i < N;
+              i < N/4;
               i += blockDim.x*gridDim.x ) {
-        atomicAdd( &sHist[ base[i] ], 1 );
+        unsigned int value = ((unsigned int *) base)[i];
+        incPerBlockHistogram<bOffset>( sHist, value & 0xff ); value >>= 8;
+        incPerBlockHistogram<bOffset>( sHist, value & 0xff ); value >>= 8;
+        incPerBlockHistogram<bOffset>( sHist, value & 0xff ); value >>= 8;
+        incPerBlockHistogram<bOffset>( sHist, value & 0xff ); 
     }
     __syncthreads();
     unsigned int *outputHist = &tempHist[blockIdx.x][0];
     for ( int i = threadIdx.x; i < 256; i += blockDim.x*blockDim.y ) {
-        outputHist[i] = sHist[i];
+        int srcIndex = (bOffset) ? 0xff&(i+blockIdx.x) : i;
+        outputHist[i] = sHist[srcIndex];
     }
 }
 
@@ -77,6 +83,7 @@ histogramPerBlockFinalReduction(
     pHist[threadIdx.x] = sum;
 }
 
+template<bool bOffset>
 void
 GPUhistogramPerBlockReduce(
     float *ms,
@@ -99,7 +106,7 @@ GPUhistogramPerBlockReduce(
         CUDART_CHECK( cudaGetSymbolAddress( &ptempHist, tempHist ) );
         CUDART_CHECK( cudaMemset( ptempHist, 0, sizeof(tempHist ) ) );
     }
-    histogram1DPerBlockReduce<<<240,threads.x*threads.y>>>( pHist, dptrBase, w*h );
+    histogram1DPerBlockReduce<bOffset><<<240,threads.x*threads.y>>>( pHist, dptrBase, w*h );
     histogramPerBlockFinalReduction<<<1,256>>>( pHist, 240 );
     
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
@@ -109,4 +116,28 @@ Error:
     cudaEventDestroy( start );
     cudaEventDestroy( stop );
     return;
+}
+
+void
+GPUhistogramPerBlockReduce(
+    float *ms,
+    unsigned int *pHist,
+    const unsigned char *dptrBase, size_t dPitch,
+    int x, int y,
+    int w, int h, 
+    dim3 threads )
+{
+    GPUhistogramPerBlockReduce<false>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
+}
+
+void
+GPUhistogramPerBlockReduceOffset(
+    float *ms,
+    unsigned int *pHist,
+    const unsigned char *dptrBase, size_t dPitch,
+    int x, int y,
+    int w, int h, 
+    dim3 threads )
+{
+    GPUhistogramPerBlockReduce<true>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
 }

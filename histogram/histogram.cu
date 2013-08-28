@@ -427,6 +427,7 @@ main(int argc, char *argv[])
     TEST_VECTOR( GPUhistogramPerBlock4xOffset, false, 1, NULL );
 
     TEST_VECTOR( GPUhistogramPerBlockReduce, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPerBlockReduceOffset, false, 1, NULL );
     threads = dim3( 16, 4, 1 );
     if ( ! bTesla ) {
         TEST_VECTOR( GPUhistogramPrivatizedPerThread, false, 1, NULL );
