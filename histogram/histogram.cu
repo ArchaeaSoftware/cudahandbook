@@ -64,6 +64,7 @@ texture<unsigned char, 2> texImage;
 
 #include "histogramNaiveAtomic.cuh"
 #include "histogramPrivatizedPerBlock.cuh"
+#include "histogramPrivatizedPerBlockOffset.cuh"
 #include "histogramPrivatizedPerBlockPCache.cuh"
 #include "histogramPrivatizedPerBlockPCache2.cuh"
 #include "histogramPrivatizedPerBlockReduce.cuh"
@@ -423,6 +424,9 @@ main(int argc, char *argv[])
     threads = dim3( 16, 4, 1 );
     TEST_VECTOR( GPUhistogramPrivatizedPerBlock, false, 1, NULL );
     TEST_VECTOR( GPUhistogramPrivatizedPerBlock4x, false, 1, NULL );
+
+    TEST_VECTOR( GPUhistogramPrivatizedPerBlockOffset, false, 1, NULL );
+    TEST_VECTOR( GPUhistogramPrivatizedPerBlock4xOffset, false, 1, NULL );
 
     TEST_VECTOR( GPUhistogramPrivatizedPerBlockPCache, false, 1, NULL );
     TEST_VECTOR( GPUhistogramPrivatizedPerBlockPCache2, false, 1, NULL );
