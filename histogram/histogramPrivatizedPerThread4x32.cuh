@@ -48,7 +48,7 @@ incPrivatized32Element4x( unsigned int *pHist, unsigned char pixval, int& cacheI
     extern __shared__ unsigned int privHist[];
     unsigned int increment = 1<<8*(pixval&3);
     int index = pixval>>2;
-    unsigned int value = privHist[index*blockDim.x+threadIdx.x];
+    unsigned int value = privHist[index*HISTOGRAM_PRIVATIZED_NUMTHREADS+threadIdx.x];
     value += increment;
     if ( bCheckOverflow ) {
         if ( value & 0x80808080 ) {
@@ -56,7 +56,7 @@ incPrivatized32Element4x( unsigned int *pHist, unsigned char pixval, int& cacheI
         }
         value &= 0x7f7f7f7f;
     }
-    privHist[index*blockDim.x+threadIdx.x] = value;
+    privHist[index*HISTOGRAM_PRIVATIZED_NUMTHREADS+threadIdx.x] = value;
 }
 
 template<bool bCheckOverflow>
@@ -67,16 +67,16 @@ histogram1DPrivatizedPerThread4x32(
 {
     extern __shared__ unsigned int privHist[];
     for ( int i = threadIdx.x;
-              i < 64*blockDim.x;
-              i += blockDim.x ) {
+              i < 64*HISTOGRAM_PRIVATIZED_NUMTHREADS;
+              i += HISTOGRAM_PRIVATIZED_NUMTHREADS ) {
         privHist[i] = 0;
     }
     __syncthreads();
     int cacheIndex = 0;
     unsigned int cacheValue = 0;
-    for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
+    for ( int i = blockIdx.x*HISTOGRAM_PRIVATIZED_NUMTHREADS+threadIdx.x;
               i < N/4;
-              i += blockDim.x*gridDim.x ) {
+              i += HISTOGRAM_PRIVATIZED_NUMTHREADS*gridDim.x ) {
         unsigned int value = ((unsigned int *) base)[i];
         incPrivatized32Element4x<bCheckOverflow>( pHist, value & 0xff, cacheIndex, cacheValue ); value >>= 8;
         incPrivatized32Element4x<bCheckOverflow>( pHist, value & 0xff, cacheIndex, cacheValue ); value >>= 8;

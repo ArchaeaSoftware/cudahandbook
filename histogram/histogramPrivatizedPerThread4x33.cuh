@@ -37,6 +37,8 @@
  *
  */
 
+#define HISTOGRAM_PRIVATIZED_NUMTHREADS33 32
+
 template<bool bCacheInRegister, bool bCheckOverflow>
 inline __device__ void
 incPrivatized32Element4x33( unsigned int *pHist, unsigned int privHist[64][33], unsigned char pixval, int& cacheIndex, unsigned int& cacheValue )
@@ -84,9 +86,9 @@ histogram1DPrivatizedPerThread4x33(
     __syncthreads();
     int cacheIndex = 0;
     unsigned int cacheValue = 0;
-    for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
+    for ( int i = blockIdx.x*HISTOGRAM_PRIVATIZED_NUMTHREADS33+threadIdx.x;
               i < N/4;
-              i += blockDim.x*gridDim.x ) {
+              i += HISTOGRAM_PRIVATIZED_NUMTHREADS33*gridDim.x ) {
         unsigned int value = ((unsigned int *) base)[i];
         incPrivatized32Element4x33<bCacheInRegister, bCheckOverflow>( pHist, privHist, value & 0xff, cacheIndex, cacheValue ); value >>= 8;
         incPrivatized32Element4x33<bCacheInRegister, bCheckOverflow>( pHist, privHist, value & 0xff, cacheIndex, cacheValue ); value >>= 8;

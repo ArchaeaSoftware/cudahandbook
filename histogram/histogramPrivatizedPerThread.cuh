@@ -37,6 +37,8 @@
  *
  */
 
+#define HISTOGRAM_PRIVATIZED_NUMTHREADS 64
+
 __global__ void
 histogram1DPrivatizedPerThread(
     unsigned int *pHist,
@@ -47,14 +49,14 @@ histogram1DPrivatizedPerThread(
     unsigned char *myHist = privatizedHist+256*threadIdx.x;
     for ( int i = threadIdx.x;
               i < 256;
-              i += blockDim.x ) {
+              i += HISTOGRAM_PRIVATIZED_NUMTHREADS ) {
         sHist[i] = 0;
     }
     for ( int i = 0; i < 256; i++ ) myHist[i] = 0;
     __syncthreads();
-    for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
+    for ( int i = blockIdx.x*HISTOGRAM_PRIVATIZED_NUMTHREADS+threadIdx.x;
               i < N;
-              i += blockDim.x*gridDim.x ) {
+              i += HISTOGRAM_PRIVATIZED_NUMTHREADS*gridDim.x ) {
         myHist[ base[i] ] += 1;
     }
     __syncthreads();
@@ -65,7 +67,7 @@ histogram1DPrivatizedPerThread(
     __syncthreads();
     for ( int i = threadIdx.x;
               i < 256;
-              i += blockDim.x ) {
+              i += HISTOGRAM_PRIVATIZED_NUMTHREADS ) {
         atomicAdd( &pHist[i], sHist[i] );
     }
       
@@ -89,7 +91,7 @@ GPUhistogramPrivatizedPerThread(
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    histogram1DPrivatizedPerThread<<<cBlocks,numthreads,numthreads*256>>>( pHist, dptrBase, w*h );
+    histogram1DPrivatizedPerThread<<<cBlocks,HISTOGRAM_PRIVATIZED_NUMTHREADS,numthreads*256>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
