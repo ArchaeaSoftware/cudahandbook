@@ -433,8 +433,14 @@ main(int argc, char *argv[])
         TEST_VECTOR( GPUhistogramPrivatizedPerThread, false, 1, NULL );
         TEST_VECTOR( GPUhistogramPrivatizedPerThread32, false, 1, NULL );
 
-        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32, false, 1, NULL );
-        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_CheckOverflow, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_RRSM, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_CheckOverflow_RRSM, false, 1, NULL );
+
+        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_RRShuf, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_CheckOverflow_RRShuf, false, 1, NULL );
+
+        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_WE, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_CheckOverflow_WE, false, 1, NULL );
 
         TEST_VECTOR( GPUhistogramPrivatizedPerThread4x33, false, 1, NULL );
         TEST_VECTOR( GPUhistogramPrivatizedPerThread4x33_CheckOverflow, false, 1, NULL );
