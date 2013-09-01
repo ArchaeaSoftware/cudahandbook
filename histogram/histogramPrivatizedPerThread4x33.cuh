@@ -37,7 +37,7 @@
  *
  */
 
-template<bool bCheckOverflow>
+template<bool bAvoidOverflow>
 inline __device__ void
 incPrivatized32Element4x33( unsigned int *pHist, unsigned int privHist[64][32], unsigned char pixval )
 {
@@ -45,7 +45,7 @@ incPrivatized32Element4x33( unsigned int *pHist, unsigned int privHist[64][32], 
     int index = pixval>>2;
     unsigned int value = privHist[index][threadIdx.x];
     value += increment;
-    if ( bCheckOverflow ) {
+    if ( bAvoidOverflow ) {
         if ( value & 0x80808080 ) {
             atomicAdd( pHist+pixval, 0x80 );
         }
@@ -55,6 +55,7 @@ incPrivatized32Element4x33( unsigned int *pHist, unsigned int privHist[64][32], 
 }
 
 
+template<bool bClear>
 __device__ void
 finalizeHistograms32( unsigned int *pHist, unsigned int privHist[64][32] )
 {
@@ -68,6 +69,10 @@ finalizeHistograms32( unsigned int *pHist, unsigned int privHist[64][32] )
         int index = (i+threadIdx.x)&0x1f;
         unsigned int myValue0 = privHist[threadIdx.x+ 0][index];
         unsigned int myValue1 = privHist[threadIdx.x+32][index];
+        if ( bClear ) {
+            privHist[threadIdx.x+ 0][index] = 0;
+            privHist[threadIdx.x+32][index] = 0;
+        }
         sum02[0] += myValue0 & 0xff00ff;
         myValue0 >>= 8;
         sum13[0] += myValue0 & 0xff00ff;
@@ -97,7 +102,7 @@ finalizeHistograms32( unsigned int *pHist, unsigned int privHist[64][32] )
 
 }
 
-template<bool bCheckOverflow>
+template<bool bAvoidOverflow>
 __global__ void
 histogram1DPrivatizedPerThread4x33(
     unsigned int *pHist,
@@ -113,21 +118,28 @@ histogram1DPrivatizedPerThread4x33(
         privHist[threadIdx.x+32][i] = 0;
     }
     __syncthreads();
+    int cIterations = 0;
     for ( int i = blockIdx.x*blockDimx+threadIdx.x;
               i < N/4;
               i += blockDimx*gridDim.x ) {
         unsigned int value = ((unsigned int *) base)[i];
-        incPrivatized32Element4x33<bCheckOverflow>( pHist, privHist, value & 0xff ); value >>= 8;
-        incPrivatized32Element4x33<bCheckOverflow>( pHist, privHist, value & 0xff ); value >>= 8;
-        incPrivatized32Element4x33<bCheckOverflow>( pHist, privHist, value & 0xff ); value >>= 8;
-        incPrivatized32Element4x33<bCheckOverflow>( pHist, privHist, value );
+        incPrivatized32Element4x33<false>( pHist, privHist, value & 0xff ); value >>= 8;
+        incPrivatized32Element4x33<false>( pHist, privHist, value & 0xff ); value >>= 8;
+        incPrivatized32Element4x33<false>( pHist, privHist, value & 0xff ); value >>= 8;
+        incPrivatized32Element4x33<false>( pHist, privHist, value );
+        cIterations += 1;
+        if ( bAvoidOverflow && cIterations>=252/4 ) {
+            cIterations = 0;
+            __syncthreads();
+            finalizeHistograms32<true>( pHist, privHist );
+        }
     }
     __syncthreads();
 
-    finalizeHistograms32( pHist, privHist );
+    finalizeHistograms32<false>( pHist, privHist );
 }
 
-template<bool bCheckOverflow>
+template<bool bAvoidOverflow>
 void
 GPUhistogramPrivatizedPerThread4x33(
     float *ms,
@@ -140,7 +152,7 @@ GPUhistogramPrivatizedPerThread4x33(
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
     int numthreads = threads.x*threads.y;
-    int numblocks = bCheckOverflow ? 256 : INTDIVIDE_CEILING( w*h, numthreads*(255/4) );
+    int numblocks = bAvoidOverflow ? 256 : INTDIVIDE_CEILING( w*h, numthreads*(255/4) );
 
     CUDART_CHECK( cudaEventCreate( &start, 0 ) );
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
@@ -148,7 +160,7 @@ GPUhistogramPrivatizedPerThread4x33(
     CUDART_CHECK( cudaMemset( pHist, 0, 256*sizeof(unsigned int) ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    histogram1DPrivatizedPerThread4x33<bCheckOverflow><<<numblocks,32>>>( pHist, dptrBase, w*h );
+    histogram1DPrivatizedPerThread4x33<bAvoidOverflow><<<numblocks,32>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
@@ -171,7 +183,7 @@ GPUhistogramPrivatizedPerThread4x33(
 }
 
 void
-GPUhistogramPrivatizedPerThread4x33_CheckOverflow(
+GPUhistogramPrivatizedPerThread4x33_AvoidOverflow(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
