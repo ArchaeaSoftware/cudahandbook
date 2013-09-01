@@ -42,11 +42,7 @@
 
 template<bool bCheckOverflow>
 inline __device__ void
-incPrivatized32Element4x( 
-    unsigned int *pHist, 
-    unsigned char pixval, 
-    int& cacheIndex, 
-    unsigned int& cacheValue )
+incPrivatized32Element4x( unsigned int *pHist, unsigned char pixval )
 {
     extern __shared__ unsigned int privHist[];
     const int blockDimx = 64;
@@ -104,16 +100,14 @@ histogram1DPrivatizedPerThread4x32(
         privHist[i] = 0;
     }
     __syncthreads();
-    int cacheIndex = 0;
-    unsigned int cacheValue = 0;
     for ( int i = blockIdx.x*HISTOGRAM_PRIVATIZED_NUMTHREADS+threadIdx.x;
               i < N/4;
               i += HISTOGRAM_PRIVATIZED_NUMTHREADS*gridDim.x ) {
         unsigned int value = ((unsigned int *) base)[i];
-        incPrivatized32Element4x<bCheckOverflow>( pHist, value & 0xff, cacheIndex, cacheValue ); value >>= 8;
-        incPrivatized32Element4x<bCheckOverflow>( pHist, value & 0xff, cacheIndex, cacheValue ); value >>= 8;
-        incPrivatized32Element4x<bCheckOverflow>( pHist, value & 0xff, cacheIndex, cacheValue ); value >>= 8;
-        incPrivatized32Element4x<bCheckOverflow>( pHist, value, cacheIndex, cacheValue );
+        incPrivatized32Element4x<bCheckOverflow>( pHist, value & 0xff ); value >>= 8;
+        incPrivatized32Element4x<bCheckOverflow>( pHist, value & 0xff ); value >>= 8;
+        incPrivatized32Element4x<bCheckOverflow>( pHist, value & 0xff ); value >>= 8;
+        incPrivatized32Element4x<bCheckOverflow>( pHist, value );
     }
     __syncthreads();
 
