@@ -340,7 +340,7 @@ main(int argc, char *argv[])
             CUDART_CHECK( cudaMallocPitch( &didata, &dPitch, padWidth, padHeight ) );
             DevicePitch = dPitch;
 
-            srand(42);
+            srand(time(NULL));
             for ( int row = 0; row < h; row++ ) {
                 unsigned char *p = hidata+row*w;
                 for ( int col = 0; col < w; col++ ) {
