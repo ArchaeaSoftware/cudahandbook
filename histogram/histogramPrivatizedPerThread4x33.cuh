@@ -39,7 +39,7 @@
 
 template<bool bCheckOverflow>
 inline __device__ void
-incPrivatized32Element4x33( unsigned int *pHist, unsigned int privHist[64][33], unsigned char pixval )
+incPrivatized32Element4x33( unsigned int *pHist, unsigned int privHist[64][32], unsigned char pixval )
 {
     unsigned int increment = 1<<8*(pixval&3);
     int index = pixval>>2;
@@ -56,7 +56,7 @@ incPrivatized32Element4x33( unsigned int *pHist, unsigned int privHist[64][33], 
 
 
 __device__ void
-finalizeHistograms32_WorkEfficient( unsigned int *pHist, unsigned int privHist[64][33] )
+finalizeHistograms32_WorkEfficient( unsigned int *pHist, unsigned int privHist[64][32] )
 {
     unsigned int sum02[2];
     unsigned int sum13[2];
@@ -65,8 +65,9 @@ finalizeHistograms32_WorkEfficient( unsigned int *pHist, unsigned int privHist[6
     sum13[0] = sum13[1] = 0;
 
     for ( int i = 0; i < 32; i++ ) {
-        unsigned int myValue0 = privHist[threadIdx.x+ 0][i];
-        unsigned int myValue1 = privHist[threadIdx.x+32][i];
+        int index = (i+threadIdx.x)&0x1f;
+        unsigned int myValue0 = privHist[threadIdx.x+ 0][index];
+        unsigned int myValue1 = privHist[threadIdx.x+32][index];
         sum02[0] += myValue0 & 0xff00ff;
         myValue0 >>= 8;
         sum13[0] += myValue0 & 0xff00ff;
@@ -102,12 +103,12 @@ histogram1DPrivatizedPerThread4x33(
     unsigned int *pHist,
     const unsigned char *base, size_t N )
 {
-    __shared__ unsigned int privHist[64][33];
+    __shared__ unsigned int privHist[64][32];
     const int blockDimx = 32;
 
     if ( blockDim.x != blockDimx ) return;
 
-    for ( int i = 0; i < 33; i++ ) {
+    for ( int i = 0; i < 32; i++ ) {
         privHist[threadIdx.x][i] = 0;
         privHist[threadIdx.x+32][i] = 0;
     }

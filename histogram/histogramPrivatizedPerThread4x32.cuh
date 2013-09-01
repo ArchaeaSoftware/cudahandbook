@@ -77,7 +77,8 @@ finalizeHistograms64_WorkEfficient( unsigned int *pHist )
     unsigned int sum02 = 0;
     unsigned int sum13 = 0;
     for ( int i = 0; i < 64; i++ ) {
-        unsigned int myValue = privHist[threadIdx.x*64+i];
+        int index = (i+threadIdx.x)&63;
+        unsigned int myValue = privHist[threadIdx.x*64+index];
         sum02 += myValue & 0xff00ff;
         myValue >>= 8;
         sum13 += myValue & 0xff00ff;
