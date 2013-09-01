@@ -63,14 +63,8 @@ incPrivatized32Element4x(
     privHist[index*blockDimx+threadIdx.x] = value;
 }
 
-typedef enum HistogramReduction_enum {
-    histogramReduction_RowReduce_SharedMem = 1,
-    histogramReduction_RowReduce_Shuffle = 2,
-    histogramReduction_WorkEfficient = 3
-} HistogramReduction;
-
 __device__ void
-finalizeHistograms64_WorkEfficient( unsigned int *pHist )
+finalizeHistograms64( unsigned int *pHist )
 {
     extern __shared__ unsigned int privHist[];
 
@@ -93,81 +87,7 @@ finalizeHistograms64_WorkEfficient( unsigned int *pHist )
     atomicAdd( &pHist[threadIdx.x*4+3], sum13 );
 }
 
-__device__ void
-finalizeHistograms64_RowReduceSharedMemory( unsigned int *pHist )
-{
-    extern __shared__ unsigned int privHist[];
-
-    for ( int i = 0; i < 64; i++ ) {
-        unsigned int sum;
-        volatile unsigned int *histBase = &privHist[i*64+threadIdx.x];
-        unsigned int myValue = histBase[0];
-        unsigned int upperValue;
-        if ( threadIdx.x < 32 ) {
-            upperValue = histBase[32];
-            histBase[ 0] = (myValue & 0xff00ff) + (upperValue & 0xff00ff);
-            myValue >>= 8; upperValue >>= 8;
-            histBase[32] = (myValue & 0xff00ff) + (upperValue & 0xff00ff);
-        }
-        __syncthreads();
-        int offset = threadIdx.x<32 ? 16 : -16;
-        histBase[0] += histBase[offset]; offset >>= 1;
-        histBase[0] += histBase[offset]; offset >>= 1;
-        histBase[0] += histBase[offset]; offset >>= 1;
-        histBase[0] += histBase[offset]; offset >>= 1;
-        sum = histBase[0] + histBase[offset];
-        if ( threadIdx.x==0 ) atomicAdd( &pHist[i*4+0], sum&0xffff );
-        if ( threadIdx.x==63 ) atomicAdd( &pHist[i*4+1], sum&0xffff );
-        sum >>= 16;
-        if ( threadIdx.x==0 ) atomicAdd( &pHist[i*4+2], sum&0xffff );
-        if (threadIdx.x==63) atomicAdd( &pHist[i*4+3], sum&0xffff );
-    }
-}
-
-__device__ void
-finalizeHistograms64_RowReduceShuffle( unsigned int *pHist )
-{
-    extern __shared__ unsigned int privHist[];
-
-    // Using warp shuffle to do the reduction is actually slower.
-    // (whether we do two atomic adds per warp, as below, or isolate
-    // to a single warp and do the reduction and two atomic adds from
-    // the one warp).
-    for ( int i = 0; i < 64; i++ ) {
-        volatile unsigned int *histBase = &privHist[i*64+threadIdx.x];
-        unsigned int myValue = histBase[0];
-        int sum02, sum13;
-        sum02 = myValue & 0xff00ff;
-        myValue >>= 8;
-        sum13 = myValue & 0xff00ff;
-        
-        sum02 += __shfl_xor( sum02, 16 );
-        sum02 += __shfl_xor( sum02,  8 );
-        sum02 += __shfl_xor( sum02,  4 );
-        sum02 += __shfl_xor( sum02,  2 );
-        sum02 += __shfl_xor( sum02,  1 );
-        
-        if ( (threadIdx.x&31) == 0 ) {
-            if ( sum02&0xffff ) atomicAdd( &pHist[i*4+0], sum02&0xffff );
-            sum02 >>= 16;
-            if ( sum02 ) atomicAdd( &pHist[i*4+2], sum02 );
-        }
-
-        sum13 += __shfl_xor( sum13, 16 );
-        sum13 += __shfl_xor( sum13,  8 );
-        sum13 += __shfl_xor( sum13,  4 );
-        sum13 += __shfl_xor( sum13,  2 );
-        sum13 += __shfl_xor( sum13,  1 );
-        
-        if ( (threadIdx.x&31) == 0 ) {
-            if ( sum13&0xffff ) atomicAdd( &pHist[i*4+1], sum13&0xffff );
-            sum13 >>= 16;
-            if ( sum13 ) atomicAdd( &pHist[i*4+3], sum13 );
-        }
-    }
-}
-
-template<bool bCheckOverflow, HistogramReduction reductionType >
+template<bool bCheckOverflow>
 __global__ void
 histogram1DPrivatizedPerThread4x32(
     unsigned int *pHist,
@@ -197,22 +117,10 @@ histogram1DPrivatizedPerThread4x32(
     }
     __syncthreads();
 
-    switch ( reductionType ) {
-        case histogramReduction_RowReduce_SharedMem:
-            finalizeHistograms64_RowReduceSharedMemory( pHist );
-            break;
-            
-        case histogramReduction_RowReduce_Shuffle:
-            finalizeHistograms64_RowReduceShuffle( pHist );
-            break;
-            
-        case histogramReduction_WorkEfficient: 
-            finalizeHistograms64_WorkEfficient( pHist );
-            break;
-    }
+    finalizeHistograms64( pHist );
 }
 
-template<bool bCheckOverflow, HistogramReduction reductionType >
+template<bool bCheckOverflow>
 void
 GPUhistogramPrivatizedPerThread4x32(
     float *ms,
@@ -233,7 +141,7 @@ GPUhistogramPrivatizedPerThread4x32(
     CUDART_CHECK( cudaMemset( pHist, 0, 256*sizeof(unsigned int) ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    histogram1DPrivatizedPerThread4x32<bCheckOverflow, reductionType><<<numblocks,numthreads,numthreads*256>>>( pHist, dptrBase, w*h );
+    histogram1DPrivatizedPerThread4x32<bCheckOverflow><<<numblocks,numthreads,numthreads*256>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
@@ -244,7 +152,7 @@ Error:
 }
 
 void
-GPUhistogramPrivatizedPerThread4x32_RRSM(
+GPUhistogramPrivatizedPerThread4x32(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -252,11 +160,11 @@ GPUhistogramPrivatizedPerThread4x32_RRSM(
     int w, int h, 
     dim3 threads )
 {
-    GPUhistogramPrivatizedPerThread4x32<false, histogramReduction_RowReduce_SharedMem>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
+    GPUhistogramPrivatizedPerThread4x32<false>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
 }
 
 void
-GPUhistogramPrivatizedPerThread4x32_CheckOverflow_RRSM(
+GPUhistogramPrivatizedPerThread4x32_CheckOverflow(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -264,53 +172,5 @@ GPUhistogramPrivatizedPerThread4x32_CheckOverflow_RRSM(
     int w, int h, 
     dim3 threads )
 {
-    GPUhistogramPrivatizedPerThread4x32<false, histogramReduction_RowReduce_SharedMem>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
-}
-
-void
-GPUhistogramPrivatizedPerThread4x32_RRShuf(
-    float *ms,
-    unsigned int *pHist,
-    const unsigned char *dptrBase, size_t dPitch,
-    int x, int y,
-    int w, int h, 
-    dim3 threads )
-{
-    GPUhistogramPrivatizedPerThread4x32<false, histogramReduction_RowReduce_Shuffle>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
-}
-
-void
-GPUhistogramPrivatizedPerThread4x32_CheckOverflow_RRShuf(
-    float *ms,
-    unsigned int *pHist,
-    const unsigned char *dptrBase, size_t dPitch,
-    int x, int y,
-    int w, int h, 
-    dim3 threads )
-{
-    GPUhistogramPrivatizedPerThread4x32<false, histogramReduction_RowReduce_Shuffle>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
-}
-
-void
-GPUhistogramPrivatizedPerThread4x32_WE(
-    float *ms,
-    unsigned int *pHist,
-    const unsigned char *dptrBase, size_t dPitch,
-    int x, int y,
-    int w, int h, 
-    dim3 threads )
-{
-    GPUhistogramPrivatizedPerThread4x32<false, histogramReduction_WorkEfficient>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
-}
-
-void
-GPUhistogramPrivatizedPerThread4x32_CheckOverflow_WE(
-    float *ms,
-    unsigned int *pHist,
-    const unsigned char *dptrBase, size_t dPitch,
-    int x, int y,
-    int w, int h, 
-    dim3 threads )
-{
-    GPUhistogramPrivatizedPerThread4x32<false, histogramReduction_WorkEfficient>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
+    GPUhistogramPrivatizedPerThread4x32<true>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
 }

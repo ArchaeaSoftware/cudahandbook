@@ -56,7 +56,7 @@ incPrivatized32Element4x33( unsigned int *pHist, unsigned int privHist[64][32], 
 
 
 __device__ void
-finalizeHistograms32_WorkEfficient( unsigned int *pHist, unsigned int privHist[64][32] )
+finalizeHistograms32( unsigned int *pHist, unsigned int privHist[64][32] )
 {
     unsigned int sum02[2];
     unsigned int sum13[2];
@@ -124,7 +124,7 @@ histogram1DPrivatizedPerThread4x33(
     }
     __syncthreads();
 
-    finalizeHistograms32_WorkEfficient( pHist, privHist );
+    finalizeHistograms32( pHist, privHist );
 }
 
 template<bool bCheckOverflow>
