@@ -103,9 +103,9 @@ histogram1DPrivatizedPerThread4x32(
     }
     __syncthreads();
     int cIterations = 0;
-    for ( int i = blockIdx.x*HISTOGRAM_PRIVATIZED_NUMTHREADS+threadIdx.x;
+    for ( int i = blockIdx.x*blockDimx+threadIdx.x;
               i < N/4;
-              i += HISTOGRAM_PRIVATIZED_NUMTHREADS*gridDim.x ) {
+              i += blockDimx*gridDim.x ) {
         unsigned int value = ((unsigned int *) base)[i];
         incPrivatized32Element4x<false>( pHist, value & 0xff ); value >>= 8;
         incPrivatized32Element4x<false>( pHist, value & 0xff ); value >>= 8;
