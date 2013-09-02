@@ -59,32 +59,6 @@ incPrivatized32Element4x( unsigned int *pHist, unsigned char pixval )
     privHist[index*blockDimx+threadIdx.x] = value;
 }
 
-template<bool bClear>
-__device__ void
-finalizeHistograms64( unsigned int *pHist )
-{
-    extern __shared__ unsigned int privHist[];
-
-    unsigned int sum02 = 0;
-    unsigned int sum13 = 0;
-    for ( int i = 0; i < 64; i++ ) {
-        int index = (i+threadIdx.x)&63;
-        unsigned int myValue = privHist[threadIdx.x*64+index];
-        if ( bClear ) privHist[threadIdx.x*64+index] = 0;
-        sum02 += myValue & 0xff00ff;
-        myValue >>= 8;
-        sum13 += myValue & 0xff00ff;
-    }
-    
-    atomicAdd( &pHist[threadIdx.x*4+0], sum02&0xffff );
-    sum02 >>= 16;
-    atomicAdd( &pHist[threadIdx.x*4+2], sum02 );
-
-    atomicAdd( &pHist[threadIdx.x*4+1], sum13&0xffff );
-    sum13 >>= 16;
-    atomicAdd( &pHist[threadIdx.x*4+3], sum13 );
-}
-
 template<bool bAvoidOverflow>
 __global__ void
 histogram1DPrivatizedPerThread4x32(

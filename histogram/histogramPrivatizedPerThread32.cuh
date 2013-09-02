@@ -36,6 +36,32 @@
  *
  */
 
+template<bool bClear>
+__device__ void
+finalizeHistograms64( unsigned int *pHist )
+{
+    extern __shared__ unsigned int privHist[];
+
+    unsigned int sum02 = 0;
+    unsigned int sum13 = 0;
+    for ( int i = 0; i < 64; i++ ) {
+        int index = (i+threadIdx.x)&63;
+        unsigned int myValue = privHist[threadIdx.x*64+index];
+        if ( bClear ) privHist[threadIdx.x*64+index] = 0;
+        sum02 += myValue & 0xff00ff;
+        myValue >>= 8;
+        sum13 += myValue & 0xff00ff;
+    }
+    
+    atomicAdd( &pHist[threadIdx.x*4+0], sum02&0xffff );
+    sum02 >>= 16;
+    atomicAdd( &pHist[threadIdx.x*4+2], sum02 );
+
+    atomicAdd( &pHist[threadIdx.x*4+1], sum13&0xffff );
+    sum13 >>= 16;
+    atomicAdd( &pHist[threadIdx.x*4+3], sum13 );
+}
+
 __global__ void
 histogram1DPrivatizedPerThread32(
     unsigned int *pHist,
@@ -58,32 +84,7 @@ histogram1DPrivatizedPerThread32(
     }
     __syncthreads();
 
-#if 1
-    for ( int i = 0; i < 64; i++ ) {
-        unsigned int sum;
-        volatile unsigned int *histBase = &privHist[i*64+threadIdx.x];
-        unsigned int myValue = histBase[0];
-        unsigned int upperValue;
-        if ( threadIdx.x < 32 ) {
-            upperValue = histBase[32];
-            histBase[ 0] = (myValue & 0xff00ff) + (upperValue & 0xff00ff);
-            myValue >>= 8; upperValue >>= 8;
-            histBase[32] = (myValue & 0xff00ff) + (upperValue & 0xff00ff);
-        }
-        __syncthreads();
-        int offset = threadIdx.x<32 ? 16 : -16;
-        histBase[0] += histBase[offset]; offset >>= 1;
-        histBase[0] += histBase[offset]; offset >>= 1;
-        histBase[0] += histBase[offset]; offset >>= 1;
-        histBase[0] += histBase[offset]; offset >>= 1;
-        sum = histBase[0] + histBase[offset];
-        if ( threadIdx.x==0 ) atomicAdd( &pHist[i*4+0], sum&0xffff );
-        if ( threadIdx.x==63 ) atomicAdd( &pHist[i*4+1], sum&0xffff );
-        sum >>= 16;
-        if ( threadIdx.x==0 ) atomicAdd( &pHist[i*4+2], sum&0xffff );
-        if (threadIdx.x==63) atomicAdd( &pHist[i*4+3], sum&0xffff );
-    }
-#endif
+    finalizeHistograms64<false>( pHist );
 }
 
 void
