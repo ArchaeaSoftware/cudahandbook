@@ -431,10 +431,10 @@ main(int argc, char *argv[])
         TEST_VECTOR( GPUhistogramPrivatizedPerThread32, false, 1, NULL );
 
         TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32, false, 1, NULL );
-        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_AvoidOverflow, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_PeriodicMerge, false, 1, NULL );
 
         TEST_VECTOR( GPUhistogramPrivatizedPerThread4x33, false, 1, NULL );
-        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x33_AvoidOverflow, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x33_PeriodicMerge, false, 1, NULL );
     }
 
     TEST_VECTOR( GPUhistogramNPP, false, 1, NULL );

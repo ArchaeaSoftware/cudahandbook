@@ -122,7 +122,7 @@ GPUhistogramPrivatizedPerThread4x32(
 }
 
 void
-GPUhistogramPrivatizedPerThread4x32_AvoidOverflow(
+GPUhistogramPrivatizedPerThread4x32_PeriodicMerge(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
