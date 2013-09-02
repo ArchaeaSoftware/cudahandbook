@@ -66,9 +66,9 @@ texture<unsigned char, 2> texImage;
 #include "histogramPerBlock.cuh"
 #include "histogramPerBlockOffset.cuh"
 #include "histogramPerBlockReduce.cuh"
-#include "histogramPrivatizedPerThread32.cuh"
-#include "histogramPrivatizedPerThread4x32.cuh"
-#include "histogramPrivatizedPerThread4x33.cuh"
+#include "histogramPerThread64.cuh"
+#include "histogramPerThread4x64.cuh"
+#include "histogramPerThread4x32.cuh"
 
 #include "histogramNPP.cuh"
 
@@ -428,13 +428,13 @@ main(int argc, char *argv[])
     TEST_VECTOR( GPUhistogramPerBlockReduceOffset, false, 1, NULL );
     threads = dim3( 16, 4, 1 );
     if ( ! bTesla ) {
-        TEST_VECTOR( GPUhistogramPrivatizedPerThread32, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPerThread64, false, 1, NULL );
 
-        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32, false, 1, NULL );
-        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x32_PeriodicMerge, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPerThread4x64, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPerThread4x64_PeriodicMerge, false, 1, NULL );
 
-        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x33, false, 1, NULL );
-        TEST_VECTOR( GPUhistogramPrivatizedPerThread4x33_PeriodicMerge, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPerThread4x32, false, 1, NULL );
+        TEST_VECTOR( GPUhistogramPerThread4x32_PeriodicMerge, false, 1, NULL );
     }
 
     TEST_VECTOR( GPUhistogramNPP, false, 1, NULL );

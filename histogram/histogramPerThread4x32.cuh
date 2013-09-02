@@ -1,8 +1,8 @@
 /*
  *
- * histogramPrivatizedPerThread4x33.cuh
+ * histogramPerThread4x32.cuh
  *
- * This version is the same as histogramPrivatizedPerThread4x32.cuh,
+ * This version is the same as histogramPerThread4x64.cuh,
  * but uses just one warp per block and 32 privatized histograms
  * and pads the shared memory allocation to 33 elements per row.
  *
@@ -104,7 +104,7 @@ merge32HistogramsToOutput( unsigned int *pHist, unsigned int privHist[64][32] )
 
 template<bool bPeriodicMerge>
 __global__ void
-histogram1DPrivatizedPerThread4x33(
+histogram1DPerThread4x32(
     unsigned int *pHist,
     const unsigned char *base, size_t N )
 {
@@ -141,7 +141,7 @@ histogram1DPrivatizedPerThread4x33(
 
 template<bool bPeriodicMerge>
 void
-GPUhistogramPrivatizedPerThread4x33(
+GPUhistogramPerThread4x32(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -160,7 +160,7 @@ GPUhistogramPrivatizedPerThread4x33(
     CUDART_CHECK( cudaMemset( pHist, 0, 256*sizeof(unsigned int) ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    histogram1DPrivatizedPerThread4x33<bPeriodicMerge><<<numblocks,32>>>( pHist, dptrBase, w*h );
+    histogram1DPerThread4x32<bPeriodicMerge><<<numblocks,32>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
@@ -171,7 +171,7 @@ Error:
 }
 
 void
-GPUhistogramPrivatizedPerThread4x33(
+GPUhistogramPerThread4x32(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -179,11 +179,11 @@ GPUhistogramPrivatizedPerThread4x33(
     int w, int h, 
     dim3 threads )
 {
-    GPUhistogramPrivatizedPerThread4x33<false>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
+    GPUhistogramPerThread4x32<false>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
 }
 
 void
-GPUhistogramPrivatizedPerThread4x33_PeriodicMerge(
+GPUhistogramPerThread4x32_PeriodicMerge(
     float *ms,
     unsigned int *pHist,
     const unsigned char *dptrBase, size_t dPitch,
@@ -191,5 +191,5 @@ GPUhistogramPrivatizedPerThread4x33_PeriodicMerge(
     int w, int h, 
     dim3 threads )
 {
-    GPUhistogramPrivatizedPerThread4x33<true>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
+    GPUhistogramPerThread4x32<true>( ms, pHist, dptrBase, dPitch, x, y, w, h, threads );
 }
