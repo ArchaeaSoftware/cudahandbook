@@ -40,26 +40,7 @@
  *
  */
 
-template<bool bAvoidOverflow>
-inline __device__ void
-incPrivatized32Element4x( unsigned int *pHist, unsigned char pixval )
-{
-    extern __shared__ unsigned int privHist[];
-    const int blockDimx = 64;
-    unsigned int increment = 1<<8*(pixval&3);
-    int index = pixval>>2;
-    unsigned int value = privHist[index*blockDimx+threadIdx.x];
-    value += increment;
-    if ( bAvoidOverflow ) {
-        if ( value & 0x80808080 ) {
-            atomicAdd( pHist+pixval, 0x80 );
-        }
-        value &= 0x7f7f7f7f;
-    }
-    privHist[index*blockDimx+threadIdx.x] = value;
-}
-
-template<bool bAvoidOverflow>
+template<bool bPeriodicMerge>
 __global__ void
 histogram1DPrivatizedPerThread4x32(
     unsigned int *pHist,
@@ -81,23 +62,23 @@ histogram1DPrivatizedPerThread4x32(
               i < N/4;
               i += blockDimx*gridDim.x ) {
         unsigned int value = ((unsigned int *) base)[i];
-        incPrivatized32Element4x<false>( pHist, value & 0xff ); value >>= 8;
-        incPrivatized32Element4x<false>( pHist, value & 0xff ); value >>= 8;
-        incPrivatized32Element4x<false>( pHist, value & 0xff ); value >>= 8;
-        incPrivatized32Element4x<false>( pHist, value );
+        incPrivatized32Element( value & 0xff ); value >>= 8;
+        incPrivatized32Element( value & 0xff ); value >>= 8;
+        incPrivatized32Element( value & 0xff ); value >>= 8;
+        incPrivatized32Element( value );
         cIterations += 1;
-        if ( bAvoidOverflow && cIterations>=252/4 ) {
+        if ( bPeriodicMerge && cIterations>=252/4 ) {
             cIterations = 0;
             __syncthreads();
-            finalizeHistograms64<true>( pHist );
+            merge64HistogramsToOutput<true>( pHist );
         }
     }
     __syncthreads();
 
-    finalizeHistograms64<false>( pHist );
+    merge64HistogramsToOutput<false>( pHist );
 }
 
-template<bool bAvoidOverflow>
+template<bool bPeriodicMerge>
 void
 GPUhistogramPrivatizedPerThread4x32(
     float *ms,
@@ -110,7 +91,7 @@ GPUhistogramPrivatizedPerThread4x32(
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
     int numthreads = threads.x*threads.y;
-    int numblocks = bAvoidOverflow ? 256 : INTDIVIDE_CEILING( w*h, numthreads*(255/4) );
+    int numblocks = bPeriodicMerge ? 256 : INTDIVIDE_CEILING( w*h, numthreads*(255/4) );
 
     CUDART_CHECK( cudaEventCreate( &start, 0 ) );
     CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
@@ -118,7 +99,7 @@ GPUhistogramPrivatizedPerThread4x32(
     CUDART_CHECK( cudaMemset( pHist, 0, 256*sizeof(unsigned int) ) );
 
     CUDART_CHECK( cudaEventRecord( start, 0 ) );
-    histogram1DPrivatizedPerThread4x32<bAvoidOverflow><<<numblocks,numthreads,numthreads*256>>>( pHist, dptrBase, w*h );
+    histogram1DPrivatizedPerThread4x32<bPeriodicMerge><<<numblocks,numthreads,numthreads*256>>>( pHist, dptrBase, w*h );
     CUDART_CHECK( cudaEventRecord( stop, 0 ) );
     CUDART_CHECK( cudaDeviceSynchronize() );
     CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );

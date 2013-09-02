@@ -36,9 +36,19 @@
  *
  */
 
+inline __device__ void
+incPrivatized32Element( unsigned char pixval )
+{
+    extern __shared__ unsigned int privHist[];
+    const int blockDimx = 64;
+    unsigned int increment = 1<<8*(pixval&3);
+    int index = pixval>>2;
+    privHist[index*blockDimx+threadIdx.x] += increment;
+}
+
 template<bool bClear>
 __device__ void
-finalizeHistograms64( unsigned int *pHist )
+merge64HistogramsToOutput( unsigned int *pHist )
 {
     extern __shared__ unsigned int privHist[];
 
@@ -77,14 +87,11 @@ histogram1DPrivatizedPerThread32(
     for ( int i = blockIdx.x*blockDim.x+threadIdx.x;
               i < N;
               i += blockDim.x*gridDim.x ) {
-        unsigned char pixval = base[i];
-        unsigned int increment = 1<<8*(pixval&3);
-        int index = pixval>>2;
-        privHist[index*blockDim.x+threadIdx.x] += increment;
+        incPrivatized32Element( base[i] );
     }
     __syncthreads();
 
-    finalizeHistograms64<false>( pHist );
+    merge64HistogramsToOutput<false>( pHist );
 }
 
 void
