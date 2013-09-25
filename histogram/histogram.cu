@@ -378,16 +378,17 @@ main(int argc, char *argv[])
             printf( "Linear and 2D histograms do not agree\n" );
             exit(1);
         }
+        printf("Single-threaded: %.2f Mpix/s\n", w*h/timeST/1e3 );
         float timeMT = hist1DCPU_threaded( cpuHist3, hidata, w*h );
         if ( bCompareHistograms( cpuHist, cpuHist3, 256 ) ) {
             printf( "Multithreaded and 2D histograms do not agree\n" );
             exit(1);
         }
-        double pixPerSecond = w*h/timeMT;
+        double pixPerms = w*h/timeMT;
         printf( "Multithreaded (%d cores) is %.2fx faster (%.2f Mpix/s)\n", 
             g_numCPUCores, 
             timeST/timeMT, 
-            pixPerSecond/1e6 );
+            pixPerms/1e3 );
     }
     
 
