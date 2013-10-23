@@ -42,9 +42,9 @@
  */
 
 __global__ void
-AddTo64( long long *sum, long long *out, const long long *pIn )
+AddTo64( unsigned long long *sum, unsigned long long *out, const unsigned long long *pIn )
 {
-    extern __shared__ long long s[];
+    extern __shared__ unsigned long long s[];
     s[threadIdx.x] = pIn[threadIdx.x];
     __syncthreads();
     (void) atomicAdd( &s[threadIdx.x], *pIn );
@@ -53,9 +53,9 @@ AddTo64( long long *sum, long long *out, const long long *pIn )
 }
 
 __global__ void
-Return64( long long *sum, long long *out, const long long *pIn )
+Return64( unsigned long long *sum, long long *out, const unsigned long long *pIn )
 {
-    extern __shared__ long long s[];
+    extern __shared__ unsigned long long s[];
     s[threadIdx.x] = pIn[threadIdx.x];
     __syncthreads();
     (void) atomicAdd( &s[threadIdx.x], *pIn );
