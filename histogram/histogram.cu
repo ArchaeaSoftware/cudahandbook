@@ -249,6 +249,7 @@ main(int argc, char *argv[])
 {
     int ret = 1;
     cudaError_t status;
+    int device;
 
     unsigned char *hidata = NULL;
     unsigned char *didata = NULL;
@@ -290,9 +291,19 @@ main(int argc, char *argv[])
 
         return 0;
     }
-
+    {
+        if ( chCommandLineGet( &device, "device", argc, argv ) ) {
+            CUDART_CHECK( cudaSetDevice( device ) );
+        }
+    }
     CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
     CUDART_CHECK( cudaDeviceSetCacheConfig( cudaFuncCachePreferShared ) );
+
+    {
+        cudaDeviceProp prop;
+        CUDART_CHECK( cudaGetDeviceProperties( &prop, device ) );
+        printf( "Testing histogram on %s (%d SMs)\n", prop.name, prop.multiProcessorCount );
+    }
 
     if ( chCommandLineGet( &inputFilename, "input", argc, argv ) ) {
         printf( "Reading from image file %s\n", inputFilename );
@@ -350,9 +361,11 @@ main(int argc, char *argv[])
             CUDART_CHECK( cudaMemcpy2D( didata, DevicePitch, hidata, padWidth, padWidth, padHeight, cudaMemcpyHostToDevice ) );
         }
         else {
-            if ( pgmLoad( inputFilename, &hidata, &HostPitch, &didata, &DevicePitch, &w, &h, padWidth, padHeight) )
+            if ( pgmLoad( inputFilename, &hidata, &HostPitch, &didata, &DevicePitch, &w, &h, padWidth, padHeight) ) {
+                printf( "%s not found\n", inputFilename );
                 goto Error;
-             printf( "%d pixels, sourced from image file %s\n", w*h, inputFilename );
+            }
+            printf( "%d pixels, sourced from image file %s\n", w*h, inputFilename );
         }
     }
 
