@@ -8,7 +8,7 @@ nvcc --cubin --gpu-architecture sm_xx <filename>
 
 then disassemble the compiled microcode with cudumpobj:
 
-cudumpobj --dump-sass <filename>.cubin
+cuobjdump --dump-sass <filename>.cubin
 
 
 Memory     Operand              File
