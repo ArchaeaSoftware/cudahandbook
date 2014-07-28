@@ -7,7 +7,7 @@
  * Build with: nvcc -I ../chLib <options> nullKernelSync.cu
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2014, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,6 +38,7 @@
 
 #include <stdio.h>
 
+#include "chError.h"
 #include "chTimer.h"
 
 __global__
@@ -46,27 +47,36 @@ NullKernel()
 {
 }
 
+double
+usPerLaunch( int cIterations )
+{
+    cudaError_t status;
+    double microseconds, ret;
+    chTimerTimestamp start, stop;
+
+    CUDART_CHECK( cudaFree(0) );
+
+    chTimerGetTime( &start );
+    for ( int i = 0; i < cIterations; i++ ) {
+        NullKernel<<<1,1>>>();
+        CUDART_CHECK( cudaThreadSynchronize() );
+    }
+    chTimerGetTime( &stop );
+
+    microseconds = 1e6*chTimerElapsedTime( &start, &stop );
+    ret = microseconds / (float) cIterations;
+
+Error:
+    return (status) ? 0.0 : ret;
+}
+
 int
 main( int argc, char *argv[] )
 {
     const int cIterations = 100000;
     printf( "Measuring synchronous launch time... " ); fflush( stdout );
 
-    chTimerTimestamp start, stop;
-
-    chTimerGetTime( &start );
-    for ( int i = 0; i < cIterations; i++ ) {
-        NullKernel<<<1,1>>>();
-        cudaThreadSynchronize();
-    }
-    chTimerGetTime( &stop );
-
-    {
-        double microseconds = 1e6*chTimerElapsedTime( &start, &stop );
-        double usPerLaunch = microseconds / (float) cIterations;
-
-        printf( "%.2f us\n", usPerLaunch );
-    }
+    printf( "%.2f us\n", usPerLaunch(cIterations) );
 
     return 0;
 }
