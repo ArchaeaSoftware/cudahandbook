@@ -249,7 +249,7 @@ main(int argc, char *argv[])
 {
     int ret = 1;
     cudaError_t status;
-    int device;
+    int device = 0;
 
     unsigned char *hidata = NULL;
     unsigned char *didata = NULL;
