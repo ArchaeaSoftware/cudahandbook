@@ -56,10 +56,11 @@ usPerLaunch( int cIterations, int cEvents )
 {
     cudaError_t status;
     double microseconds, ret;
-    cudaEvent_t *events = new cudaEvent_t[cIterations];
+    cudaEvent_t *events = new cudaEvent_t[cEvents];
     chTimerTimestamp start, stop;
 
     if ( ! events ) goto Error;
+    memset( events, 0, cEvents*sizeof(cudaEvent_t) );
     for ( int i = 0; i < cEvents; i++ ) {
         CUDART_CHECK( cudaEventCreateWithFlags(  &events[i], (Flags & EVENTRECORD_BLOCKING) ? cudaEventBlockingSync : 0 ) );
     }
