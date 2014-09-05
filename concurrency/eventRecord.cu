@@ -72,6 +72,7 @@ usPerLaunch( int cIterations, int cEvents )
     chTimerGetTime( &stop );
 
     microseconds = 1e6*chTimerElapsedTime( &start, &stop );
+    if ( cEvents ) cIterations *= cEvents;
     ret = microseconds / (float) cIterations;
 
 Error:
@@ -82,16 +83,16 @@ Error:
 int
 main( int argc, char *argv[] )
 {
-    const int cIterations = 100000;
+    const int cIterations = 10000;
     printf( "Measuring asynchronous launch time...\n" ); fflush( stdout );
 
     printf( "#events\tus per event signaling\n" );
-    for ( int cEvents = 0; cEvents < 5; cEvents++ ) {
-        printf( "%d\t%.2f\n", cEvents, usPerLaunch<false>(cIterations, cEvents) );
+    for ( int cEvents = 0; cEvents < 5; cEvents += 1 ) {
+        printf( "%d\t%.2f\n", cEvents*10, usPerLaunch<false>(cIterations, cEvents) );
     }
     printf( "Measuring asynchronous launch+event signaling...\n" ); fflush( stdout );
-    for ( int cEvents = 0; cEvents < 5; cEvents++ ) {
-        printf( "%d\t%.2f\n", cEvents, usPerLaunch<true>(cIterations, cEvents) );
+    for ( int cEvents = 0; cEvents < 5; cEvents += 1 ) {
+        printf( "%d\t%.2f\n", cEvents*10, usPerLaunch<true>(cIterations, cEvents) );
     }
 
     return 0;
