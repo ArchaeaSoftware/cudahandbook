@@ -47,7 +47,10 @@ NullKernel()
 {
 }
 
-template<bool bLaunch>
+#define EVENTRECORD_LAUNCH   0x01
+#define EVENTRECORD_BLOCKING 0x02
+
+template<int Flags>
 double
 usPerLaunch( int cIterations, int cEvents )
 {
@@ -58,12 +61,12 @@ usPerLaunch( int cIterations, int cEvents )
 
     if ( ! events ) goto Error;
     for ( int i = 0; i < cEvents; i++ ) {
-        CUDART_CHECK( cudaEventCreateWithFlags(  &events[i], cudaEventBlockingSync ) );
+        CUDART_CHECK( cudaEventCreateWithFlags(  &events[i], (Flags & EVENTRECORD_BLOCKING) ? cudaEventBlockingSync : 0 ) );
     }
 
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
-        if ( bLaunch ) NullKernel<<<1,1>>>();
+        if ( Flags & EVENTRECORD_LAUNCH) NullKernel<<<1,1>>>();
         for ( int j = 0; j < cEvents; j++ ) {
             CUDART_CHECK( cudaEventRecord( events[j], NULL ) );
         }
@@ -84,15 +87,15 @@ int
 main( int argc, char *argv[] )
 {
     const int cIterations = 10000;
-    printf( "Measuring asynchronous launch time...\n" ); fflush( stdout );
+    printf( "Measuring blocking event record overhead...\n" ); fflush( stdout );
 
     printf( "#events\tus per event signaling\n" );
     for ( int cEvents = 0; cEvents < 5; cEvents += 1 ) {
-        printf( "%d\t%.2f\n", cEvents*10, usPerLaunch<false>(cIterations, cEvents) );
+        printf( "%d\t%.2f\n", cEvents*10, usPerLaunch<EVENTRECORD_BLOCKING>(cIterations, cEvents) );
     }
     printf( "Measuring asynchronous launch+event signaling...\n" ); fflush( stdout );
     for ( int cEvents = 0; cEvents < 5; cEvents += 1 ) {
-        printf( "%d\t%.2f\n", cEvents*10, usPerLaunch<true>(cIterations, cEvents) );
+        printf( "%d\t%.2f\n", cEvents*10, usPerLaunch<EVENTRECORD_LAUNCH | EVENTRECORD_BLOCKING>(cIterations, cEvents) );
     }
 
     return 0;
