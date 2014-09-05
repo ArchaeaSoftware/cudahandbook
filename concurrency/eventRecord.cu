@@ -79,6 +79,11 @@ usPerLaunch( int cIterations, int cEvents )
     ret = microseconds / (float) cIterations;
 
 Error:
+    if ( events ) {
+        for ( int i = 0; i < cEvents; i++ ) {
+            cudaEventDestroy( events[i] );
+        }
+    }
     delete[] events;
     return (status) ? 0.0 : ret;
 }
@@ -86,6 +91,7 @@ Error:
 int
 main( int argc, char *argv[] )
 {
+    cudaFree( 0 );
     const int cIterations = 10000;
     printf( "Measuring blocking event record overhead...\n" ); fflush( stdout );
 
