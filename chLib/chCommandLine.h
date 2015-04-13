@@ -51,6 +51,12 @@ chCommandLinePassback( char **p, char *s )
     *p = s;
 }
 
+static void
+chCommandLinePassback( double *p, char *s )
+{
+    *p = atof( s );
+}
+
 //
 // Passes back an integer or string
 //
