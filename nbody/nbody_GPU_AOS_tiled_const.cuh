@@ -47,6 +47,7 @@ DoDiagonalTile_GPU_const(
     size_t iTile, size_t jTile
 )
 {
+#if __CUDA_ARCH__ && __CUDA_ARCH__ > 300
     int laneid = threadIdx.x&0x1f;
     size_t i = iTile*nTile+laneid;
     float acc[3] = {0, 0, 0};
@@ -73,17 +74,20 @@ DoDiagonalTile_GPU_const(
     atomicAdd( &force[3*i+0], acc[0] );
     atomicAdd( &force[3*i+1], acc[1] );
     atomicAdd( &force[3*i+2], acc[2] );
+#endif
 }
 
 inline float
 __device__
 warpReduce_const( float x )
 {
+#if __CUDA_ARCH__ && __CUDA_ARCH__ > 300
     x += __int_as_float( __shfl_xor( __float_as_int(x), 16 ) );
     x += __int_as_float( __shfl_xor( __float_as_int(x),  8 ) );
     x += __int_as_float( __shfl_xor( __float_as_int(x),  4 ) );
     x += __int_as_float( __shfl_xor( __float_as_int(x),  2 ) );
     x += __int_as_float( __shfl_xor( __float_as_int(x),  1 ) );
+#endif
     return x;
 }
 
@@ -181,6 +185,7 @@ DoNondiagonalTile_GPU_const(
     volatile float *sForces
 )
 {
+#if __CUDA_ARCH__ && __CUDA_ARCH__ > 300
     int laneid = threadIdx.x&0x1f;
     size_t i = iTile*nTile+laneid;
     float ax = 0.0f, ay = 0.0f, az = 0.0f;
@@ -244,6 +249,7 @@ DoNondiagonalTile_GPU_const(
         atomicAdd( &force[3*j+2], az );
     }
 
+#endif
 }
 
 
