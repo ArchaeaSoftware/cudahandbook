@@ -101,6 +101,13 @@ float *g_hostAOS_Force;
 float *g_dptrAOS_PosMass;
 float *g_dptrAOS_Force;
 
+//
+// threshold for soft comparisons when validating
+// that forces add up to 0.
+//
+double g_ZeroThreshold;
+
+bool g_bGPUTest;
 
 // Buffer to hold the golden version of the forces, used for comparison
 // Along with timing results, we report the maximum relative error with 
@@ -424,6 +431,27 @@ ComputeGravitation(
         }
         *maxRelError = max;
     }
+	else {
+		double sumX = 0.0f;
+		double sumY = 0.0f;
+		double sumZ = 0.0f;
+		for ( size_t i = 0; i < g_N; i++ ) {
+			sumX += g_hostAOS_Force[i*3+0];
+			sumY += g_hostAOS_Force[i*3+1];
+			sumZ += g_hostAOS_Force[i*3+2];
+		}
+		sumX = fabs( sumX );
+		sumY = fabs( sumY );
+		sumZ = fabs( sumZ );
+		*maxRelError = max( sumX, max(sumY, sumZ) );
+		if ( g_ZeroThreshold != 0.0 && 
+		     fabs( *maxRelError ) > g_ZeroThreshold ) {
+			printf( "Maximum sum of forces > threshold (%E > %E)\n",
+				*maxRelError,
+				g_ZeroThreshold );
+			goto Error;
+		}
+	}
 
     integrateGravitation_AOS( 
         g_hostAOS_PosMass,
@@ -509,6 +537,8 @@ main( int argc, char *argv[] )
         exit(1);
     }
 
+	chCommandLineGet( &g_ZeroThreshold, "zero", argc, argv );
+
     if ( g_numGPUs ) {
         chCommandLineGet( &g_numGPUs, "numgpus", argc, argv );
         g_GPUThreadPool = new workerThread[g_numGPUs];
@@ -565,6 +595,7 @@ main( int argc, char *argv[] )
     g_maxAlgorithm = CPU_SOA;
 #endif
     g_Algorithm = g_bCUDAPresent ? GPU_AOS : g_maxAlgorithm;
+	g_Algorithm = multiGPU_SingleCPUThread;
     if ( g_bCUDAPresent || g_bNoCPU ) {
         // max algorithm is different depending on whether SM 3.0 is present
         g_maxAlgorithm = g_bSM30Present ? GPU_AOS_tiled_const : multiGPU_MultiCPUThread;
