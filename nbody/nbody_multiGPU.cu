@@ -97,7 +97,9 @@ ComputeGravitation_multiGPU_singlethread(
     for ( int i = 0; i < g_numGPUs; i++ ) {
         CUDART_CHECK( cudaSetDevice( i ) );
         CUDART_CHECK( cudaMalloc( &dptrPosMass[i], 4*N*sizeof(float) ) );
-        CUDART_CHECK( cudaMalloc( &dptrForce[i], 3*bodiesPerGPU*sizeof(float) ) );
+        // we only need 3*N floatsw for the cross-check. otherwise we 
+        // would need 3*bodiesPerGPU
+        CUDART_CHECK( cudaMalloc( &dptrForce[i], 3*N*sizeof(float) ) );
         CUDART_CHECK( cudaMemcpyAsync( 
             dptrPosMass[i], 
             g_hostAOS_PosMass, 
@@ -106,18 +108,39 @@ ComputeGravitation_multiGPU_singlethread(
     }
     for ( int i = 0; i < g_numGPUs; i++ ) {
         CUDART_CHECK( cudaSetDevice( i ) );
-        ComputeNBodyGravitation_multiGPU_onethread<<<300,256,256*sizeof(float4)>>>( 
-            dptrForce[i],
-            dptrPosMass[i],
-            softeningSquared,
-            i*bodiesPerGPU,
-            bodiesPerGPU,
-            N );
-        CUDART_CHECK( cudaMemcpyAsync( 
-            g_hostAOS_Force+3*bodiesPerGPU*i, 
-            dptrForce[i], 
-            3*bodiesPerGPU*sizeof(float), 
-            cudaMemcpyDeviceToHost ) );
+        if ( g_bGPUCrossCheck ) {
+            ComputeNBodyGravitation_multiGPU_onethread<<<300,256,256*sizeof(float4)>>>( 
+                dptrForce[i],
+                dptrPosMass[i],
+                softeningSquared,
+                0,
+                N,
+                N );
+            CUDART_CHECK( cudaMemcpyAsync( 
+                g_hostAOS_gpuCrossCheckForce[i], 
+                dptrForce[i], 
+                3*N*sizeof(float), 
+                cudaMemcpyDeviceToHost ) );
+            CUDART_CHECK( cudaMemcpyAsync( 
+                g_hostAOS_Force+3*bodiesPerGPU*i, 
+                dptrForce[i]+3*bodiesPerGPU*i, 
+                3*bodiesPerGPU*sizeof(float), 
+                cudaMemcpyDeviceToHost ) );
+        }
+        else {
+            ComputeNBodyGravitation_multiGPU_onethread<<<300,256,256*sizeof(float4)>>>( 
+                dptrForce[i],
+                dptrPosMass[i],
+                softeningSquared,
+                i*bodiesPerGPU,
+                bodiesPerGPU,
+                N );
+            CUDART_CHECK( cudaMemcpyAsync( 
+                g_hostAOS_Force+3*bodiesPerGPU*i, 
+                dptrForce[i], 
+                3*bodiesPerGPU*sizeof(float), 
+                cudaMemcpyDeviceToHost ) );
+        }
     }
     // Synchronize with each GPU in turn.
     for ( int i = 0; i < g_numGPUs; i++ ) {
@@ -126,6 +149,7 @@ ComputeGravitation_multiGPU_singlethread(
     }
     chTimerGetTime( &end );
     ret = chTimerElapsedTime( &start, &end ) * 1000.0f;
+
 Error:
     for ( int i = 0; i < g_numGPUs; i++ ) {
         cudaFree( dptrPosMass[i] );

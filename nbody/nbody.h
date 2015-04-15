@@ -41,10 +41,15 @@
 #include <chThread.h>
 
 extern bool g_bCUDAPresent;
+extern bool g_bGPUCrossCheck;
 
 extern float *g_hostAOS_PosMass;
 extern float *g_hostAOS_VelInvMass;
 extern float *g_hostAOS_Force;
+
+// for GPU cross-check
+const int g_maxGPUs = 32;
+extern float *g_hostAOS_gpuCrossCheckForce[g_maxGPUs];
 
 extern float *g_dptrAOS_PosMass;
 extern float *g_dptrAOS_Force;
@@ -116,9 +121,6 @@ static const char *rgszAlgorithmNames[] = {
     "GPU_AOS_tiled_const",
 //    "GPU_Atomic"
 };
-
-// maximum number of GPUs supported by single-threaded multi-GPU
-const int g_maxGPUs = 32;
 
 extern const char *rgszAlgorithmNames[];
 

@@ -97,6 +97,7 @@ bool g_bSM30Present;
 float *g_hostAOS_PosMass;
 float *g_hostAOS_VelInvMass;
 float *g_hostAOS_Force;
+float *g_hostAOS_gpuCrossCheckForce[32];
 
 float *g_dptrAOS_PosMass;
 float *g_dptrAOS_Force;
@@ -149,6 +150,8 @@ relError( T a, T b )
 #include "nbody_GPU_Shuffle.cuh"
 #include "nbody_GPU_Atomic.cuh"
 #endif
+
+#include "kahan.h"
 
 void
 integrateGravitation_AOS( float *ppos, float *pvel, float *pforce, float dt, float damping, size_t N )
@@ -211,6 +214,7 @@ enum nbodyAlgorithm_enum g_maxAlgorithm;
 bool g_bCrossCheck = true;
 bool g_bUseSIMDForCrossCheck = true;
 bool g_bNoCPU = false;
+bool g_bGPUCrossCheck = false;
 
 bool
 ComputeGravitation( 
@@ -411,6 +415,24 @@ ComputeGravitation(
             break;
     }
 
+    if ( g_bGPUCrossCheck ) {
+        int cDisagreements = 0;
+        for ( int i = 0; i < g_numGPUs; i++ ) {
+            for ( int j = 1; j < g_numGPUs; j++ ) {
+                if ( memcmp( g_hostAOS_gpuCrossCheckForce[i], 
+                             g_hostAOS_gpuCrossCheckForce[j], 
+                             3*g_N*sizeof(float) ) ) {
+                    fprintf( stderr, "GPU %d and GPU %d disagreed\n", i, j );
+                    cDisagreements += 1;
+                }
+            }
+        }
+        if ( cDisagreements ) {
+            goto Error;
+        }
+    }
+
+
     // SOA -> AOS
     if ( bSOA ) {
         for ( size_t i = 0; i < g_N; i++ ) {
@@ -419,6 +441,14 @@ ComputeGravitation(
             g_hostAOS_Force[3*i+2] = g_hostSOA_Force[2][i];
         }
     }
+
+    integrateGravitation_AOS( 
+        g_hostAOS_PosMass,
+        g_hostAOS_VelInvMass,
+        g_hostAOS_Force,
+        g_dt,
+        g_damping,
+        g_N );
 
     *maxRelError = 0.0f;
     if ( bCrossCheck ) {
@@ -431,35 +461,25 @@ ComputeGravitation(
         }
         *maxRelError = max;
     }
-	else {
-		double sumX = 0.0f;
-		double sumY = 0.0f;
-		double sumZ = 0.0f;
-		for ( size_t i = 0; i < g_N; i++ ) {
-			sumX += g_hostAOS_Force[i*3+0];
-			sumY += g_hostAOS_Force[i*3+1];
-			sumZ += g_hostAOS_Force[i*3+2];
-		}
-		sumX = fabs( sumX );
-		sumY = fabs( sumY );
-		sumZ = fabs( sumZ );
-		*maxRelError = max( sumX, max(sumY, sumZ) );
-		if ( g_ZeroThreshold != 0.0 && 
-		     fabs( *maxRelError ) > g_ZeroThreshold ) {
-			printf( "Maximum sum of forces > threshold (%E > %E)\n",
-				*maxRelError,
-				g_ZeroThreshold );
-			goto Error;
-		}
-	}
+    else {
+        KahanAdder sumX;
+        KahanAdder sumY;
+        KahanAdder sumZ;
+        for ( size_t i = 0; i < g_N; i++ ) {
+            sumX += g_hostAOS_Force[i*3+0];
+            sumY += g_hostAOS_Force[i*3+1];
+            sumZ += g_hostAOS_Force[i*3+2];
+        }
+        *maxRelError = max( fabs(sumX), max(fabs(sumY), fabs(sumZ)) );
+        if ( g_ZeroThreshold != 0.0 && 
+             fabs( *maxRelError ) > g_ZeroThreshold ) {
+            printf( "Maximum sum of forces > threshold (%E > %E)\n",
+                *maxRelError,
+                g_ZeroThreshold );
+            goto Error;
+        }
+    }
 
-    integrateGravitation_AOS( 
-        g_hostAOS_PosMass,
-        g_hostAOS_VelInvMass,
-        g_hostAOS_Force,
-        g_dt,
-        g_damping,
-        g_N );
     return true;
 Error:
     return false;
@@ -537,9 +557,11 @@ main( int argc, char *argv[] )
         exit(1);
     }
 
-	chCommandLineGet( &g_ZeroThreshold, "zero", argc, argv );
+    g_bGPUCrossCheck = chCommandLineGetBool( "gpu-crosscheck", argc, argv );
+    chCommandLineGet( &g_ZeroThreshold, "zero", argc, argv );
 
     if ( g_numGPUs ) {
+		// optionally override GPU count from command line
         chCommandLineGet( &g_numGPUs, "numgpus", argc, argv );
         g_GPUThreadPool = new workerThread[g_numGPUs];
         for ( size_t i = 0; i < g_numGPUs; i++ ) {
@@ -625,6 +647,19 @@ main( int argc, char *argv[] )
 
         CUDART_CHECK( cudaMalloc( &g_dptrAOS_PosMass, 4*g_N*sizeof(float) ) );
         CUDART_CHECK( cudaMalloc( (void **) &g_dptrAOS_Force, 3*g_N*sizeof(float) ) );
+
+        if ( g_bGPUCrossCheck  ) {
+            printf( "GPU cross check enabled (%d GPUs), disabling CPU\n", g_numGPUs );
+            g_bNoCPU = true;
+            g_bCrossCheck = false;
+            if ( g_numGPUs < 2 ) {
+                fprintf( stderr, "GPU cross check enabled, but <2 GPUs available\n" );
+                goto Error;
+            }
+            for ( int i = 0; i < g_numGPUs; i++ ) {
+                CUDART_CHECK( cudaHostAlloc( (void **) (&g_hostAOS_gpuCrossCheckForce[i]), 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+            }
+        }
     }
     else {
         g_hostAOS_PosMass = new float[4*g_N];
