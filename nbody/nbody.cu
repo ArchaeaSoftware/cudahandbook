@@ -215,6 +215,9 @@ bool g_bCrossCheck = true;
 bool g_bUseSIMDForCrossCheck = true;
 bool g_bNoCPU = false;
 bool g_bGPUCrossCheck = false;
+bool g_bGPUCrossCheckFile = false;
+FILE *g_fGPUCrosscheckInput;
+FILE *g_fGPUCrosscheckOutput;
 
 bool
 ComputeGravitation( 
@@ -450,7 +453,16 @@ ComputeGravitation(
         g_damping,
         g_N );
 
+    if ( g_bGPUCrossCheck && g_fGPUCrosscheckInput ) {
+        if ( memcmp( g_hostAOS_Force, g_hostAOS_Force_Golden, 3*g_N*sizeof(float) ) ) {
+            printf( "GPU CROSSCHECK FAILURE: Disagreement with golden values\n" );
+            goto Error;
+        }
+    }
+
+
     *maxRelError = 0.0f;
+
     if ( bCrossCheck ) {
         float max = 0.0f;
         for ( size_t i = 0; i < 3*g_N; i++ ) {
@@ -511,6 +523,24 @@ Error:
     p->status = status;    
 }
 
+
+cudaError_t
+myGetDeviceCount( int *p )
+{
+    cudaError_t status;
+#ifdef _MSC_VER // compiling for Windows?
+    __try {
+#endif
+        status = cudaGetDeviceCount( p );
+#ifdef _MSC_VER
+    } __except ( GetExceptionCode() ) {
+        fprintf( stderr, "CUDA initialization failed\n" );
+        return cudaErrorUnknown;
+    }
+#endif
+    return status;
+}
+
 int
 main( int argc, char *argv[] )
 {
@@ -544,7 +574,7 @@ main( int argc, char *argv[] )
         }
     }
 
-    status = cudaGetDeviceCount( &g_numGPUs );
+    status = myGetDeviceCount( &g_numGPUs );
     g_bCUDAPresent = (cudaSuccess == status) && (g_numGPUs > 0);
     if ( g_bCUDAPresent ) {
         cudaDeviceProp prop;
@@ -557,11 +587,74 @@ main( int argc, char *argv[] )
         exit(1);
     }
 
+    g_bCrossCheck = ! chCommandLineGetBool( "nocrosscheck", argc, argv );
+    if ( g_bNoCPU ) {
+        g_bCrossCheck = false;
+    }
+    if ( g_bCrossCheck && chCommandLineGetBool( "nosse", argc, argv ) ) {
+        g_bUseSIMDForCrossCheck = false;
+    }
+
+    chCommandLineGet( &kParticles, "numbodies", argc, argv );
+    g_N = kParticles*1024;
+
+    chCommandLineGet( &kMaxIterations, "iterations", argc, argv);
+
+    // Round down to the nearest multiple of the CPU count (e.g. if we have
+    // a system with a CPU count that isn't a power of two, we need to round)
+    g_N -= g_N % g_numCPUCores;
+
+    if ( chCommandLineGetBool( "gpu-crosscheck", argc, argv ) ) {
+        g_bGPUCrossCheck = true;
+    }
     g_bGPUCrossCheck = chCommandLineGetBool( "gpu-crosscheck", argc, argv );
+    {
+        char *szFilename;
+        if ( chCommandLineGet( &szFilename, "gpu-crosscheck-input-file", argc, argv ) ) {
+            if ( ! g_bGPUCrossCheck ) {
+                fprintf( stderr, "GPU crosscheck input file requires --gpu-crosscheck\n" );
+                goto Error;
+            }
+            g_fGPUCrosscheckInput = fopen( szFilename, "rb" );
+            if ( ! g_fGPUCrosscheckInput ) {
+                fprintf( stderr, "Could not open %s for input\n", szFilename );
+                goto Error;
+            }
+            if ( 1 != fread( &kMaxIterations, sizeof(int), 1, g_fGPUCrosscheckInput ) ) {
+                fprintf( stderr, "Read of iteration count failed\n" );
+                goto Error;
+            }
+            printf( "%d iterations specified in input file\n", kMaxIterations );
+        }
+        if ( chCommandLineGet( &szFilename, "gpu-crosscheck-output-file", argc, argv  ) ) {
+            if ( g_fGPUCrosscheckInput ) {
+                fprintf( stderr, "Crosscheck input and output files are mutually exclusive. Please specify only one.\n" );
+                goto Error;
+            }            
+            if ( ! g_bGPUCrossCheck ) {
+                fprintf( stderr, "GPU crosscheck output file requires --gpu-crosscheck\n" );
+                goto Error;
+            }
+            g_fGPUCrosscheckOutput = fopen( szFilename, "wb" );
+            if ( ! g_fGPUCrosscheckOutput ) {
+                fprintf( stderr, "Could not open %s for output\n", szFilename );
+                goto Error;
+            }
+            if ( ! kMaxIterations ) {
+                fprintf( stderr, "Must specify --iterations when generating output file for GPU cross check.\n" );
+                goto Error;
+            }
+            if ( 1 != fwrite( &kMaxIterations, sizeof(int), 1, g_fGPUCrosscheckInput ) ) {
+                fprintf( stderr, "Write of iteration count failed\n" );
+                goto Error;
+            }
+        }
+    }
+
     chCommandLineGet( &g_ZeroThreshold, "zero", argc, argv );
 
     if ( g_numGPUs ) {
-		// optionally override GPU count from command line
+        // optionally override GPU count from command line
         chCommandLineGet( &g_numGPUs, "numgpus", argc, argv );
         g_GPUThreadPool = new workerThread[g_numGPUs];
         for ( size_t i = 0; i < g_numGPUs; i++ ) {
@@ -585,23 +678,6 @@ main( int argc, char *argv[] )
             }
         }
     }
-
-    g_bCrossCheck = ! chCommandLineGetBool( "nocrosscheck", argc, argv );
-    if ( g_bNoCPU ) {
-        g_bCrossCheck = false;
-    }
-    if ( g_bCrossCheck && chCommandLineGetBool( "nosse", argc, argv ) ) {
-        g_bUseSIMDForCrossCheck = false;
-    }
-
-    chCommandLineGet( &kParticles, "numbodies", argc, argv );
-    g_N = kParticles*1024;
-
-    chCommandLineGet( &kMaxIterations, "iterations", argc, argv);
-
-    // Round down to the nearest multiple of the CPU count (e.g. if we have
-    // a system with a CPU count that isn't a power of two, we need to round)
-    g_N -= g_N % g_numCPUCores;
 
     printf( "Running simulation with %d particles, crosscheck %s, CPU %s\n", (int) g_N,
         g_bCrossCheck ? "enabled" : "disabled",
@@ -786,8 +862,13 @@ main( int argc, char *argv[] )
         }
     }
 
+    if ( g_fGPUCrosscheckInput ) fclose( g_fGPUCrosscheckInput );
+    if ( g_fGPUCrosscheckOutput ) fclose( g_fGPUCrosscheckOutput );
+
     return 0;
 Error:
+    if ( g_fGPUCrosscheckInput ) fclose( g_fGPUCrosscheckInput );
+    if ( g_fGPUCrosscheckOutput ) fclose( g_fGPUCrosscheckOutput );
     if ( cudaSuccess != status ) {
         printf( "CUDA Error: %s\n", cudaGetErrorString( status ) );
     }

@@ -150,6 +150,16 @@ ComputeGravitation_multiGPU_singlethread(
     chTimerGetTime( &end );
     ret = chTimerElapsedTime( &start, &end ) * 1000.0f;
 
+    if ( g_fGPUCrosscheckOutput ) {
+        if ( 1 != fwrite( g_hostAOS_Force, 3*N*sizeof(float), 1, g_fGPUCrosscheckOutput ) )
+            goto Error;
+    }
+    if ( g_fGPUCrosscheckInput ) {
+        if ( 1 != fread( g_hostAOS_Force_Golden, 3*N*sizeof(float), 1, g_fGPUCrosscheckInput ) )
+            goto Error;
+    }
+
+
 Error:
     for ( int i = 0; i < g_numGPUs; i++ ) {
         cudaFree( dptrPosMass[i] );

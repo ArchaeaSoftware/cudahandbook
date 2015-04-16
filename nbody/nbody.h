@@ -43,6 +43,10 @@
 extern bool g_bCUDAPresent;
 extern bool g_bGPUCrossCheck;
 
+extern bool g_GPUCrosscheck;
+extern FILE *g_fGPUCrosscheckInput;
+extern FILE *g_fGPUCrosscheckOutput;
+
 extern float *g_hostAOS_PosMass;
 extern float *g_hostAOS_VelInvMass;
 extern float *g_hostAOS_Force;
