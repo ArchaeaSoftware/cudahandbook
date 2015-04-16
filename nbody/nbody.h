@@ -44,6 +44,7 @@ extern bool g_bCUDAPresent;
 extern bool g_bGPUCrossCheck;
 
 extern bool g_GPUCrosscheck;
+#define NBODY_GOLDENFILE_VERSION 0x100
 extern FILE *g_fGPUCrosscheckInput;
 extern FILE *g_fGPUCrosscheckOutput;
 

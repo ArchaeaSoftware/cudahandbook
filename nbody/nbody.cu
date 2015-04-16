@@ -523,24 +523,6 @@ Error:
     p->status = status;    
 }
 
-
-cudaError_t
-myGetDeviceCount( int *p )
-{
-    cudaError_t status;
-#ifdef _MSC_VER // compiling for Windows?
-    __try {
-#endif
-        status = cudaGetDeviceCount( p );
-#ifdef _MSC_VER
-    } __except ( GetExceptionCode() ) {
-        fprintf( stderr, "CUDA initialization failed\n" );
-        return cudaErrorUnknown;
-    }
-#endif
-    return status;
-}
-
 int
 main( int argc, char *argv[] )
 {
@@ -574,7 +556,7 @@ main( int argc, char *argv[] )
         }
     }
 
-    status = myGetDeviceCount( &g_numGPUs );
+    status = cudaGetDeviceCount( &g_numGPUs );
     g_bCUDAPresent = (cudaSuccess == status) && (g_numGPUs > 0);
     if ( g_bCUDAPresent ) {
         cudaDeviceProp prop;
@@ -620,6 +602,21 @@ main( int argc, char *argv[] )
                 fprintf( stderr, "Could not open %s for input\n", szFilename );
                 goto Error;
             }
+            {
+                int version;
+                if ( 1 != fread( &version, sizeof(int), 1, g_fGPUCrosscheckInput ) ) {
+                    fprintf( stderr, "Read of version failed\n" );
+                    goto Error;
+                }
+                if ( version != NBODY_GOLDENFILE_VERSION ) {
+                    fprintf( stderr, "File version mismatch - generate new golden files!\n" );
+                    goto Error;
+                }
+            }
+            if ( 1 != fread( &g_N, sizeof(int), 1, g_fGPUCrosscheckInput ) ) {
+                fprintf( stderr, "Read of particle count failed\n" );
+                goto Error;
+            }
             if ( 1 != fread( &kMaxIterations, sizeof(int), 1, g_fGPUCrosscheckInput ) ) {
                 fprintf( stderr, "Read of iteration count failed\n" );
                 goto Error;
@@ -644,7 +641,19 @@ main( int argc, char *argv[] )
                 fprintf( stderr, "Must specify --iterations when generating output file for GPU cross check.\n" );
                 goto Error;
             }
-            if ( 1 != fwrite( &kMaxIterations, sizeof(int), 1, g_fGPUCrosscheckInput ) ) {
+            {
+                int version = NBODY_GOLDENFILE_VERSION;
+                if ( 1 != fwrite( &version, sizeof(int), 1, g_fGPUCrosscheckOutput ) ) {
+                    fprintf( stderr, "Write of version failed\n" );
+                    goto Error;
+                }
+            }
+
+            if ( 1 != fwrite( &g_N, sizeof(int), 1, g_fGPUCrosscheckOutput ) ) {
+                fprintf( stderr, "Write of particle count failed\n" );
+                goto Error;
+            }
+            if ( 1 != fwrite( &kMaxIterations, sizeof(int), 1, g_fGPUCrosscheckOutput ) ) {
                 fprintf( stderr, "Write of iteration count failed\n" );
                 goto Error;
             }
