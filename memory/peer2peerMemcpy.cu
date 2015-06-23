@@ -43,12 +43,15 @@
 #include "chError.h"
 #include "chTimer.h"
 
+#define MAX_DEVICES 32
+
 #define STAGING_BUFFER_SIZE 1048576
 
-void *g_hostBuffers[2];
+void *g_hostBuffers[MAX_DEVICES];
 
 // Indexed as follows: [device][event]
-cudaEvent_t g_events[2][2];
+cudaEvent_t g_events[MAX_DEVICES][2];
+bool g_bEnabled[MAX_DEVICES][MAX_DEVICES];
 
 // these are already defined on some platforms - make our
 // own definitions that will work.
@@ -133,7 +136,7 @@ main( int argc, char *argv[] )
     int deviceCount;
 
     cudaError_t status;
-    int *deviceInt[2];
+    int *deviceInt[MAX_DEVICES];
     int *hostInt = 0;
     const size_t numInts = 8*1048576;
     const int cIterations = 10;
@@ -151,7 +154,9 @@ main( int argc, char *argv[] )
         exit(1);
     }
 
-    for ( int i = 0; i < 2; i++ ) {
+    printf( "%d devices detected\n", deviceCount );
+
+    for ( int i = 0; i < deviceCount; i++ ) {
         cudaSetDevice( i );
 
         CUDART_CHECK( cudaEventCreate( &g_events[i][0] ) );
@@ -160,6 +165,19 @@ main( int argc, char *argv[] )
         CUDART_CHECK( cudaEventRecord( g_events[i][1], 0 ) );  // so it is signaled on first synchronize
 
         CUDART_CHECK( cudaMalloc( &deviceInt[i], numInts*sizeof(int) ) );
+    }
+    for ( int i = 0; i < deviceCount; i++ ) {
+        cudaSetDevice( i );
+        for ( int j = 0; j < deviceCount; j++ ) {
+            if ( i != j ) {
+                int bEnabled;
+                CUDART_CHECK( cudaDeviceCanAccessPeer( &bEnabled, i, j ) );
+                g_bEnabled[i][j] = (0 != bEnabled);
+                if ( bEnabled ) {
+                    CUDART_CHECK( cudaDeviceEnablePeerAccess( j, 0 ) );
+                }
+            }
+        }
     }
 
     CUDART_CHECK( cudaHostAlloc( &g_hostBuffers[0], STAGING_BUFFER_SIZE, cudaHostAllocPortable ) );
@@ -190,18 +208,28 @@ main( int argc, char *argv[] )
         }
     }
 
-    chTimerGetTime( &start );
-    for ( int i = 0; i < cIterations; i++ ) {
-        chMemcpyPeerToPeer( deviceInt[0], 0, deviceInt[1], 1, numInts*sizeof(int) ) ;
-    }
-    CUDART_CHECK( cudaThreadSynchronize() );
-    chTimerGetTime( &stop );
+    for ( int srcDevice = 0; srcDevice < deviceCount; srcDevice++ ) {
+        for ( int dstDevice = 0; dstDevice < deviceCount; dstDevice++ ) {
+            if ( srcDevice == dstDevice ) continue;
+            printf( "%d <- %d...", dstDevice, srcDevice );
+            if ( ! g_bEnabled[srcDevice][dstDevice] ) {
+                printf( "Not enabled\n" );
+                continue;
+            }
+            chTimerGetTime( &start );
+            for ( int i = 0; i < cIterations; i++ ) {
+                cudaMemcpyPeerAsync( deviceInt[dstDevice], dstDevice, deviceInt[srcDevice], srcDevice, numInts*sizeof(int) ) ;
+            }
+            CUDART_CHECK( cudaDeviceSynchronize() );
+            chTimerGetTime( &stop );
 
-    {
-        double MBytes = cIterations*numInts*sizeof(int) / 1048576.0;
-        double MBpers = MBytes / chTimerElapsedTime( &start, &stop );
+            {
+                double MBytes = cIterations*numInts*sizeof(int) / 1048576.0;
+                double MBpers = MBytes / chTimerElapsedTime( &start, &stop );
 
-        printf( "%.2f MB/s\n", MBpers );
+                printf( "%.2f MB/s\n", MBpers );
+            }
+        }
     }
 
     cudaFree( deviceInt );
