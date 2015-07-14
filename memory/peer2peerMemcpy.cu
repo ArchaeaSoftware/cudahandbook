@@ -138,8 +138,8 @@ main( int argc, char *argv[] )
     cudaError_t status;
     int *deviceInt[MAX_DEVICES];
     int *hostInt = 0;
-    const size_t numInts = 8*1048576;
-    const int cIterations = 10;
+    const size_t numInts = 64*1048576;
+    const int cIterations = 100;
     int *testVector = 0;
     printf( "Peer-to-peer memcpy... " ); fflush( stdout );
 
