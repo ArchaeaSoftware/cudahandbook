@@ -74,6 +74,14 @@ exclusive_scan_warp_shfl(int mysum)
     return (lane) ? mysum : 0;
 }
 
+template <int levels>
+__device__ __forceinline__
+int
+inclusive_scan_warp_shfl(int mysum)
+{
+    return mysum + exclusive_scan_warp_shfl<levels>(mysum);
+}
+
 template <int logBlockSize>
 __device__
 int
@@ -144,6 +152,14 @@ exclusive_scan_block(int val, const unsigned int idx)
         return val;
     }
     return warpid ? sPartials[warpid-1] : 0;
+}
+
+template <int logBlockSize>
+__device__
+int
+inclusive_scan_block(int val, const unsigned int idx)
+{
+    return val + exclusive_scan_block<logBlockSize>(val,idx);
 }
 
 #endif
