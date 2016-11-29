@@ -55,17 +55,17 @@ TestSAXPY( chCUDADevice *chDevice, size_t N, float alpha )
     float *hostOut = 0;
     float *hostIn = 0;
 
-    CUDA_CHECK( cuCtxPushCurrent( chDevice->context() ) );
+    cu(CtxPushCurrent( chDevice->context() ) );
 
-    CUDA_CHECK( cuMemAlloc( &dptrOut, N*sizeof(float) ) );
-    CUDA_CHECK( cuMemsetD32( dptrOut, 0, N ) );
-    CUDA_CHECK( cuMemAlloc( &dptrIn, N*sizeof(float) ) );
-    CUDA_CHECK( cuMemHostAlloc( (void **) &hostOut, N*sizeof(float), 0 ) );
-    CUDA_CHECK( cuMemHostAlloc( (void **) &hostIn, N*sizeof(float), 0 ) );
+    cu(MemAlloc( &dptrOut, N*sizeof(float) ) );
+    cu(MemsetD32( dptrOut, 0, N ) );
+    cu(MemAlloc( &dptrIn, N*sizeof(float) ) );
+    cu(MemHostAlloc( (void **) &hostOut, N*sizeof(float), 0 ) );
+    cu(MemHostAlloc( (void **) &hostIn, N*sizeof(float), 0 ) );
     for ( size_t i = 0; i < N; i++ ) {
         hostIn[i] = (float) rand() / (float) RAND_MAX;
     }
-    CUDA_CHECK( cuMemcpyHtoDAsync( dptrIn, hostIn, N*sizeof(float ), NULL ) );
+    cu(MemcpyHtoDAsync( dptrIn, hostIn, N*sizeof(float ), NULL ) );
 
     {
         CUmodule moduleSAXPY;
@@ -77,14 +77,14 @@ TestSAXPY( chCUDADevice *chDevice, size_t N, float alpha )
             status = CUDA_ERROR_NOT_FOUND;
             goto Error;
         }
-        CUDA_CHECK( cuModuleGetFunction( &kernelSAXPY, moduleSAXPY, "saxpy" ) );
+        cu(ModuleGetFunction( &kernelSAXPY, moduleSAXPY, "saxpy" ) );
 
-        CUDA_CHECK( cuLaunchKernel( kernelSAXPY, 1500, 1, 1, 512, 1, 1, 0, NULL, params, NULL ) );
+        cu(LaunchKernel( kernelSAXPY, 1500, 1, 1, 512, 1, 1, 0, NULL, params, NULL ) );
 
     }
 
-    CUDA_CHECK( cuMemcpyDtoHAsync( hostOut, dptrOut, N*sizeof(float), NULL ) );
-    CUDA_CHECK( cuCtxSynchronize() );
+    cu(MemcpyDtoHAsync( hostOut, dptrOut, N*sizeof(float), NULL ) );
+    cu(CtxSynchronize() );
     for ( size_t i = 0; i < N; i++ ) {
         if ( fabsf( hostOut[i] - alpha*hostIn[i] ) > 1e-5f ) {
             status = CUDA_ERROR_UNKNOWN;
@@ -117,7 +117,7 @@ main( int argc, char *argv[] )
                                            it++ ) {
         char deviceName[256];
         chCUDADevice *chDevice = *it;
-        CUDA_CHECK( cuDeviceGetName( deviceName, 255, chDevice->device() ) );
+        cu(DeviceGetName( deviceName, 255, chDevice->device() ) );
         printf( "Testing SAXPY on %s (device %d)...", deviceName, chDevice->device() );
         CUDA_CHECK( TestSAXPY( chDevice, 16*1048576, 2.0 ) );
     }

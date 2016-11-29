@@ -3,11 +3,14 @@
  * chError.h
  *
  * Error handling for CUDA:
- *     CUDA_CHECK() and CUDART_CHECK() macros implement
- *         goto-based error handling, and
+ *     cu() and cuda() macros implement goto-based error
+ *         error handling *, and
  *     chGetErrorString() maps a driver API error to a string.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * * The more-concise formulation of these macros is due to
+ *   Allan MacKinnon.
+ *
+ * Copyright (c) 2011-2016, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -134,6 +137,26 @@ chGetErrorString( CUresult status )
         } \
     } while (0);
 
+#define cuda( fn ) do { \
+        (status) =  (cuda##fn); \
+        if ( cudaSuccess != (status) ) { \
+            fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t" \
+                "%s returned 0x%x (%s)\n", \
+                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
+            goto Error; \
+        } \
+    } while (0);
+
+#define cu( fn ) do { \
+        (status) =  (cu##fn); \
+        if ( CUDA_SUCCESS != (status) ) { \
+            fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t%s "\
+                "returned 0x%x (%s)\n", \
+                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
+            goto Error; \
+        } \
+    } while (0);
+
 #define CUDA_CHECK( fn ) do { \
         (status) =  (fn); \
         if ( CUDA_SUCCESS != (status) ) { \
@@ -146,15 +169,31 @@ chGetErrorString( CUresult status )
 
 #else
 
+
 #define CUDART_CHECK( fn ) do { \
     status = (fn); \
     if ( cudaSuccess != (status) ) { \
+	    goto Error; \
+	} \
+    } while (0);
+
+#define cuda( fn ) do { \
+    status = (cuda##fn); \
+    if ( cudaSuccess != (status) ) { \
+	    goto Error; \
+	} \
+    } while (0);
+
+
+#define CUDA_CHECK( fn ) do { \
+        (status) =  (fn); \
+        if ( CUDA_SUCCESS != (status) ) { \
             goto Error; \
         } \
     } while (0);
 
-#define CUDA_CHECK( fn ) do { \
-        (status) =  (fn); \
+#define cu( fn ) do { \
+        (status) =  (cu##fn); \
         if ( CUDA_SUCCESS != (status) ) { \
             goto Error; \
         } \

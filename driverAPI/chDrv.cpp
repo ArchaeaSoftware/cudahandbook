@@ -92,14 +92,14 @@ chCUDADevice::Initialize(
     CUdevice device;
     CUcontext ctx = 0;
 
-    CUDA_CHECK( cuDeviceGet( &device, ordinal ) );
-    CUDA_CHECK( cuCtxCreate( &ctx, CtxCreateFlags, device ) );
+    cu(DeviceGet( &device, ordinal ) );
+    cu(CtxCreate( &ctx, CtxCreateFlags, device ) );
     for ( list<string>::iterator it  = moduleList.begin();
                                  it != moduleList.end();
                                  it++ ) {
         CUDA_CHECK( loadModuleFromFile( NULL, *it, numOptions, options, optionValues ) );
     }
-    CUDA_CHECK( cuCtxPopCurrent( &ctx ) );
+    cu(CtxPopCurrent( &ctx ) );
     m_device = device;
     m_context = ctx;
     return CUDA_SUCCESS;
@@ -116,8 +116,8 @@ chCUDAInitialize( list<string>& moduleList )
     int cDevicesInitialized = 0;
     chCUDADevice *newDevice;
     
-    CUDA_CHECK( cuInit( 0 ) );
-    CUDA_CHECK( cuDeviceGetCount( &cDevices ) );
+    cu(Init( 0 ) );
+    cu(DeviceGetCount( &cDevices ) );
     for ( int i = 0; i < cDevices; i++ ) {
         CUdevice device;
         CUcontext ctx = 0;
