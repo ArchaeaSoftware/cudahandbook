@@ -116,8 +116,8 @@ corrShared(
     cudaDeviceProp props;
     cudaError_t status;
 
-    CUDART_CHECK( cudaGetDevice( &device ) );
-    CUDART_CHECK( cudaGetDeviceProperties( &props, device ) );
+    cuda(GetDevice( &device ) );
+    cuda(GetDeviceProperties( &props, device ) );
     if ( sharedMem > props.sharedMemPerBlock ) {
         dim3 tcThreads(32, 16, 1);
         dim3 tcBlocks;

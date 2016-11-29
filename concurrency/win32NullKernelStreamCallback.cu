@@ -198,7 +198,7 @@ main( int argc, char *argv[] )
     printf( "Max threads after cuInit(0): %d\n", stats.CountProcessThreads() );
     cudaFree(0);
     printf( "Max threads after cudaFree(0): %d\n", stats.CountProcessThreads() );
-CUDART_CHECK( cudaStreamAddCallback( NULL, CStreamCallbacksStats::countCallbacks, &stats, cudaStreamCallbackNonblocking ) );
+cuda(StreamAddCallback( NULL, CStreamCallbacksStats::countCallbacks, &stats, cudaStreamCallbackNonblocking ) );
 
     printf( "Max threads after cudaStreamAddCallback(): %d\n", stats.CountProcessThreads() );
 
@@ -209,13 +209,13 @@ CUDART_CHECK( cudaStreamAddCallback( NULL, CStreamCallbacksStats::countCallbacks
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
         NullKernel<<<1,1>>>();
-        CUDART_CHECK( cudaStreamAddCallback( NULL, CStreamCallbacksStats::countCallbacks, &stats, cudaStreamCallbackNonblocking ) );
+        cuda(StreamAddCallback( NULL, CStreamCallbacksStats::countCallbacks, &stats, cudaStreamCallbackNonblocking ) );
         if ( i == 0 ) {
             printf( "Max threads: %d\n", stats.CountProcessThreads() );
         }
     }
     DereferenceNullKernel<<<1,1>>>();
-    CUDART_CHECK( cudaStreamAddCallback( NULL, CStreamCallbacksStats::countCallbacks, &stats, cudaStreamCallbackNonblocking ) );
+    cuda(StreamAddCallback( NULL, CStreamCallbacksStats::countCallbacks, &stats, cudaStreamCallbackNonblocking ) );
     cudaDeviceSynchronize();
     chTimerGetTime( &stop );
 

@@ -52,16 +52,16 @@ main( int argc, char *argv[] )
 
     chTimerTimestamp start, stop;
 
-    CUDART_CHECK( cudaMalloc( &deviceInt, sizeof(int) ) );
-    CUDART_CHECK( cudaHostAlloc( &hostInt, sizeof(int), 0 ) );
+    cuda(Malloc( &deviceInt, sizeof(int) ) );
+    cuda(HostAlloc( &hostInt, sizeof(int), 0 ) );
 
     do {
         chTimerGetTime( &start );
         for ( int i = 0; i < cIterations; i++ ) {
-            CUDART_CHECK( cudaMemcpy( hostInt, deviceInt, sizeof(int), 
+            cuda(Memcpy( hostInt, deviceInt, sizeof(int), 
                 cudaMemcpyDeviceToHost ) );
         }
-        CUDART_CHECK( cudaThreadSynchronize() );
+        cuda(ThreadSynchronize() );
         chTimerGetTime( &stop );
         cIterations *= 2;
     } while ( chTimerElapsedTime( &start, &stop ) < 0.5f ) ;

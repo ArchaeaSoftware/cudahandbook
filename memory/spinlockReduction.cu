@@ -165,13 +165,13 @@ AtomicsPerSecond( size_t N, int cBlocks, int cThreads )
     cudaEvent_t evStart = 0;
     cudaEvent_t evStop = 0;
 
-    CUDART_CHECK( cudaMalloc( &d_spinLocks, 1*sizeof(int) ) );
-    CUDART_CHECK( cudaMemset( d_spinLocks, 0, 1*sizeof(int) ) );
+    cuda(Malloc( &d_spinLocks, 1*sizeof(int) ) );
+    cuda(Memset( d_spinLocks, 0, 1*sizeof(int) ) );
 
-    CUDART_CHECK( cudaMalloc( &d_sumInputValues, 1*sizeof(double) ) );
-    CUDART_CHECK( cudaMemset( d_sumInputValues, 0, 1*sizeof(double) ) );
+    cuda(Malloc( &d_sumInputValues, 1*sizeof(double) ) );
+    cuda(Memset( d_sumInputValues, 0, 1*sizeof(double) ) );
     
-    CUDART_CHECK( cudaMalloc( &d_inputValues, N*sizeof(double) ) );
+    cuda(Malloc( &d_inputValues, N*sizeof(double) ) );
     h_inputValues = new double[N];
     if ( ! h_inputValues )
         goto Error;
@@ -182,13 +182,13 @@ AtomicsPerSecond( size_t N, int cBlocks, int cThreads )
         h_inputValues[i] = value;
         sumInputValues += value;
     }
-    CUDART_CHECK( cudaMemcpy( d_inputValues, 
+    cuda(Memcpy( d_inputValues, 
                               h_inputValues, 
                               N*sizeof(double),
                               cudaMemcpyHostToDevice ) );
 
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
+    cuda(EventCreate( &evStart ) );
+    cuda(EventCreate( &evStop ) );
 
     cudaEventRecord( evStart );
     {
@@ -198,7 +198,7 @@ AtomicsPerSecond( size_t N, int cBlocks, int cThreads )
             d_inputValues,
             N,
             g_pacquireCount );
-        CUDART_CHECK( cudaMemcpy( &h_sumInputValues, 
+        cuda(Memcpy( &h_sumInputValues, 
                                   d_sumInputValues, 
                                   sizeof(double), 
                                   cudaMemcpyDeviceToHost ) );
@@ -208,12 +208,12 @@ AtomicsPerSecond( size_t N, int cBlocks, int cThreads )
     }
 
     cudaEventRecord( evStop );
-    CUDART_CHECK( cudaThreadSynchronize() );
+    cuda(ThreadSynchronize() );
 
     // make configurations that cannot launch error-out with 0 bandwidth
-    CUDART_CHECK( cudaGetLastError() ); 
+    cuda(GetLastError() ); 
 
-    CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
+    cuda(EventElapsedTime( &ms, evStart, evStop ) );
     elapsedTime = ms/1000.0f;
 
 	// Return operations per second
@@ -240,8 +240,8 @@ main( int argc, char *argv[] )
     if ( chCommandLineGet( &device, "device", argc, argv ) ) {
         printf( "Using device %d...\n", device );
     }
-    CUDART_CHECK( cudaSetDevice(device) );
-	CUDART_CHECK( cudaGetDeviceProperties( &props, device ) );
+    cuda(SetDevice(device) );
+	cuda(GetDeviceProperties( &props, device ) );
     if ( chCommandLineGet( &size, "size", argc, argv ) ) {
         printf( "Using %dM operands ...\n", size );
     }

@@ -57,8 +57,8 @@ main( int argc, char *argv[] )
 
     chTimerTimestamp start, stop;
 
-    CUDART_CHECK( cudaMalloc( &deviceInt, numBytes ) );
-    CUDART_CHECK( cudaHostAlloc( &hostInt, numBytes, 0 ) );
+    cuda(Malloc( &deviceInt, numBytes ) );
+    cuda(HostAlloc( &hostInt, numBytes, 0 ) );
 
     for ( size_t byteCount = byteIncrement; 
           byteCount <= numBytes; 
@@ -67,10 +67,10 @@ main( int argc, char *argv[] )
         printf( "%d\t", (int) byteCount );
         chTimerGetTime( &start );
         for ( int i = 0; i < cIterations; i++ ) {
-            CUDART_CHECK( cudaMemcpyAsync( hostInt, deviceInt, byteCount, 
+            cuda(MemcpyAsync( hostInt, deviceInt, byteCount, 
                 cudaMemcpyDeviceToHost, NULL ) );
         }
-        CUDART_CHECK( cudaThreadSynchronize() );
+        cuda(ThreadSynchronize() );
         chTimerGetTime( &stop );
 
         {

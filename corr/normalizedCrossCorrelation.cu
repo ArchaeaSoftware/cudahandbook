@@ -117,14 +117,13 @@ CopyToTemplate(
     size_t sizeOffsets = cPixels*sizeof(int);
     float fSumT, fDenomExp, fcPixels;
 
-    CUDART_CHECK( 
-        cudaMemcpy2D( 
-            pixels, wTemplate,
-            img+yTemplate*imgPitch+xTemplate, imgPitch,
-            wTemplate, hTemplate,
-            cudaMemcpyDeviceToHost ) );
+    cuda(Memcpy2D( 
+        pixels, wTemplate,
+        img+yTemplate*imgPitch+xTemplate, imgPitch,
+        wTemplate, hTemplate,
+        cudaMemcpyDeviceToHost ) );
 
-    CUDART_CHECK( cudaMemcpyToSymbol( g_Tpix, pixels, cPixels ) );
+    cuda(MemcpyToSymbol( g_Tpix, pixels, cPixels ) );
 
     for ( int i = OffsetY; i < OffsetY+hTemplate; i++ ) {
         for ( int j = OffsetX; j < OffsetX+wTemplate; j++) {
@@ -138,17 +137,17 @@ CopyToTemplate(
     g_cpuSumT = SumT;
     g_cpuSumTSq = SumTSq;
 
-    CUDART_CHECK( cudaMemcpyToSymbol(g_xOffset, poffsetx, sizeOffsets) );
-    CUDART_CHECK( cudaMemcpyToSymbol(g_yOffset, poffsety, sizeOffsets) );
+    cuda(MemcpyToSymbol(g_xOffset, poffsetx, sizeOffsets) );
+    cuda(MemcpyToSymbol(g_yOffset, poffsety, sizeOffsets) );
 
     fSumT = (float) SumT;
-    CUDART_CHECK( cudaMemcpyToSymbol(g_SumT, &fSumT, sizeof(float)) );
+    cuda(MemcpyToSymbol(g_SumT, &fSumT, sizeof(float)) );
 
     fDenomExp = float( (double)cPixels*SumTSq - (double) SumT*SumT);
-    CUDART_CHECK( cudaMemcpyToSymbol(g_fDenomExp, &fDenomExp, sizeof(float)) );
+    cuda(MemcpyToSymbol(g_fDenomExp, &fDenomExp, sizeof(float)) );
 
     fcPixels = (float) cPixels;
-    CUDART_CHECK( cudaMemcpyToSymbol(g_cPixels, &fcPixels, sizeof(float)) );
+    cuda(MemcpyToSymbol(g_cPixels, &fcPixels, sizeof(float)) );
 Error:
     return status;
 }
@@ -321,18 +320,18 @@ TestCorrelation(
     if ( NULL == hCorr || NULL == hSumI || NULL == hSumISq || NULL == hSumIT )
         goto Error;
 
-    CUDART_CHECK( cudaMallocPitch( (void **) &dCorr, &CorrPitch, w*sizeof(float), h ) );
-    CUDART_CHECK( cudaMallocPitch( (void **) &dSumI, &CorrPitch, w*sizeof(int), h ) );
-    CUDART_CHECK( cudaMallocPitch( (void **) &dSumISq, &CorrPitch, w*sizeof(int), h ) );
-    CUDART_CHECK( cudaMallocPitch( (void **) &dSumIT, &CorrPitch, w*sizeof(int), h ) );
+    cuda(MallocPitch( (void **) &dCorr, &CorrPitch, w*sizeof(float), h ) );
+    cuda(MallocPitch( (void **) &dSumI, &CorrPitch, w*sizeof(int), h ) );
+    cuda(MallocPitch( (void **) &dSumISq, &CorrPitch, w*sizeof(int), h ) );
+    cuda(MallocPitch( (void **) &dSumIT, &CorrPitch, w*sizeof(int), h ) );
 
-    CUDART_CHECK( cudaMemset( dCorr, 0, CorrPitch*h ) );
-    CUDART_CHECK( cudaMemset( dSumI, 0, CorrPitch*h ) );
-    CUDART_CHECK( cudaMemset( dSumISq, 0, CorrPitch*h ) );
-    CUDART_CHECK( cudaMemset( dSumIT, 0, CorrPitch*h ) );
+    cuda(Memset( dCorr, 0, CorrPitch*h ) );
+    cuda(Memset( dSumI, 0, CorrPitch*h ) );
+    cuda(Memset( dSumISq, 0, CorrPitch*h ) );
+    cuda(Memset( dSumIT, 0, CorrPitch*h ) );
 
-    CUDART_CHECK( cudaEventCreate( &start, 0 ) );
-    CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
+    cuda(EventCreate( &start, 0 ) );
+    cuda(EventCreate( &stop, 0 ) );
 
     pfnCorrelationSums(
         dCorr, CorrPitch,
@@ -346,9 +345,9 @@ TestCorrelation(
         0, 0, w, h,
         threads, blocks, sharedMem );
 
-    CUDART_CHECK( cudaMemcpy2D( hSumI, w*sizeof(int), dSumI, CorrPitch, w*sizeof(int), h, cudaMemcpyDeviceToHost ) );
-    CUDART_CHECK( cudaMemcpy2D( hSumISq, w*sizeof(int), dSumISq, CorrPitch, w*sizeof(int), h, cudaMemcpyDeviceToHost ) );
-    CUDART_CHECK( cudaMemcpy2D( hSumIT, w*sizeof(int), dSumIT, CorrPitch, w*sizeof(int), h, cudaMemcpyDeviceToHost ) );
+    cuda(Memcpy2D( hSumI, w*sizeof(int), dSumI, CorrPitch, w*sizeof(int), h, cudaMemcpyDeviceToHost ) );
+    cuda(Memcpy2D( hSumISq, w*sizeof(int), dSumISq, CorrPitch, w*sizeof(int), h, cudaMemcpyDeviceToHost ) );
+    cuda(Memcpy2D( hSumIT, w*sizeof(int), dSumIT, CorrPitch, w*sizeof(int), h, cudaMemcpyDeviceToHost ) );
 
     if ( bCompareSums( hSumI, hSumISq, hSumIT,
                        hrefSumI, hrefSumISq, hrefSumIT,
@@ -358,7 +357,7 @@ TestCorrelation(
         goto Error;
     }
 
-    CUDART_CHECK( cudaMemcpy2D( hCorr, w*sizeof(float), dCorr, CorrPitch, w*sizeof(float), h, cudaMemcpyDeviceToHost ) );
+    cuda(Memcpy2D( hCorr, w*sizeof(float), dCorr, CorrPitch, w*sizeof(float), h, cudaMemcpyDeviceToHost ) );
 
     if ( bCompareCorrValues( hrefCorr, hCorr, w, h ) ) {
         //CH_ASSERT(0);
@@ -366,9 +365,9 @@ TestCorrelation(
         return 1;
     }
 
-    CUDART_CHECK( cudaMemset2D( dCorr, CorrPitch, 0, w*sizeof(float), h ) );
-    CUDART_CHECK( cudaDeviceSynchronize() );
-    CUDART_CHECK( cudaEventRecord( start, 0 ) );
+    cuda(Memset2D( dCorr, CorrPitch, 0, w*sizeof(float), h ) );
+    cuda(DeviceSynchronize() );
+    cuda(EventRecord( start, 0 ) );
 
     for ( int i = 0; i < cIterations; i++ ) {
         pfnCorrelation( 
@@ -383,8 +382,8 @@ TestCorrelation(
             threads, blocks, sharedMem );
     }
 
-    CUDART_CHECK( cudaEventRecord( stop, 0 ) );
-    CUDART_CHECK( cudaMemcpy2D( hCorr, w*sizeof(float), dCorr, CorrPitch, w*sizeof(float), h, cudaMemcpyDeviceToHost ) );
+    cuda(EventRecord( stop, 0 ) );
+    cuda(Memcpy2D( hCorr, w*sizeof(float), dCorr, CorrPitch, w*sizeof(float), h, cudaMemcpyDeviceToHost ) );
 
     if ( bCompareCorrValues( hrefCorr, hCorr, w, h ) ) {
         CH_ASSERT(0);
@@ -394,7 +393,7 @@ TestCorrelation(
 
     {
         float ms;
-        CUDART_CHECK( cudaEventElapsedTime( &ms, start, stop ) );
+        cuda(EventElapsedTime( &ms, start, stop ) );
         *pixelsPerSecond = (double) w*h*cIterations*1000.0 / ms;
         *templatePixelsPerSecond = *pixelsPerSecond*wTemplate*hTemplate;
     }
@@ -500,8 +499,8 @@ main(int argc, char *argv[])
         return 0;
     }
 
-    CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
-    CUDART_CHECK( cudaDeviceSetCacheConfig( cudaFuncCachePreferShared ) );
+    cuda(SetDeviceFlags( cudaDeviceMapHost ) );
+    cuda(DeviceSetCacheConfig( cudaFuncCachePreferShared ) );
 
     if ( chCommandLineGet( &inputFilename, "input", argc, argv ) ) {
         printf( "Reading from image file %s\n", inputFilename );
@@ -543,14 +542,14 @@ main(int argc, char *argv[])
          NULL == hoCorrCPUIT )
         goto Error;
 
-    CUDART_CHECK( cudaMallocArray( &pArrayImage, &desc, w, h ) );
-    CUDART_CHECK( cudaMallocArray( &pArrayTemplate, &desc, w, h ) );
-    CUDART_CHECK( cudaMemcpyToArray( pArrayImage, 0, 0, hidata, w*h, cudaMemcpyHostToDevice ) );
+    cuda(MallocArray( &pArrayImage, &desc, w, h ) );
+    cuda(MallocArray( &pArrayTemplate, &desc, w, h ) );
+    cuda(MemcpyToArray( pArrayImage, 0, 0, hidata, w*h, cudaMemcpyHostToDevice ) );
         
-    CUDART_CHECK( cudaMemcpy2DArrayToArray( pArrayTemplate, 0, 0, pArrayImage, 0, 0, w, h, cudaMemcpyDeviceToDevice ) );
+    cuda(Memcpy2DArrayToArray( pArrayTemplate, 0, 0, pArrayImage, 0, 0, w, h, cudaMemcpyDeviceToDevice ) );
     
-    CUDART_CHECK( cudaBindTextureToArray( texImage, pArrayImage ) );
-    CUDART_CHECK( cudaBindTextureToArray( texTemplate, pArrayTemplate ) );
+    cuda(BindTextureToArray( texImage, pArrayImage ) );
+    cuda(BindTextureToArray( texTemplate, pArrayTemplate ) );
 
     CopyToTemplate( didata, DevicePitch, 
                     xTemplate, yTemplate, 

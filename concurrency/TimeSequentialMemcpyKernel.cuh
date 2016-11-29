@@ -57,39 +57,39 @@ TimeSequentialMemcpyKernel(
 
     for ( int i = 0; i < numEvents; i++ ) {
         events[i] = NULL;
-        CUDART_CHECK( cudaEventCreate( &events[i] ) );
+        cuda(EventCreate( &events[i] ) );
     }
-    CUDART_CHECK( cudaMallocHost( &hostIn, N*sizeof(int) ) );
-    CUDART_CHECK( cudaMallocHost( &hostOut, N*sizeof(int) ) );
-    CUDART_CHECK( cudaMalloc( &deviceIn, N*sizeof(int) ) );
-    CUDART_CHECK( cudaMalloc( &deviceOut, N*sizeof(int) ) );
+    cuda(MallocHost( &hostIn, N*sizeof(int) ) );
+    cuda(MallocHost( &hostOut, N*sizeof(int) ) );
+    cuda(Malloc( &deviceIn, N*sizeof(int) ) );
+    cuda(Malloc( &deviceOut, N*sizeof(int) ) );
 
     for ( size_t i = 0; i < N; i++ ) {
         hostIn[i] = rand();
     }
 
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(DeviceSynchronize() );
 
     for ( chShmooIterator cycles(cyclesRange); cycles; cycles++ ) {
 
         printf( "." ); fflush( stdout );
 
-        CUDART_CHECK( cudaEventRecord( events[0], NULL ) );
-        CUDART_CHECK( cudaMemcpyAsync( deviceIn, hostIn, N*sizeof(int), 
+        cuda(EventRecord( events[0], NULL ) );
+        cuda(MemcpyAsync( deviceIn, hostIn, N*sizeof(int), 
             cudaMemcpyHostToDevice, NULL ) );
-        CUDART_CHECK( cudaEventRecord( events[1], NULL ) );
+        cuda(EventRecord( events[1], NULL ) );
         AddKernel<<<numBlocks, 256>>>( deviceOut, deviceIn, N, 0xcc, *cycles );
-        CUDART_CHECK( cudaEventRecord( events[2], NULL ) );
-        CUDART_CHECK( cudaMemcpyAsync( hostOut, deviceOut, N*sizeof(int), 
+        cuda(EventRecord( events[2], NULL ) );
+        cuda(MemcpyAsync( hostOut, deviceOut, N*sizeof(int), 
             cudaMemcpyDeviceToHost, NULL ) );
-        CUDART_CHECK( cudaEventRecord( events[3], NULL ) );
+        cuda(EventRecord( events[3], NULL ) );
 
-        CUDART_CHECK( cudaDeviceSynchronize() );
+        cuda(DeviceSynchronize() );
 
-        CUDART_CHECK( cudaEventElapsedTime( timesHtoD, events[0], events[1] ) );
-        CUDART_CHECK( cudaEventElapsedTime( timesKernel, events[1], events[2] ) );
-        CUDART_CHECK( cudaEventElapsedTime( timesDtoH, events[2], events[3] ) );
-        CUDART_CHECK( cudaEventElapsedTime( timesTotal, events[0], events[3] ) );
+        cuda(EventElapsedTime( timesHtoD, events[0], events[1] ) );
+        cuda(EventElapsedTime( timesKernel, events[1], events[2] ) );
+        cuda(EventElapsedTime( timesDtoH, events[2], events[3] ) );
+        cuda(EventElapsedTime( timesTotal, events[0], events[3] ) );
 
         timesHtoD += 1;
         timesKernel += 1;

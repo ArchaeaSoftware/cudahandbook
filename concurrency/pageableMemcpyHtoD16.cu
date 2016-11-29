@@ -75,11 +75,11 @@ chMemcpyHtoD( void *device, const void *host, size_t N )
     while ( N ) {
         size_t thisCopySize = min( N, STAGING_BUFFER_SIZE );
 
-        CUDART_CHECK( cudaEventSynchronize( g_events[stagingIndex] ) );
+        cuda(EventSynchronize( g_events[stagingIndex] ) );
         memcpy16( g_hostBuffers[stagingIndex], src, thisCopySize ); 
-        CUDART_CHECK( cudaMemcpyAsync( dst, g_hostBuffers[stagingIndex], thisCopySize, 
+        cuda(MemcpyAsync( dst, g_hostBuffers[stagingIndex], thisCopySize, 
             cudaMemcpyHostToDevice, NULL ) );
-        CUDART_CHECK( cudaEventRecord( g_events[1-stagingIndex], NULL ) );
+        cuda(EventRecord( g_events[1-stagingIndex], NULL ) );
         dst += thisCopySize;
         src += thisCopySize;
         N -= thisCopySize;
@@ -116,15 +116,15 @@ main( int argc, char *argv[] )
 
     chTimerTimestamp start, stop;
 
-    CUDART_CHECK( cudaHostAlloc( &g_hostBuffers[0], STAGING_BUFFER_SIZE, cudaHostAllocDefault ) );
-    CUDART_CHECK( cudaHostAlloc( &g_hostBuffers[1], STAGING_BUFFER_SIZE, cudaHostAllocDefault ) );
-    CUDART_CHECK( cudaEventCreate( &g_events[0] ) );
-    CUDART_CHECK( cudaEventRecord( g_events[0], 0 ) );  // so it is signaled on first synchronize
-    CUDART_CHECK( cudaEventCreate( &g_events[1] ) );
-    CUDART_CHECK( cudaEventRecord( g_events[1], 0 ) );  // so it is signaled on first synchronize
+    cuda(HostAlloc( &g_hostBuffers[0], STAGING_BUFFER_SIZE, cudaHostAllocDefault ) );
+    cuda(HostAlloc( &g_hostBuffers[1], STAGING_BUFFER_SIZE, cudaHostAllocDefault ) );
+    cuda(EventCreate( &g_events[0] ) );
+    cuda(EventRecord( g_events[0], 0 ) );  // so it is signaled on first synchronize
+    cuda(EventCreate( &g_events[1] ) );
+    cuda(EventRecord( g_events[1], 0 ) );  // so it is signaled on first synchronize
 
-    CUDART_CHECK( cudaMalloc( &deviceInt, numInts*sizeof(int) ) );
-    CUDART_CHECK( cudaHostAlloc( &hostInt, numInts*sizeof(int), 0 ) );
+    cuda(Malloc( &deviceInt, numInts*sizeof(int) ) );
+    cuda(HostAlloc( &hostInt, numInts*sizeof(int), 0 ) );
 
     testVector = (int *) malloc( numInts*sizeof(int) );
     if ( ! testVector ) {
@@ -157,7 +157,7 @@ main( int argc, char *argv[] )
     for ( int i = 0; i < cIterations; i++ ) {
         chMemcpyHtoD( deviceInt, testVector, numInts*sizeof(int) ) ;
     }
-    CUDART_CHECK( cudaThreadSynchronize() );
+    cuda(ThreadSynchronize() );
     chTimerGetTime( &stop );
 
     {

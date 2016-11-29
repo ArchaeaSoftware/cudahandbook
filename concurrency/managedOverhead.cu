@@ -65,15 +65,15 @@ usPerLaunch( int cIterations, size_t cPages=0 )
     chTimerTimestamp start, stop;
     void *p = 0;
 
-    CUDART_CHECK( cudaFree(0) );
+    cuda(Free(0) );
     if ( cPages ) {
-        CUDART_CHECK( cudaMallocManaged( &p, cPages*pageSize ) );
+        cuda(MallocManaged( &p, cPages*pageSize ) );
     }
 
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
         NullKernel<<<1,1>>>();
-        CUDART_CHECK( cudaThreadSynchronize() );
+        cuda(ThreadSynchronize() );
         if ( bTouch && 0 != p ) {
             for ( int iPage = 0; iPage < cPages; iPage++ ) {
                 ((volatile unsigned char *) p)[iPage*pageSize] |= 1;

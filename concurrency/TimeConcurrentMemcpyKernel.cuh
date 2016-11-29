@@ -77,26 +77,26 @@ TimeConcurrentMemcpyKernel(
 
     for ( int i = 0; i < numEvents; i++ ) {
         events[i] = NULL;
-        CUDART_CHECK( cudaEventCreate( &events[i] ) );
+        cuda(EventCreate( &events[i] ) );
     }
     streams = (cudaStream_t *) malloc( maxStreams*sizeof(cudaStream_t) );
     if ( ! streams )
         goto Error;
     memset( streams, 0, maxStreams*sizeof(cudaStream_t) );
     for ( int i = 0; i < maxStreams; i++ ) {
-        CUDART_CHECK( cudaStreamCreate( &streams[i] ) );
+        cuda(StreamCreate( &streams[i] ) );
     }
 
-    CUDART_CHECK( cudaMallocHost( &hostIn, N*sizeof(int) ) );
-    CUDART_CHECK( cudaMallocHost( &hostOut, N*sizeof(int) ) );
-    CUDART_CHECK( cudaMalloc( &deviceIn, N*sizeof(int) ) );
-    CUDART_CHECK( cudaMalloc( &deviceOut, N*sizeof(int) ) );
+    cuda(MallocHost( &hostIn, N*sizeof(int) ) );
+    cuda(MallocHost( &hostOut, N*sizeof(int) ) );
+    cuda(Malloc( &deviceIn, N*sizeof(int) ) );
+    cuda(Malloc( &deviceOut, N*sizeof(int) ) );
 
     for ( size_t i = 0; i < N; i++ ) {
         hostIn[i] = rand();
     }
 
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(DeviceSynchronize() );
 
     for ( chShmooIterator streamCount(streamsRange); streamCount; streamCount++ ) {
         int numStreams = *streamCount;
@@ -106,12 +106,12 @@ TimeConcurrentMemcpyKernel(
 
             printf( "." ); fflush( stdout );
 
-            CUDART_CHECK( cudaEventRecord( events[0], NULL ) );
+            cuda(EventRecord( events[0], NULL ) );
 
             intsLeft = N;
             for ( int stream = 0; stream < numStreams; stream++ ) {
                 size_t intsToDo = (intsLeft < intsPerStream) ? intsLeft : intsPerStream;
-                CUDART_CHECK( cudaMemcpyAsync( 
+                cuda(MemcpyAsync( 
                     deviceIn+stream*intsPerStream, 
                     hostIn+stream*intsPerStream, 
                     intsToDo*sizeof(int), 
@@ -132,7 +132,7 @@ TimeConcurrentMemcpyKernel(
             intsLeft = N;
             for ( int stream = 0; stream < numStreams; stream++ ) {
                 size_t intsToDo = (intsLeft < intsPerStream) ? intsLeft : intsPerStream;
-                CUDART_CHECK( cudaMemcpyAsync( 
+                cuda(MemcpyAsync( 
                     hostOut+stream*intsPerStream, 
                     deviceOut+stream*intsPerStream, 
                     intsToDo*sizeof(int), 
@@ -140,8 +140,8 @@ TimeConcurrentMemcpyKernel(
                 intsLeft -= intsToDo;
             }
 
-            CUDART_CHECK( cudaEventRecord( events[1], NULL ) );
-            CUDART_CHECK( cudaDeviceSynchronize() );
+            cuda(EventRecord( events[1], NULL ) );
+            cuda(DeviceSynchronize() );
 
             // confirm that the computation was done correctly
             for ( size_t i = 0; i < N; i++ ) {
@@ -151,7 +151,7 @@ TimeConcurrentMemcpyKernel(
                 }
             }
 
-            CUDART_CHECK( cudaEventElapsedTime( times, events[0], events[1] ) );
+            cuda(EventElapsedTime( times, events[0], events[1] ) );
 
             times += 1;
         }

@@ -169,8 +169,8 @@ public:
     CGPUTestP2PLatency( cEnumCPUGPU dst, cEnumCPUGPU src, size_t cIterations, bool bUseEvents ) : CGPUTestP2P( dst, src, 4, bUseEvents, true ) { 
         cudaError_t status;
         m_cIterations = cIterations;
-        CUDART_CHECK( cudaMalloc( &m_dptrDstTimestamps, (cIterations+1)*sizeof(uint64_t) ) );
-        CUDART_CHECK( cudaMalloc( &m_dptrSrcTimestamps, (cIterations+1)*sizeof(uint64_t) ) );
+        cuda(Malloc( &m_dptrDstTimestamps, (cIterations+1)*sizeof(uint64_t) ) );
+        cuda(Malloc( &m_dptrSrcTimestamps, (cIterations+1)*sizeof(uint64_t) ) );
         return;
     Error: 
         fprintf(stderr, "cudaMalloc failed\n" ); 
@@ -233,9 +233,9 @@ CGPULoadDriver::CGPULoadDriver( cEnumCPUGPU dstDevice, cEnumCPUGPU srcDevice, cE
     CHECK_NONZERO( sem_init( &m_semWait, 0, 1 ) );
     CHECK_NONZERO( sem_init( &m_semDone, 0, 1 ) );
 
-    CUDART_CHECK( cudaSetDevice( m_eventDevice.getGPU() ) );
-    CUDART_CHECK( cudaEventCreate( &m_evStart ) );
-    CUDART_CHECK( cudaEventCreate( &m_evStop ) );
+    cuda(SetDevice( m_eventDevice.getGPU() ) );
+    cuda(EventCreate( &m_evStart ) );
+    cuda(EventCreate( &m_evStop ) );
     return;
 Error:
     cout << "Error creating CGPULoadDriver( " << dstDevice << ", " << srcDevice << endl;
@@ -267,12 +267,12 @@ CGPUTestP2P::CGPUTestP2P( cEnumCPUGPU dstDevice, cEnumCPUGPU srcDevice, size_t c
     cudaError_t status;
     assert( dstDevice.bGPU() && srcDevice.bGPU() );
     m_bUseEvents = bUseEvents;
-    CUDART_CHECK( cudaSetDevice(m_dstDevice.getGPU() ) );
-    CUDART_CHECK( cudaMalloc( &m_dptrDst, g_cBytes ) );
-    CUDART_CHECK( cudaMemset( m_dptrDst, 0, g_cBytes ) );
-    CUDART_CHECK( cudaSetDevice(m_srcDevice.getGPU() ) );
-    CUDART_CHECK( cudaMalloc( &m_dptrSrc, g_cBytes ) );
-    CUDART_CHECK( cudaMemset( m_dptrSrc, 0, g_cBytes ) );
+    cuda(SetDevice(m_dstDevice.getGPU() ) );
+    cuda(Malloc( &m_dptrDst, g_cBytes ) );
+    cuda(Memset( m_dptrDst, 0, g_cBytes ) );
+    cuda(SetDevice(m_srcDevice.getGPU() ) );
+    cuda(Malloc( &m_dptrSrc, g_cBytes ) );
+    cuda(Memset( m_dptrSrc, 0, g_cBytes ) );
     return;
 Error:
     cerr << "Error creating CGPUTestP2P " << dstDevice << ", " << srcDevice << endl;
@@ -287,8 +287,8 @@ CGPUTestH2D::CGPUTestH2D( cEnumCPUGPU dstDevice, cEnumCPUGPU srcDevice, size_t c
     m_bUseEvents = bUseEvents;
     m_dptrDst = 0;
     m_pSrc = 0;
-    CUDART_CHECK( cudaSetDevice(m_dstDevice.getGPU() ) );
-    CUDART_CHECK( cudaMalloc( &m_dptrDst, m_cBytes ) );
+    cuda(SetDevice(m_dstDevice.getGPU() ) );
+    cuda(Malloc( &m_dptrDst, m_cBytes ) );
     if ( ! chNUMApageAlignedAllocHost( &m_pSrc, m_cBytes, dstDevice.getGPU() ) )
         goto Error;
     return;
@@ -305,9 +305,9 @@ CGPUTestD2H::CGPUTestD2H( cEnumCPUGPU dstDevice, cEnumCPUGPU srcDevice, size_t c
     m_bUseEvents = bUseEvents;
     m_pDst = 0;
     m_dptrSrc = 0;
-    CUDART_CHECK( cudaSetDevice(m_srcDevice.getGPU() ) );
-    CUDART_CHECK( cudaMalloc( &m_dptrSrc, g_cBytes ) );
-    CUDART_CHECK( cudaMallocHost( &m_pDst, g_cBytes ) );
+    cuda(SetDevice(m_srcDevice.getGPU() ) );
+    cuda(Malloc( &m_dptrSrc, g_cBytes ) );
+    cuda(MallocHost( &m_pDst, g_cBytes ) );
     return;
 Error:
     cerr << "Error creating CGPUTestD2H " << dstDevice << ", " << srcDevice << endl;
@@ -360,7 +360,7 @@ CGPUTestP2P::PerformMemcpys( )
     bool bRet = false;
     cudaError_t status;
     for ( int j = 0; j < g_cIterations; j++ ) {
-        CUDART_CHECK( cudaMemcpyPeerAsync( m_dptrDst, m_dstDevice.getGPU(),
+        cuda(MemcpyPeerAsync( m_dptrDst, m_dstDevice.getGPU(),
                                            m_dptrSrc, m_srcDevice.getGPU(),
                                            g_cBytes, NULL ) );
     }
@@ -421,19 +421,19 @@ CGPUTestP2PLatency::PerformMemcpys( )
     double srcClockRate, dstClockRate;
     uint64_t *phostDst = (uint64_t *) malloc( (m_cIterations+1)*sizeof(uint64_t) );
     uint64_t *phostSrc = (uint64_t *) malloc( (m_cIterations+1)*sizeof(uint64_t) );
-    CUDART_CHECK( cudaSetDevice( m_srcDevice.getGPU() ) );
-    CUDART_CHECK( cudaGetDeviceProperties( &prop, m_srcDevice.getGPU() ) );
+    cuda(SetDevice( m_srcDevice.getGPU() ) );
+    cuda(GetDeviceProperties( &prop, m_srcDevice.getGPU() ) );
     srcClockRate = (double) prop.clockRate;
     p2pPingPongLatencyTest<<<1,1>>>( m_dptrSrc, m_dptrDst, m_dptrSrcTimestamps, 1, m_cIterations );
-    CUDART_CHECK( cudaSetDevice( m_dstDevice.getGPU() ) );
-    CUDART_CHECK( cudaGetDeviceProperties( &prop, m_dstDevice.getGPU() ) );
+    cuda(SetDevice( m_dstDevice.getGPU() ) );
+    cuda(GetDeviceProperties( &prop, m_dstDevice.getGPU() ) );
     dstClockRate = (double) prop.clockRate;
     p2pPingPongLatencyTest<<<1,1>>>( m_dptrDst, m_dptrSrc, m_dptrDstTimestamps, 0, m_cIterations );
-    CUDART_CHECK( cudaDeviceSynchronize() );
-    CUDART_CHECK( cudaMemcpy( phostDst, m_dptrDstTimestamps, (m_cIterations+1)*sizeof(uint64_t) , cudaMemcpyDeviceToHost ) );
-    CUDART_CHECK( cudaSetDevice( m_srcDevice.getGPU() ) );
-    CUDART_CHECK( cudaMemcpy( phostSrc, m_dptrSrc, sizeof(uint64_t) , cudaMemcpyDeviceToHost ) );
-    CUDART_CHECK( cudaMemcpy( phostSrc, m_dptrDstTimestamps, (m_cIterations+1)*sizeof(uint64_t), cudaMemcpyDeviceToHost ) );
+    cuda(DeviceSynchronize() );
+    cuda(Memcpy( phostDst, m_dptrDstTimestamps, (m_cIterations+1)*sizeof(uint64_t) , cudaMemcpyDeviceToHost ) );
+    cuda(SetDevice( m_srcDevice.getGPU() ) );
+    cuda(Memcpy( phostSrc, m_dptrSrc, sizeof(uint64_t) , cudaMemcpyDeviceToHost ) );
+    cuda(Memcpy( phostSrc, m_dptrDstTimestamps, (m_cIterations+1)*sizeof(uint64_t), cudaMemcpyDeviceToHost ) );
 
     printf( "\nClocks statistics (dst):\n" );
     {
@@ -481,9 +481,9 @@ CGPUTestH2D::PerformMemcpys( )
 {
     bool bRet = false;
     cudaError_t status;
-    CUDART_CHECK( cudaSetDevice( m_dstDevice.getGPU() ) );
+    cuda(SetDevice( m_dstDevice.getGPU() ) );
     for ( int j = 0; j < g_cIterations; j++ ) {
-        CUDART_CHECK( cudaMemcpyAsync( m_dptrDst, m_pSrc, g_cBytes, cudaMemcpyHostToDevice ) );
+        cuda(MemcpyAsync( m_dptrDst, m_pSrc, g_cBytes, cudaMemcpyHostToDevice ) );
     }
     bRet = true;
 Error:
@@ -495,9 +495,9 @@ CGPUTestD2H::PerformMemcpys( )
 {
     bool bRet = false;
     cudaError_t status;
-    CUDART_CHECK( cudaSetDevice( m_srcDevice.getGPU() ) );
+    cuda(SetDevice( m_srcDevice.getGPU() ) );
     for ( int j = 0; j < g_cIterations; j++ ) {
-        CUDART_CHECK( cudaMemcpyAsync( m_pDst, m_dptrSrc, g_cBytes, cudaMemcpyDeviceToHost ) );
+        cuda(MemcpyAsync( m_pDst, m_dptrSrc, g_cBytes, cudaMemcpyDeviceToHost ) );
     }
     bRet = true;
 Error:
@@ -512,23 +512,23 @@ CGPULoadDriver::TimeMemcpys( )
     bool bAcquiredMutex = false;
 
     CHECK_NONZERO( sem_wait( &m_semWait ) );
-    CUDART_CHECK( cudaSetDevice( m_eventDevice.getGPU() ) );
+    cuda(SetDevice( m_eventDevice.getGPU() ) );
     if ( m_bUseEvents ) {
-        CUDART_CHECK( cudaEventRecord( m_evStart, NULL ) );
+        cuda(EventRecord( m_evStart, NULL ) );
     }
     if ( ! PerformMemcpys() )
         goto Error;
     if ( m_bUseEvents ) {
-        CUDART_CHECK( cudaSetDevice( m_eventDevice.getGPU() ) );
-        CUDART_CHECK( cudaEventRecord( m_evStop, NULL ) );
+        cuda(SetDevice( m_eventDevice.getGPU() ) );
+        cuda(EventRecord( m_evStop, NULL ) );
     }
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(DeviceSynchronize() );
 
     if ( m_bUseEvents ) {
-        CUDART_CHECK( cudaSetDevice( m_eventDevice.getGPU() ) );
-        CUDART_CHECK( cudaEventRecord( m_evStop, NULL ) );
+        cuda(SetDevice( m_eventDevice.getGPU() ) );
+        cuda(EventRecord( m_evStop, NULL ) );
     }
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(DeviceSynchronize() );
 
     CHECK_NONZERO( pthread_mutex_lock( &g_mutexOutput ) );
     bAcquiredMutex = true;
@@ -536,7 +536,7 @@ CGPULoadDriver::TimeMemcpys( )
     if ( m_bUseEvents && (! m_bLatencyTest) )
     {
         float ms;
-        CUDART_CHECK( cudaEventElapsedTime( &ms, m_evStart, m_evStop ) );
+        cuda(EventElapsedTime( &ms, m_evStart, m_evStop ) );
         double MBytes = g_cIterations*g_cBytes / 1048576.0;
         double MBpers = 1000.0*MBytes / ms;
 
@@ -703,7 +703,7 @@ main( int argc, char *argv[] )
 
     printf( "Peer-to-peer memcpy... " ); fflush( stdout );
 
-    CUDART_CHECK( cudaGetDeviceCount( &deviceCount ) );
+    cuda(GetDeviceCount( &deviceCount ) );
 
     if ( deviceCount <= 1 ) {
         printf( "Peer-to-peer demo requires at least 2 devices\n" );
@@ -719,10 +719,10 @@ main( int argc, char *argv[] )
         for ( int j = 0; j < deviceCount; j++ ) {
             if ( i != j ) {
                 int bEnabled;
-                CUDART_CHECK( cudaDeviceCanAccessPeer( &bEnabled, i, j ) );
+                cuda(DeviceCanAccessPeer( &bEnabled, i, j ) );
                 g_bEnabled[i][j] = (0 != bEnabled);
                 if ( bEnabled ) {
-                    CUDART_CHECK( cudaDeviceEnablePeerAccess( j, 0 ) );
+                    cuda(DeviceEnablePeerAccess( j, 0 ) );
                 }
             }
         }

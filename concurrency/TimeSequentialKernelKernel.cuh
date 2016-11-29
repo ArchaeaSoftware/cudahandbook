@@ -67,35 +67,35 @@ TimeSequentialKernelKernel(
 
     for ( int i = 0; i < numEvents; i++ ) {
         events[i] = NULL;
-        CUDART_CHECK( cudaEventCreate( &events[i] ) );
+        cuda(EventCreate( &events[i] ) );
     }
-    CUDART_CHECK( cudaMallocHost( &hostIn, N*sizeof(int) ) );
-    CUDART_CHECK( cudaMallocHost( &hostOut, N*sizeof(int) ) );
-    CUDART_CHECK( cudaMalloc( &deviceIn, N*sizeof(int) ) );
-    CUDART_CHECK( cudaMalloc( &deviceOut, N*sizeof(int) ) );
-    CUDART_CHECK( cudaGetSymbolAddress( (void **) &kernelData, g_kernelData ) );
-    CUDART_CHECK( cudaMemset( kernelData, 0, sizeof(KernelConcurrencyData) ) );
+    cuda(MallocHost( &hostIn, N*sizeof(int) ) );
+    cuda(MallocHost( &hostOut, N*sizeof(int) ) );
+    cuda(Malloc( &deviceIn, N*sizeof(int) ) );
+    cuda(Malloc( &deviceOut, N*sizeof(int) ) );
+    cuda(GetSymbolAddress( (void **) &kernelData, g_kernelData ) );
+    cuda(Memset( kernelData, 0, sizeof(KernelConcurrencyData) ) );
 
     for ( size_t i = 0; i < N; i++ ) {
         hostIn[i] = rand();
     }
 
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(DeviceSynchronize() );
 
     for ( chShmooIterator cycles(cyclesRange); cycles; cycles++ ) {
 
         printf( "." ); fflush( stdout );
 
-        CUDART_CHECK( cudaEventRecord( events[0], NULL ) );
-        CUDART_CHECK( cudaMemcpyAsync( deviceIn, hostIn, N*sizeof(int), 
+        cuda(EventRecord( events[0], NULL ) );
+        cuda(MemcpyAsync( deviceIn, hostIn, N*sizeof(int), 
             cudaMemcpyHostToDevice, NULL ) );
         AddKernel<<<numBlocks, 256>>>( deviceOut, deviceIn, N, 0xcc, 
             *cycles, 0, kernelData, unrollFactor );
-        CUDART_CHECK( cudaEventRecord( events[1], NULL ) );
-        CUDART_CHECK( cudaMemcpyAsync( hostOut, deviceOut, N*sizeof(int), 
+        cuda(EventRecord( events[1], NULL ) );
+        cuda(MemcpyAsync( hostOut, deviceOut, N*sizeof(int), 
             cudaMemcpyDeviceToHost, NULL ) );
 
-        CUDART_CHECK( cudaDeviceSynchronize() );
+        cuda(DeviceSynchronize() );
 
         for ( size_t i = 0; i < N; i++ ) {
             CH_ASSERT( hostOut[i] == hostIn[i]+*cycles*0xcc );
@@ -105,14 +105,14 @@ TimeSequentialKernelKernel(
             }
         }
 
-        CUDART_CHECK( cudaEventElapsedTime( times, events[0], events[1] ) );
+        cuda(EventElapsedTime( times, events[0], events[1] ) );
 
         times += 1;
     }
 
     {
         KernelConcurrencyData host_kernelData;
-        CUDART_CHECK( cudaMemcpy( &host_kernelData, kernelData, sizeof(KernelConcurrencyData), cudaMemcpyDeviceToHost ) );
+        cuda(Memcpy( &host_kernelData, kernelData, sizeof(KernelConcurrencyData), cudaMemcpyDeviceToHost ) );
         printf( "\n" );
         PrintKernelData( host_kernelData );
     }

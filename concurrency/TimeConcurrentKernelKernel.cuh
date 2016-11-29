@@ -77,28 +77,28 @@ TimeConcurrentKernelKernel(
 
     for ( int i = 0; i < numEvents; i++ ) {
         events[i] = NULL;
-        CUDART_CHECK( cudaEventCreate( &events[i] ) );
+        cuda(EventCreate( &events[i] ) );
     }
     streams = (cudaStream_t *) malloc( maxStreams*sizeof(cudaStream_t) );
     if ( ! streams )
         goto Error;
     memset( streams, 0, maxStreams*sizeof(cudaStream_t) );
     for ( int i = 0; i < maxStreams; i++ ) {
-        CUDART_CHECK( cudaStreamCreate( &streams[i] ) );
+        cuda(StreamCreate( &streams[i] ) );
     }
 
-    CUDART_CHECK( cudaMallocHost( &hostIn, N*sizeof(int) ) );
-    CUDART_CHECK( cudaMallocHost( &hostOut, N*sizeof(int) ) );
-    CUDART_CHECK( cudaMalloc( &deviceIn, N*sizeof(int) ) );
-    CUDART_CHECK( cudaMalloc( &deviceOut, N*sizeof(int) ) );
-    CUDART_CHECK( cudaGetSymbolAddress( (void **) &kernelData, g_kernelData ) );
-    CUDART_CHECK( cudaMemset( kernelData, 0, sizeof(KernelConcurrencyData) ) );
+    cuda(MallocHost( &hostIn, N*sizeof(int) ) );
+    cuda(MallocHost( &hostOut, N*sizeof(int) ) );
+    cuda(Malloc( &deviceIn, N*sizeof(int) ) );
+    cuda(Malloc( &deviceOut, N*sizeof(int) ) );
+    cuda(GetSymbolAddress( (void **) &kernelData, g_kernelData ) );
+    cuda(Memset( kernelData, 0, sizeof(KernelConcurrencyData) ) );
 
     for ( size_t i = 0; i < N; i++ ) {
         hostIn[i] = rand();
     }
 
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(DeviceSynchronize() );
 
     intsLeft = N;
     for ( chShmooIterator streamsCount(streamsRange); streamsCount; streamsCount++ ) {
@@ -109,9 +109,9 @@ TimeConcurrentKernelKernel(
 
             printf( "." ); fflush( stdout );
 
-            CUDART_CHECK( cudaEventRecord( events[0], NULL ) );
+            cuda(EventRecord( events[0], NULL ) );
             for ( int stream = 0; stream < numStreams; stream++ ) {
-                CUDART_CHECK( cudaMemcpyAsync( 
+                cuda(MemcpyAsync( 
                     deviceIn+stream*intsPerStream, 
                     hostIn+stream*intsPerStream, 
                     intsToDo*sizeof(int), 
@@ -124,17 +124,17 @@ TimeConcurrentKernelKernel(
                     intsToDo, 0xcc, *cycles, stream, kernelData, unrollFactor );
             }
             for ( int stream = 0; stream < numStreams; stream++ ) {
-                CUDART_CHECK( cudaMemcpyAsync( 
+                cuda(MemcpyAsync( 
                     hostOut+stream*intsPerStream, 
                     deviceOut+stream*intsPerStream, 
                     intsToDo*sizeof(int), 
                     cudaMemcpyDeviceToHost, streams[stream] ) );
             }
 
-            CUDART_CHECK( cudaEventRecord( events[1], NULL ) );
-            CUDART_CHECK( cudaDeviceSynchronize() );
+            cuda(EventRecord( events[1], NULL ) );
+            cuda(DeviceSynchronize() );
 
-            CUDART_CHECK( cudaEventElapsedTime( times, events[0], events[1] ) );
+            cuda(EventElapsedTime( times, events[0], events[1] ) );
 
             times += 1;
             intsLeft -= intsToDo;
@@ -143,7 +143,7 @@ TimeConcurrentKernelKernel(
 
     {
         KernelConcurrencyData host_kernelData;
-        CUDART_CHECK( cudaMemcpy( &host_kernelData, kernelData, sizeof(KernelConcurrencyData), cudaMemcpyDeviceToHost ) );
+        cuda(Memcpy( &host_kernelData, kernelData, sizeof(KernelConcurrencyData), cudaMemcpyDeviceToHost ) );
         printf( "\n" );
         PrintKernelData( host_kernelData );
     }

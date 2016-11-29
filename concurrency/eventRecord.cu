@@ -62,17 +62,17 @@ usPerLaunch( int cIterations, int cEvents )
     if ( ! events ) goto Error;
     memset( events, 0, cEvents*sizeof(cudaEvent_t) );
     for ( int i = 0; i < cEvents; i++ ) {
-        CUDART_CHECK( cudaEventCreateWithFlags(  &events[i], (Flags & EVENTRECORD_BLOCKING) ? cudaEventBlockingSync : 0 ) );
+        cuda(EventCreateWithFlags(  &events[i], (Flags & EVENTRECORD_BLOCKING) ? cudaEventBlockingSync : 0 ) );
     }
 
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
         if ( Flags & EVENTRECORD_LAUNCH) NullKernel<<<1,1>>>();
         for ( int j = 0; j < cEvents; j++ ) {
-            CUDART_CHECK( cudaEventRecord( events[j], NULL ) );
+            cuda(EventRecord( events[j], NULL ) );
         }
     }
-    CUDART_CHECK( cudaThreadSynchronize() );
+    cuda(ThreadSynchronize() );
     chTimerGetTime( &stop );
 
     microseconds = 1e6*chTimerElapsedTime( &start, &stop );

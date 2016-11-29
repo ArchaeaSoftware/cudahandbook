@@ -71,28 +71,28 @@ TimeConcurrentKernelMapped(
     memset( events, 0, sizeof(events) );
 
     for ( int i = 0; i < numEvents; i++ ) {
-        CUDART_CHECK( cudaEventCreate( &events[i] ) );
+        cuda(EventCreate( &events[i] ) );
     }
     streams = (cudaStream_t *) malloc( maxStreams*sizeof(cudaStream_t) );
     if ( ! streams )
         goto Error;
     memset( streams, 0, maxStreams*sizeof(cudaStream_t) );
     for ( int i = 0; i < maxStreams; i++ ) {
-        CUDART_CHECK( cudaStreamCreate( &streams[i] ) );
+        cuda(StreamCreate( &streams[i] ) );
     }
 
-    CUDART_CHECK( cudaHostAlloc( &hostIn, N*sizeof(int), cudaHostAllocMapped ) );
-    CUDART_CHECK( cudaHostAlloc( &hostOut, N*sizeof(int), cudaHostAllocMapped ) );
-    CUDART_CHECK( cudaHostGetDevicePointer( &deviceIn, hostIn, 0 ) );
-    CUDART_CHECK( cudaHostGetDevicePointer( &deviceOut, hostOut, 0 ) );
-    CUDART_CHECK( cudaGetSymbolAddress( (void **) &kernelData, g_kernelData ) );
-    CUDART_CHECK( cudaMemset( kernelData, 0, sizeof(KernelConcurrencyData) ) );
+    cuda(HostAlloc( &hostIn, N*sizeof(int), cudaHostAllocMapped ) );
+    cuda(HostAlloc( &hostOut, N*sizeof(int), cudaHostAllocMapped ) );
+    cuda(HostGetDevicePointer( &deviceIn, hostIn, 0 ) );
+    cuda(HostGetDevicePointer( &deviceOut, hostOut, 0 ) );
+    cuda(GetSymbolAddress( (void **) &kernelData, g_kernelData ) );
+    cuda(Memset( kernelData, 0, sizeof(KernelConcurrencyData) ) );
 
     for ( size_t i = 0; i < N; i++ ) {
         hostIn[i] = rand();
     }
 
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(DeviceSynchronize() );
 
     for ( chShmooIterator streamCount(streamsRange); streamCount; streamCount++ ) {
         int numStreams = *streamCount;
@@ -102,7 +102,7 @@ TimeConcurrentKernelMapped(
 
             printf( "." ); fflush( stdout );
 
-            CUDART_CHECK( cudaEventRecord( events[0], NULL ) );
+            cuda(EventRecord( events[0], NULL ) );
 
             intsLeft = N;
             for ( int stream = 0; stream < numStreams; stream++ ) {
@@ -114,9 +114,9 @@ TimeConcurrentKernelMapped(
                 intsLeft -= intsToDo;
             }
 
-            CUDART_CHECK( cudaEventRecord( events[1], NULL ) );
+            cuda(EventRecord( events[1], NULL ) );
 
-            CUDART_CHECK( cudaDeviceSynchronize() );
+            cuda(DeviceSynchronize() );
 
             // confirm that the computation was done correctly
             for ( size_t i = 0; i < N; i++ ) {
@@ -126,7 +126,7 @@ TimeConcurrentKernelMapped(
                 }
             }
 
-            CUDART_CHECK( cudaEventElapsedTime( times, events[0], events[1] ) );
+            cuda(EventElapsedTime( times, events[0], events[1] ) );
 
             times += 1;
         }
@@ -134,7 +134,7 @@ TimeConcurrentKernelMapped(
 
     {
         KernelConcurrencyData host_kernelData;
-        CUDART_CHECK( cudaMemcpy( &host_kernelData, kernelData, sizeof(KernelConcurrencyData), cudaMemcpyDeviceToHost ) );
+        cuda(Memcpy( &host_kernelData, kernelData, sizeof(KernelConcurrencyData), cudaMemcpyDeviceToHost ) );
         printf( "\n" );
         PrintKernelData( host_kernelData );
     }

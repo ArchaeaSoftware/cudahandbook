@@ -54,12 +54,12 @@ usPerLaunch( int cIterations )
     double microseconds, ret;
     chTimerTimestamp start, stop;
 
-    CUDART_CHECK( cudaFree(0) );
+    cuda(Free(0) );
 
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
         NullKernel<<<1,1>>>();
-        CUDART_CHECK( cudaThreadSynchronize() );
+        cuda(ThreadSynchronize() );
     }
     chTimerGetTime( &stop );
 
