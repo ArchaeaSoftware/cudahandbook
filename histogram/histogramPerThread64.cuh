@@ -108,16 +108,16 @@ GPUhistogramPerThread64(
     int numthreads = threads.x*threads.y;
     int numblocks = INTDIVIDE_CEILING( w*h, numthreads*255 );
 
-    CUDART_CHECK( cudaEventCreate( &start, 0 ) );
-    CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
+    cuda(EventCreate( &start, 0 ) );
+    cuda(EventCreate( &stop, 0 ) );
 
-    CUDART_CHECK( cudaMemset( pHist, 0, 256*sizeof(unsigned int) ) );
+    cuda(Memset( pHist, 0, 256*sizeof(unsigned int) ) );
 
-    CUDART_CHECK( cudaEventRecord( start, 0 ) );
+    cuda(EventRecord( start, 0 ) );
     histogram1DPerThread64<<<numblocks,numthreads,numthreads*256>>>( pHist, dptrBase, w*h );
-    CUDART_CHECK( cudaEventRecord( stop, 0 ) );
-    CUDART_CHECK( cudaDeviceSynchronize() );
-    CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
+    cuda(EventRecord( stop, 0 ) );
+    cuda(DeviceSynchronize() );
+    cuda(EventElapsedTime( ms, start, stop ) );
 Error:
     cudaEventDestroy( start );
     cudaEventDestroy( stop );

@@ -91,15 +91,15 @@ GPUhistogramPerBlock(
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
 
-    CUDART_CHECK( cudaEventCreate( &start, 0 ) );
-    CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
+    cuda(EventCreate( &start, 0 ) );
+    cuda(EventCreate( &stop, 0 ) );
 
-    CUDART_CHECK( cudaEventRecord( start, 0 ) );
+    cuda(EventRecord( start, 0 ) );
     //histogramPerBlock<<<blocks,threads>>>( pHist, x, y, w, h );
     histogram1DPerBlock<bUnroll><<<400,256/*threads.x*threads.y*/>>>( pHist, dptrBase, w*h );
-    CUDART_CHECK( cudaEventRecord( stop, 0 ) );
-    CUDART_CHECK( cudaDeviceSynchronize() );
-    CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
+    cuda(EventRecord( stop, 0 ) );
+    cuda(DeviceSynchronize() );
+    cuda(EventElapsedTime( ms, start, stop ) );
 Error:
     cudaEventDestroy( start );
     cudaEventDestroy( stop );

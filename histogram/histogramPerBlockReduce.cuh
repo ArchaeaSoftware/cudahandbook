@@ -97,21 +97,21 @@ GPUhistogramPerBlockReduce(
     cudaEvent_t start = 0, stop = 0;
     
 
-    CUDART_CHECK( cudaEventCreate( &start, 0 ) );
-    CUDART_CHECK( cudaEventCreate( &stop, 0 ) );
+    cuda(EventCreate( &start, 0 ) );
+    cuda(EventCreate( &stop, 0 ) );
 
-    CUDART_CHECK( cudaEventRecord( start, 0 ) );
+    cuda(EventRecord( start, 0 ) );
     {
         void *ptempHist;
-        CUDART_CHECK( cudaGetSymbolAddress( &ptempHist, tempHist ) );
-        CUDART_CHECK( cudaMemset( ptempHist, 0, sizeof(tempHist ) ) );
+        cuda(GetSymbolAddress( &ptempHist, tempHist ) );
+        cuda(Memset( ptempHist, 0, sizeof(tempHist ) ) );
     }
     histogram1DPerBlockReduce<bOffset><<<240,threads.x*threads.y>>>( pHist, dptrBase, w*h );
     histogramPerBlockFinalReduction<<<1,256>>>( pHist, 240 );
     
-    CUDART_CHECK( cudaEventRecord( stop, 0 ) );
-    CUDART_CHECK( cudaDeviceSynchronize() );
-    CUDART_CHECK( cudaEventElapsedTime( ms, start, stop ) );
+    cuda(EventRecord( stop, 0 ) );
+    cuda(DeviceSynchronize() );
+    cuda(EventElapsedTime( ms, start, stop ) );
 Error:
     cudaEventDestroy( start );
     cudaEventDestroy( stop );

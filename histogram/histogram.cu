@@ -207,12 +207,12 @@ TestHistogram(
     unsigned int *dHist = NULL;
     float ms;
 
-    CUDART_CHECK( cudaMalloc( (void **) &dHist, 256*sizeof(int) ) );
-    CUDART_CHECK( cudaMemset( dHist, 0, 256*sizeof(int) ) );
+    cuda(Malloc( (void **) &dHist, 256*sizeof(int) ) );
+    cuda(Memset( dHist, 0, 256*sizeof(int) ) );
 
     pfnHistogram( &ms, dHist, dptrBase, dPitch, 0, 0, w, h, threads );
 
-    CUDART_CHECK( cudaMemcpy( hHist, dHist, sizeof(hHist), cudaMemcpyDeviceToHost ) );
+    cuda(Memcpy( hHist, dHist, sizeof(hHist), cudaMemcpyDeviceToHost ) );
 
     if ( bCompareHistograms( hHist, hrefHist, 256 ) ) {
         printf( "%s: Histograms miscompare\n", name );
@@ -224,7 +224,7 @@ TestHistogram(
     }
 
     *pixelsPerSecond = (double) w*h*cIterations*1000.0 / ms;
-    CUDART_CHECK( cudaMemcpy( hHist, dHist, sizeof(hHist), cudaMemcpyDeviceToHost ) );
+    cuda(Memcpy( hHist, dHist, sizeof(hHist), cudaMemcpyDeviceToHost ) );
 
     if ( outputFilename ) {
         FILE *f = fopen( outputFilename, "w" );
@@ -293,15 +293,15 @@ main(int argc, char *argv[])
     }
     {
         if ( chCommandLineGet( &device, "device", argc, argv ) ) {
-            CUDART_CHECK( cudaSetDevice( device ) );
+            cuda(SetDevice( device ) );
         }
     }
-    CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
-    CUDART_CHECK( cudaDeviceSetCacheConfig( cudaFuncCachePreferShared ) );
+    cuda(SetDeviceFlags( cudaDeviceMapHost ) );
+    cuda(DeviceSetCacheConfig( cudaFuncCachePreferShared ) );
 
     {
         cudaDeviceProp prop;
-        CUDART_CHECK( cudaGetDeviceProperties( &prop, device ) );
+        cuda(GetDeviceProperties( &prop, device ) );
         printf( "Testing histogram on %s (%d SMs)\n", prop.name, prop.multiProcessorCount );
     }
 
@@ -346,7 +346,7 @@ main(int argc, char *argv[])
                 goto Error;
 
             size_t dPitch;
-            CUDART_CHECK( cudaMallocPitch( &didata, &dPitch, padWidth, padHeight ) );
+            cuda(MallocPitch( &didata, &dPitch, padWidth, padHeight ) );
             DevicePitch = dPitch;
 
             srand(time(NULL));
@@ -358,7 +358,7 @@ main(int argc, char *argv[])
                     p[col] = (unsigned char) val;
                 }
             }
-            CUDART_CHECK( cudaMemcpy2D( didata, DevicePitch, hidata, padWidth, padWidth, padHeight, cudaMemcpyHostToDevice ) );
+            cuda(Memcpy2D( didata, DevicePitch, hidata, padWidth, padWidth, padHeight, cudaMemcpyHostToDevice ) );
         }
         else {
             if ( pgmLoad( inputFilename, &hidata, &HostPitch, &didata, &DevicePitch, &w, &h, padWidth, padHeight) ) {
@@ -370,14 +370,14 @@ main(int argc, char *argv[])
     }
 
 
-    CUDART_CHECK( cudaMallocArray( &pArrayImage, &desc, w, h ) );
-    CUDART_CHECK( cudaMemcpyToArray( pArrayImage, 0, 0, hidata, w*h, cudaMemcpyHostToDevice ) );
+    cuda(MallocArray( &pArrayImage, &desc, w, h ) );
+    cuda(MemcpyToArray( pArrayImage, 0, 0, hidata, w*h, cudaMemcpyHostToDevice ) );
         
-    CUDART_CHECK( cudaBindTextureToArray( texImage, pArrayImage ) );
+    cuda(BindTextureToArray( texImage, pArrayImage ) );
 
     {
         cudaDeviceProp prop;
-        CUDART_CHECK( cudaGetDeviceProperties( &prop, 0 ) );
+        cuda(GetDeviceProperties( &prop, 0 ) );
         if ( prop.major < 2 ) {
             bTesla = true;
         }
