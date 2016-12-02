@@ -52,14 +52,14 @@ Bandwidth( int iDevice, int cIterations, size_t N )
     chTimerTimestamp start, stop;
     void *pHost = 0, *pDevice = 0;
 
-    CUDART_CHECK( cudaSetDevice( iDevice ) );
-    CUDART_CHECK( cudaMalloc( &pDevice, N ) );
-    CUDART_CHECK( cudaMallocHost( &pHost, N ) );
+    cuda(SetDevice( iDevice ) );
+    cuda(Malloc( &pDevice, N ) );
+    cuda(MallocHost( &pHost, N ) );
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
-        CUDART_CHECK( cudaMemcpyAsync( pDevice, pHost, N, type, NULL ) );
+        cuda(MemcpyAsync( pDevice, pHost, N, type, NULL ) );
     }
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(DeviceSynchronize() );
     chTimerGetTime( &stop );
     ret = chTimerBandwidth( &start, &stop, cIterations*N );
 Error:
@@ -76,7 +76,7 @@ main( int argc, char *argv[] )
     int cMB = 64;
     int deviceCount;
 
-    CUDART_CHECK( cudaGetDeviceCount( &deviceCount ) );
+    cuda(GetDeviceCount( &deviceCount ) );
     chCommandLineGet( &cIterations, "iterations", argc, argv );
     chCommandLineGet( &cMB, "MB", argc, argv );
     

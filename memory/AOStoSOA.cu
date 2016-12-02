@@ -63,34 +63,34 @@ TestAOStoSOA(
     cudaEvent_t evStart = 0;
     cudaEvent_t evStop = 0;
 
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
+    cuda(EventCreate( &evStart ) );
+    cuda(EventCreate( &evStop ) );
 
     memset( hrefSOA, 0, sizeof(hrefSOA) );
     memset( dptrSOA, 0, sizeof(dptrSOA) );
-    CUDART_CHECK( cudaMalloc( &dptrAOS, N*k*sizeof(T) ) );
-    CUDART_CHECK( cudaHostAlloc( &hrefAOS, N*k*sizeof(T), cudaHostAllocMapped ) );
+    cuda(Malloc( &dptrAOS, N*k*sizeof(T) ) );
+    cuda(HostAlloc( &hrefAOS, N*k*sizeof(T), cudaHostAllocMapped ) );
 
-    CUDART_CHECK( cudaMalloc( &dptrpSOA, k*sizeof(T *) ) );
+    cuda(Malloc( &dptrpSOA, k*sizeof(T *) ) );
     for ( int i = 0; i < k; i++ ) {
-        CUDART_CHECK( cudaHostAlloc( &hrefSOA[i], N*sizeof(T), cudaHostAllocMapped ) );
+        cuda(HostAlloc( &hrefSOA[i], N*sizeof(T), cudaHostAllocMapped ) );
         memset( hrefSOA[i], 0, N*sizeof(T) );
-        CUDART_CHECK( cudaMalloc( &dptrSOA[i], N*sizeof(T) ) );
-        CUDART_CHECK( cudaMemset( dptrSOA[i], 0, N*sizeof(T) ) );
+        cuda(Malloc( &dptrSOA[i], N*sizeof(T) ) );
+        cuda(Memset( dptrSOA[i], 0, N*sizeof(T) ) );
     }
-    CUDART_CHECK( cudaMemcpy( dptrpSOA, dptrSOA, k*sizeof(T *), cudaMemcpyHostToDevice ) );
+    cuda(Memcpy( dptrpSOA, dptrSOA, k*sizeof(T *), cudaMemcpyHostToDevice ) );
 
     for ( size_t i = 0; i < N; i++ ) {
         for ( int j = 0; j < k; j++ ) {
             hrefAOS[i*k+j] = j<<24|i;//rand();
         }
     }
-    CUDART_CHECK( cudaMemcpyAsync( dptrAOS, hrefAOS, N*k*sizeof(T), cudaMemcpyHostToDevice ) );
+    cuda(MemcpyAsync( dptrAOS, hrefAOS, N*k*sizeof(T), cudaMemcpyHostToDevice ) );
     pfnAOStoSOA( dptrpSOA, dptrAOS, N, 1500, 512 );
     for ( int i = 0; i < k; i++ ) {
-        CUDART_CHECK( cudaMemcpyAsync( hrefSOA[i], dptrSOA[i], N*sizeof(T), cudaMemcpyDeviceToHost ) );
+        cuda(MemcpyAsync( hrefSOA[i], dptrSOA[i], N*sizeof(T), cudaMemcpyDeviceToHost ) );
     }
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(DeviceSynchronize() );
     for ( int i = 0; i < N; i++ ) {
         for ( int j = 0; j < k; j++ ) {
             if ( hrefAOS[i*k+j] != hrefSOA[j][i] ) {
@@ -100,16 +100,16 @@ TestAOStoSOA(
         }
     }
 
-    CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
+    cuda(EventRecord( evStart, NULL ) );
     for ( int i = 0; i < cIterations; i++ ) {
         pfnAOStoSOA( dptrpSOA, dptrAOS, N, 1500, 512 );
     }
-    CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(EventRecord( evStop, NULL ) );
+    cuda(DeviceSynchronize() );
 
     {
         float ms;
-        CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
+        cuda(EventElapsedTime( &ms, evStart, evStop ) );
         ret = (double) N*cIterations*sizeof(T)*1000.0 / ms;
     }
 
@@ -133,8 +133,8 @@ main( int argc, char *argv[] )
     int iN = 32;
     cudaError_t status;
 
-    CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
-    CUDART_CHECK( cudaFree(0) );
+    cuda(SetDeviceFlags( cudaDeviceMapHost ) );
+    cuda(Free(0) );
 
     #define TEST_VECTOR(fn) { \
         double bytesPerSecond = TestAOStoSOA<int, 3>( 1048576*iN, fn<int,3>, 10 ); \

@@ -135,8 +135,8 @@ BandwidthCopy( T *deviceOut, T *deviceIn0, T *deviceIn1,
     }
 
     memset( hostOut, 0, N*sizeof(T) );
-    CUDART_CHECK( cudaMemcpy( deviceIn0, hostIn0, N*sizeof(T), cudaMemcpyHostToDevice ) );
-    CUDART_CHECK( cudaMemcpy( deviceIn1, hostIn1, N*sizeof(T), cudaMemcpyHostToDevice ) );
+    cuda(Memcpy( deviceIn0, hostIn0, N*sizeof(T), cudaMemcpyHostToDevice ) );
+    cuda(Memcpy( deviceIn1, hostIn1, N*sizeof(T), cudaMemcpyHostToDevice ) );
     {
         // confirm that kernel launch with this configuration writes correct result
         GlobalCopy<T,n><<<cBlocks,cThreads>>>( 
@@ -144,8 +144,8 @@ BandwidthCopy( T *deviceOut, T *deviceIn0, T *deviceIn1,
             deviceIn0+bOffsetSrc,
             deviceIn1+bOffsetSrc,
             N-bOffsetDst-bOffsetSrc );
-        CUDART_CHECK( cudaMemcpy( hostOut, deviceOut, N*sizeof(T), cudaMemcpyDeviceToHost ) );
-        CUDART_CHECK( cudaGetLastError() ); 
+        cuda(Memcpy( hostOut, deviceOut, N*sizeof(T), cudaMemcpyDeviceToHost ) );
+        cuda(GetLastError() ); 
         for ( size_t i = 0; i < N-bOffsetDst-bOffsetSrc; i++ ) {
             if ( hostOut[i] != (hostIn0[i]^hostIn1[i]) ) {
                 printf( "Incorrect copy performed!\n" );
@@ -160,10 +160,10 @@ BandwidthCopy( T *deviceOut, T *deviceIn0, T *deviceIn1,
         GlobalCopy<T,n><<<cBlocks,cThreads>>>( deviceOut+bOffsetDst, deviceIn0+bOffsetSrc, deviceIn1+bOffsetSrc, N-bOffsetDst-bOffsetSrc );
     }
     cudaEventRecord( evStop );
-    CUDART_CHECK( cudaThreadSynchronize() );
+    cuda(ThreadSynchronize() );
     // make configurations that cannot launch error-out with 0 bandwidth
-    CUDART_CHECK( cudaGetLastError() ); 
-    CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
+    cuda(GetLastError() ); 
+    cuda(EventElapsedTime( &ms, evStart, evStop ) );
     elapsedTime = ms/1000.0f;
 
     // bytes per second
@@ -192,10 +192,10 @@ ReportRow( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
     int maxThreads = 0;
     double maxBW = 0.0;
 
-    CUDART_CHECK( cudaMalloc( &deviceIn0, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMalloc( &deviceIn1, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMalloc( &deviceOut, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMemset( deviceOut, 0, N*sizeof(T) ) );
+    cuda(Malloc( &deviceIn0, N*sizeof(T) ) );
+    cuda(Malloc( &deviceIn1, N*sizeof(T) ) );
+    cuda(Malloc( &deviceOut, N*sizeof(T) ) );
+    cuda(Memset( deviceOut, 0, N*sizeof(T) ) );
 
     hostIn0 = new T[N];
     if ( ! hostIn0 )
@@ -207,8 +207,8 @@ ReportRow( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
     if ( ! hostOut )
         goto Error;
 
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
+    cuda(EventCreate( &evStart ) );
+    cuda(EventCreate( &evStop ) );
 
     printf( "%d\t", n );
 
