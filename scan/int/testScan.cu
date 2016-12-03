@@ -60,7 +60,7 @@ enum ScanType {
 #include "scanReduceThenScan.cuh"
 #include "scanReduceThenScan_0.cuh"
 #include "scan2Level.cuh"
-#include "ScanThrust.cuh"
+#include "scanThrust.cuh"
 
 void
 ScanExclusiveCPU( int *out, const int *in, size_t N )
@@ -114,12 +114,12 @@ TestScan( const char *szScanFunction,
         (int) N,
         numThreads );
 
-    CUDART_CHECK( cudaMalloc( &inGPU, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMalloc( &outGPU, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMemset( inGPU, 0, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMemset( outGPU, 0, N*sizeof(T) ) );
+    cuda(Malloc( &inGPU, N*sizeof(T) ) );
+    cuda(Malloc( &outGPU, N*sizeof(T) ) );
+    cuda(Memset( inGPU, 0, N*sizeof(T) ) );
+    cuda(Memset( outGPU, 0, N*sizeof(T) ) );
 
-    CUDART_CHECK( cudaMemset( outGPU, 0, N*sizeof(T) ) );
+    cuda(Memset( outGPU, 0, N*sizeof(T) ) );
 
     RandomArray( inCPU, N, 256 );
 for ( int i = 0; i < N; i++ ) {
@@ -128,9 +128,9 @@ for ( int i = 0; i < N; i++ ) {
     
     ScanInclusiveCPU( outCPU, inCPU, N );
 
-    CUDART_CHECK( cudaMemcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
+    cuda(Memcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
     pfnScanGPU( outGPU, inGPU, N, numThreads );
-    CUDART_CHECK( cudaMemcpy( hostGPU, outGPU, N*sizeof(T), cudaMemcpyDeviceToHost ) );
+    cuda(Memcpy( hostGPU, outGPU, N*sizeof(T), cudaMemcpyDeviceToHost ) );
     for ( size_t i = 0; i < N; i++ ) {
         if ( hostGPU[i] != outCPU[i] ) {
             printf( "Scan failed\n" );
@@ -158,8 +158,8 @@ main( int argc, char *argv[] )
     cudaError_t status;
     int maxThreads;
 
-    CUDART_CHECK( cudaSetDevice( 0 ) );
-    CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
+    cuda(SetDevice( 0 ) );
+    cuda(SetDeviceFlags( cudaDeviceMapHost ) );
 
     {
         cudaDeviceProp prop;

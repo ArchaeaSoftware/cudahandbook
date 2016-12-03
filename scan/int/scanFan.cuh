@@ -135,7 +135,7 @@ scanFan( T *out, const T *in, size_t N, int b )
     const unsigned int maxBlocks = 150;   // maximum blocks to launch
     unsigned int numBlocks = min( numPartials, maxBlocks );
 
-    CUDART_CHECK( cudaMalloc( &gPartials, 
+    cuda(Malloc( &gPartials, 
                               numPartials*sizeof(T) ) );
 
     scanAndWritePartials<T, true><<<numBlocks,b,b*sizeof(T)>>>( 

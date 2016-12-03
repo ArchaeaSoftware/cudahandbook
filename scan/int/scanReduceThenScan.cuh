@@ -149,7 +149,7 @@ scanReduceThenScan( T *out, const T *in, size_t N, int b )
     const unsigned int maxBlocks = 150;
     unsigned int numBlocks = min( numPartials, maxBlocks );
 
-    CUDART_CHECK( cudaMalloc( &gPartials, numPartials*sizeof(T) ) );
+    cuda(Malloc( &gPartials, numPartials*sizeof(T) ) );
 
     scanReduceBlocks<T>( gPartials, in, N, b, numBlocks );
     scanReduceThenScan<T>( gPartials, gPartials, numPartials, b );

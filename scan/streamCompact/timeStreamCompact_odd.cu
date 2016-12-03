@@ -102,11 +102,11 @@ TimeStreamCompact(
     int *outCPU = (int *) malloc( N*sizeof(T) );
     if ( 0==inCPU || 0==outCPU )
         goto Error;
-    CUDART_CHECK( cudaHostAlloc( &hostTotal, sizeof(int), cudaHostAllocMapped ) );
-    CUDART_CHECK( cudaHostGetDevicePointer( (void **) &deviceTotal, hostTotal, 0 ) );
+    cuda(HostAlloc( &hostTotal, sizeof(int), cudaHostAllocMapped ) );
+    cuda(HostGetDevicePointer( (void **) &deviceTotal, hostTotal, 0 ) );
 
-    CUDART_CHECK( cudaMalloc( &inGPU, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMalloc( &outGPU, N*sizeof(T) ) );
+    cuda(Malloc( &inGPU, N*sizeof(T) ) );
+    cuda(Malloc( &outGPU, N*sizeof(T) ) );
 
     srand(0);
     for ( int i = 0; i < N; i++ ) {
@@ -117,7 +117,7 @@ TimeStreamCompact(
         }
     }
 
-    CUDART_CHECK( cudaMemcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
+    cuda(Memcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
         pfnScanGPU( outGPU, deviceTotal, inGPU, N, numThreads );

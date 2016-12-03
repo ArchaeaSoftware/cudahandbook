@@ -87,11 +87,11 @@ TimeScan( void (*pfnScanGPU)(T *, const T *, size_t, int),
     int *outCPU = (int *) malloc( N*sizeof(T) );
     if ( 0==inCPU || 0==outCPU )
         goto Error;
-    CUDART_CHECK( cudaMalloc( &inGPU, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMalloc( &outGPU, N*sizeof(T) ) );
+    cuda(Malloc( &inGPU, N*sizeof(T) ) );
+    cuda(Malloc( &outGPU, N*sizeof(T) ) );
 
     RandomArray( inCPU, N, N );
-    CUDART_CHECK( cudaMemcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
+    cuda(Memcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
         pfnScanGPU( outGPU, inGPU, N, numThreads );

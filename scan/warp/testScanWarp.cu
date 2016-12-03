@@ -321,14 +321,14 @@ TestScanWarp(
 
     printf( "Testing %s (%d threads/block)\n", szScanFunction, numThreads );
 
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
-    CUDART_CHECK( cudaMalloc( &inGPU, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMalloc( &outGPU, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMemset( inGPU, 0, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMemset( outGPU, 0, N*sizeof(T) ) );
+    cuda(EventCreate( &evStart ) );
+    cuda(EventCreate( &evStop ) );
+    cuda(Malloc( &inGPU, N*sizeof(T) ) );
+    cuda(Malloc( &outGPU, N*sizeof(T) ) );
+    cuda(Memset( inGPU, 0, N*sizeof(T) ) );
+    cuda(Memset( outGPU, 0, N*sizeof(T) ) );
 
-    CUDART_CHECK( cudaMemset( outGPU, 0, N*sizeof(T) ) );
+    cuda(Memset( outGPU, 0, N*sizeof(T) ) );
 
     RandomArray( inCPU, N, 256 );
 for ( int i = 0; i < N; i++ ) {
@@ -337,11 +337,11 @@ for ( int i = 0; i < N; i++ ) {
     
     pfnScanCPU( outCPU, inCPU, N );
 
-    CUDART_CHECK( cudaMemcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
-    CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
+    cuda(Memcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
+    cuda(EventRecord( evStart, 0 ) );
     pfnScanGPU( outGPU, inGPU, N, numThreads );
-    CUDART_CHECK( cudaEventRecord( evStop, 0 ) );
-    CUDART_CHECK( cudaMemcpy( hostGPU, outGPU, N*sizeof(T), cudaMemcpyDeviceToHost ) );
+    cuda(EventRecord( evStop, 0 ) );
+    cuda(Memcpy( hostGPU, outGPU, N*sizeof(T), cudaMemcpyDeviceToHost ) );
     for ( size_t i = 0; i < N; i++ ) {
         if ( hostGPU[i] != outCPU[i] ) {
             printf( "Scan failed\n" );
@@ -355,7 +355,7 @@ for ( int i = 0; i < N; i++ ) {
     }
     {
         float ms;
-        CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
+        cuda(EventElapsedTime( &ms, evStart, evStop ) );
         double Melements = N/1e6;
         *pMelementspersecond = 1000.0f*Melements/ms;
     }
@@ -378,8 +378,8 @@ main( int argc, char *argv[] )
     int maxThreads;
     int numInts = 16*1048576;
 
-    CUDART_CHECK( cudaSetDevice( 0 ) );
-    CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
+    cuda(SetDevice( 0 ) );
+    cuda(SetDeviceFlags( cudaDeviceMapHost ) );
 
     {
         cudaDeviceProp prop;

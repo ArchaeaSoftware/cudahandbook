@@ -85,13 +85,13 @@ TestStreamCompact(
         (int) N,
         numThreads );
 
-    CUDART_CHECK( cudaHostAlloc( &hostTotal, sizeof(int), cudaHostAllocMapped ) );
-    CUDART_CHECK( cudaHostGetDevicePointer( (void **) &deviceTotal, hostTotal, 0 ) );
+    cuda(HostAlloc( &hostTotal, sizeof(int), cudaHostAllocMapped ) );
+    cuda(HostGetDevicePointer( (void **) &deviceTotal, hostTotal, 0 ) );
 
-    CUDART_CHECK( cudaMalloc( &inGPU, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMalloc( &outGPU, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMemset( inGPU, 0, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMemset( outGPU, 0, N*sizeof(T) ) );
+    cuda(Malloc( &inGPU, N*sizeof(T) ) );
+    cuda(Malloc( &outGPU, N*sizeof(T) ) );
+    cuda(Memset( inGPU, 0, N*sizeof(T) ) );
+    cuda(Memset( outGPU, 0, N*sizeof(T) ) );
 
     srand(0);
     for ( int i = 0; i < N; i++ ) {
@@ -102,9 +102,9 @@ TestStreamCompact(
         }
     }
 
-    CUDART_CHECK( cudaMemcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
+    cuda(Memcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
     pfnScanGPU( outGPU, deviceTotal, inGPU, N, numThreads );
-    CUDART_CHECK( cudaMemcpy( hostGPU, outGPU, N*sizeof(T), cudaMemcpyDeviceToHost ) );
+    cuda(Memcpy( hostGPU, outGPU, N*sizeof(T), cudaMemcpyDeviceToHost ) );
     {
         size_t inxOut = 0;
         size_t inxIn = 0;

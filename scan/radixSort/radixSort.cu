@@ -101,10 +101,10 @@ RadixPass( int *out, const int *in, size_t N, int shift, int mask )
 int *gpuIn = 0;
 int *gpuHistogram = 0;
 int *cpuHistogram = 0;
-CUDART_CHECK( cudaMalloc( &gpuIn, N*sizeof(int) ) );
-CUDART_CHECK( cudaMemcpy( gpuIn, in, N*sizeof(int), cudaMemcpyHostToDevice ) );
-CUDART_CHECK( cudaMalloc( &gpuHistogram, (1<<b)*sizeof(int) ) );
-CUDART_CHECK( cudaMemset( gpuHistogram, 0, (1<<b)*sizeof(int) ) );
+cuda(Malloc( &gpuIn, N*sizeof(int) ) );
+cuda(Memcpy( gpuIn, in, N*sizeof(int), cudaMemcpyHostToDevice ) );
+cuda(Malloc( &gpuHistogram, (1<<b)*sizeof(int) ) );
+cuda(Memset( gpuHistogram, 0, (1<<b)*sizeof(int) ) );
 cpuHistogram = (int *) malloc( (1<<b)*sizeof(int) );
 if ( ! cpuHistogram ) {
     status = cudaErrorMemoryAllocation;
@@ -112,7 +112,7 @@ if ( ! cpuHistogram ) {
 }
 
 RadixHistogram<b>( gpuHistogram, gpuIn, N, shift, mask, 1500, 512 );
-CUDART_CHECK( cudaMemcpy( cpuHistogram, gpuHistogram, (1<<b)*sizeof(int), cudaMemcpyDeviceToHost ) );
+cuda(Memcpy( cpuHistogram, gpuHistogram, (1<<b)*sizeof(int), cudaMemcpyDeviceToHost ) );
 
 
     for ( size_t i = 0; i < N; i++ ) {
