@@ -347,7 +347,7 @@ main(int argc, char *argv[])
         goto Error;
     }
 
-    CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
+    cuda(SetDeviceFlags( cudaDeviceMapHost ) );
 
     CUDART_CHECK( CreateAndPopulateArray( &g_arrayTexture, g_texture, 256, 256 ) );
 

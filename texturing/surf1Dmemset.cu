@@ -61,7 +61,7 @@ cudaError_t
 surf1Dmemset( cudaArray *array, T value, int offset, size_t N )
 {
     cudaError_t status;
-    CUDART_CHECK(cudaBindSurfaceToArray(surf1D, array));
+    cuda(BindSurfaceToArray(surf1D, array));
     surf1Dmemset_kernel<<<2,384>>>( value, offset, N*sizeof(T) );
 Error:
     return status;
@@ -78,17 +78,17 @@ main( int argc, char *argv[] )
 
     cudaDeviceProp prop;
 
-    CUDART_CHECK(cudaGetDeviceProperties(&prop, 0));
+    cuda(GetDeviceProperties(&prop, 0));
     if ( prop.major < 2 ) {
         printf( "This application requires SM 2.x (for surface load/store)\n" );
         goto Error;
     }
 
-    CUDART_CHECK(cudaHostAlloc( 
+    cuda(HostAlloc( 
         (void **) &foutHost, 
         NUM_VALUES*sizeof(float), 
         cudaHostAllocMapped));
-    CUDART_CHECK(cudaMallocArray( 
+    cuda(MallocArray( 
         &array, 
         &channelDesc, 
         NUM_VALUES*sizeof(float), 
@@ -97,7 +97,7 @@ main( int argc, char *argv[] )
 
     CUDART_CHECK(surf1Dmemset( array, 3.141592654f, 0, NUM_VALUES ));
 
-    CUDART_CHECK(cudaMemcpyFromArray( 
+    cuda(MemcpyFromArray( 
         foutHost, 
         array, 
         0, 

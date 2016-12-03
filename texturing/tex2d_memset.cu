@@ -73,6 +73,7 @@ TexReadout( float4 *out, size_t Width, size_t Pitch, size_t Height, float2 base,
 
 surface<void, 2> surf2D;
 
+template<typename T>
 __global__ void
 surf2Dmemset_kernel( T value, 
                      int xOffset, int yOffset, 
@@ -96,18 +97,18 @@ cudaError_t
 surf2Dmemset( cudaArray *array, T value )
 {
     CUarray drvArray = (CUarray) array;
-    CUDA_ARRAY_DESCRIPTOR desc;
+    CUDA_ARRAY3D_DESCRIPTOR desc;
 
     cudaError_t status;
     
-    CUDART_CHECK(cudaBindSurfaceToArray(surf2D, array));
+    cuda(BindSurfaceToArray(surf2D, array));
     if ( CUDA_SUCCESS != cuArray3DGetDescriptor( &desc, drvArray ) ) {
         status = cudaErrorInvalidValue;
         goto Error;
     }
     surf2Dmemset_kernel<<<2,384>>>( value, 
                                     0, 0, // X and Y offset
-                                    desc.WidthInBytes/sizeof(T), 
+                                    desc.Width,
                                     desc.Height );
 Error:
     return status;
@@ -134,20 +135,20 @@ CreateAndPrintTex(
 
     // use 2D memset implemented with surface write to initialize texture
 
-    CUDART_CHECK(cudaMallocArray(&texArray, &channelDesc, inWidth, inHeight));
+    cuda(MallocArray(&texArray, &channelDesc, inWidth, inHeight));
 
-    CUDART_CHECK(cudaMemcpy2DToArray( texArray, 0, 0, 
+    cuda(Memcpy2DToArray( texArray, 0, 0, 
                                       texContents, inWidth*sizeof(T), 
                                       inWidth*sizeof(T), 
                                       inHeight, 
                                       cudaMemcpyHostToDevice));
-    CUDART_CHECK(cudaBindTextureToArray(tex, texArray));
+    cuda(BindTextureToArray(tex, texArray));
 
     outPitch = outWidth*sizeof(float4);
     outPitch = (outPitch+0x3f)&~0x3f;
 
-    CUDART_CHECK(cudaHostAlloc( (void **) &outHost, outWidth*outPitch, cudaHostAllocMapped));
-    CUDART_CHECK(cudaHostGetDevicePointer( (void **) &outDevice, outHost, 0 ));
+    cuda(HostAlloc( (void **) &outHost, outWidth*outPitch, cudaHostAllocMapped));
+    cuda(HostGetDevicePointer( (void **) &outDevice, outHost, 0 ));
 
     tex.filterMode = filterMode;
     tex.addressMode[0] = addressModeX;
@@ -156,7 +157,7 @@ CreateAndPrintTex(
     blocks.y = 1;
     threads.x = 64; threads.y = 4;
     TexReadout<<<blocks,threads>>>( outDevice, outWidth, outPitch, outHeight, base, increment );
-    CUDART_CHECK(cudaThreadSynchronize());
+    cuda(ThreadSynchronize());
 
     for ( int row = 0; row < outHeight; row++ ) {
         float4 *outrow = (float4 *) ((char *) outHost + row*outPitch);
@@ -178,8 +179,8 @@ main( int argc, char *argv[] )
 {
     cudaError_t status;
 
-    CUDART_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
-    CUDART_CHECK(cudaFree(0));
+    cuda(SetDeviceFlags(cudaDeviceMapHost));
+    cuda(Free(0));
 
     // go through once each with linear and point filtering
     do {

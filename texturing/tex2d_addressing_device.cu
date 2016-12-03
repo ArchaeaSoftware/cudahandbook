@@ -109,18 +109,18 @@ CreateAndPrintTex(
         }
     }
 
-    CUDART_CHECK(cudaMallocPitch( &texDevice, 
+    cuda(MallocPitch( &texDevice, 
                                   &texPitch, 
                                   inWidth*sizeof(T), 
                                   inHeight));
 
-    CUDART_CHECK(cudaMemcpy2D( texDevice, texPitch,
+    cuda(Memcpy2D( texDevice, texPitch,
                                texContents, inWidth*sizeof(T), 
                                inWidth*sizeof(T), 
                                inHeight, 
                                cudaMemcpyHostToDevice));
 
-    CUDART_CHECK(cudaBindTexture2D( NULL,
+    cuda(BindTexture2D( NULL,
                                     &tex,
                                     texDevice,
                                     &channelDesc,
@@ -131,8 +131,8 @@ CreateAndPrintTex(
     outPitch = outWidth*sizeof(float4);
     outPitch = (outPitch+0x3f)&~0x3f;
 
-    CUDART_CHECK(cudaHostAlloc( (void **) &outHost, outWidth*outPitch, cudaHostAllocMapped));
-    CUDART_CHECK(cudaHostGetDevicePointer( (void **) &outDevice, outHost, 0 ));
+    cuda(HostAlloc( (void **) &outHost, outWidth*outPitch, cudaHostAllocMapped));
+    cuda(HostGetDevicePointer( (void **) &outDevice, outHost, 0 ));
 
     tex.filterMode = filterMode;
     tex.addressMode[0] = addressModeX;
@@ -141,7 +141,7 @@ CreateAndPrintTex(
     blocks.y = 1;
     threads.x = 64; threads.y = 4;
     TexReadout<<<blocks,threads>>>( outDevice, outWidth, outPitch, outHeight, base, increment );
-    CUDART_CHECK(cudaThreadSynchronize());
+    cuda(ThreadSynchronize());
 
     for ( int row = 0; row < outHeight; row++ ) {
         float4 *outrow = (float4 *) ((char *) outHost + row*outPitch);
@@ -164,8 +164,8 @@ main( int argc, char *argv[] )
     int ret = 1;
     cudaError_t status;
 
-    CUDART_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
-    CUDART_CHECK(cudaFree(0));
+    cuda(SetDeviceFlags(cudaDeviceMapHost));
+    cuda(Free(0));
 
     // go through once each with linear and point filtering
     do {

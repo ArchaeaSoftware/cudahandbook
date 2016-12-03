@@ -85,20 +85,20 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
         }
     }
 
-    CUDART_CHECK(cudaMallocArray(&texArray, &channelDesc, texN));
+    cuda(MallocArray(&texArray, &channelDesc, texN));
 
-    CUDART_CHECK(cudaHostAlloc( (void **) &outHost, outN*sizeof(float2), cudaHostAllocMapped));
-    CUDART_CHECK(cudaHostGetDevicePointer( (void **) &outDevice, outHost, 0 ));
+    cuda(HostAlloc( (void **) &outHost, outN*sizeof(float2), cudaHostAllocMapped));
+    cuda(HostGetDevicePointer( (void **) &outDevice, outHost, 0 ));
 
-    CUDART_CHECK(cudaMemcpyToArray( texArray, 0, 0, texContents, 
+    cuda(MemcpyToArray( texArray, 0, 0, texContents, 
                                   texN*sizeof(T), cudaMemcpyHostToDevice));
-    CUDART_CHECK(cudaBindTextureToArray(tex, texArray));
+    cuda(BindTextureToArray(tex, texArray));
 
     tex.filterMode = filterMode;
     tex.addressMode[0] = addressMode;
-    CUDART_CHECK(cudaHostGetDevicePointer(&outDevice, outHost, 0));
+    cuda(HostGetDevicePointer(&outDevice, outHost, 0));
     TexReadout<<<2,384>>>( outDevice, outN, base, increment );
-    CUDART_CHECK(cudaThreadSynchronize());
+    cuda(ThreadSynchronize());
 
     printf( "X\tY\tActual Value\tExpected Value\tDiff\n" );
     for ( int i = 0; i < outN; i++ ) {
@@ -135,8 +135,7 @@ CUresult
 init()
 {
     CUresult status;
-    CUDA_CHECK( cuInit(0) );
-    cuInit(0);
+    cu(Init(0));
 Error:;
     return status;
 }
@@ -149,7 +148,7 @@ main( int argc, char *argv[] )
 
     init();
 
-    CUDART_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
+    cuda(SetDeviceFlags(cudaDeviceMapHost));
 
     {
         float texData[10];

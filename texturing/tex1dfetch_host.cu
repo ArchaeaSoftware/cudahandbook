@@ -62,10 +62,10 @@ PrintTex( float *host, size_t N )
     float *device;
     cudaError_t status;
     memset( host, 0, N*sizeof(float) );
-    CUDA_CHECK(cudaHostGetDevicePointer( (void **) &device, host, 0 ));
+    cuda(HostGetDevicePointer( (void **) &device, host, 0 ));
     
     TexReadout<<<2,384>>>( device, N );
-    CUDA_CHECK(cudaThreadSynchronize());
+    cuda(ThreadSynchronize());
     for ( int i = 0; i < N; i++ ) {
         printf( "%.2f ", host[i] );
     }
@@ -86,13 +86,13 @@ main( int argc, char *argv[] )
     cudaError_t status;
 //    cudaChannelFormatDesc desc;
 
-    CUDA_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
-    CUDA_CHECK(cudaMalloc( (void **) &p, NUM_FLOATS*sizeof(float)) );
-    CUDA_CHECK(cudaHostAlloc( (void **) &finHost, NUM_FLOATS*sizeof(float), cudaHostAllocMapped));
-    CUDA_CHECK(cudaHostGetDevicePointer( (void **) &finDevice, finHost, 0 ));
+    cuda(SetDeviceFlags(cudaDeviceMapHost));
+    cuda(Malloc( (void **) &p, NUM_FLOATS*sizeof(float)) );
+    cuda(HostAlloc( (void **) &finHost, NUM_FLOATS*sizeof(float), cudaHostAllocMapped));
+    cuda(HostGetDevicePointer( (void **) &finDevice, finHost, 0 ));
 
-    CUDA_CHECK(cudaHostAlloc( (void **) &foutHost, NUM_FLOATS*sizeof(float), cudaHostAllocMapped));
-    CUDA_CHECK(cudaHostGetDevicePointer( (void **) &foutDevice, foutHost, 0 ));
+    cuda(HostAlloc( (void **) &foutHost, NUM_FLOATS*sizeof(float), cudaHostAllocMapped));
+    cuda(HostGetDevicePointer( (void **) &foutDevice, foutHost, 0 ));
 
     for ( int i = 0; i < NUM_FLOATS; i++ ) {
         finHost[i] = (float) i;
@@ -100,7 +100,7 @@ main( int argc, char *argv[] )
 
     {
         size_t offset;
-        CUDA_CHECK(cudaBindTexture( &offset, tex1, finDevice, NUM_FLOATS*sizeof(float)) );
+        cuda(BindTexture( &offset, tex1, finDevice, NUM_FLOATS*sizeof(float)) );
     }
 
     PrintTex( foutHost, NUM_FLOATS );

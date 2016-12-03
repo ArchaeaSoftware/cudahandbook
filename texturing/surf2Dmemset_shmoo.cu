@@ -94,9 +94,9 @@ surf2DmemsetArray_time( float *ms, cudaArray *array, T value, int threadWidth, i
 
     cudaError_t status;
     
-    CUDART_CHECK(cudaEventCreate(&start));
-    CUDART_CHECK(cudaEventCreate(&stop));
-    CUDART_CHECK(cudaBindSurfaceToArray(surf2D, array));
+    cuda(EventCreate(&start));
+    cuda(EventCreate(&stop));
+    cuda(BindSurfaceToArray(surf2D, array));
     if ( CUDA_SUCCESS != cuArrayGetDescriptor( &desc, drvArray ) ) {
         status = cudaErrorInvalidValue;
         goto Error;
@@ -110,7 +110,7 @@ surf2DmemsetArray_time( float *ms, cudaArray *array, T value, int threadWidth, i
         status = cudaErrorInvalidValue;
         goto Error;
     }
-    CUDART_CHECK(cudaEventRecord(start, 0));
+    cuda(EventRecord(start, 0));
     {
         dim3 threads(threadWidth,threadHeight);
         dim3 blocks = dim3(INTDIVIDE_CEILING(desc.Width, threadWidth), 
@@ -121,9 +121,9 @@ surf2DmemsetArray_time( float *ms, cudaArray *array, T value, int threadWidth, i
                                                  desc.Width, 
                                                  desc.Height );
     }
-    CUDART_CHECK(cudaEventRecord(stop, 0));
-    CUDART_CHECK(cudaDeviceSynchronize());
-    CUDART_CHECK(cudaEventElapsedTime(ms, start, stop));
+    cuda(EventRecord(stop, 0));
+    cuda(DeviceSynchronize());
+    cuda(EventElapsedTime(ms, start, stop));
 Error:
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
@@ -144,8 +144,8 @@ ShmooSurf2Dmemset(
     double maxBandwidth = 0.0;
     int minThreadWidth, minThreadHeight;
 
-    CUDART_CHECK(cudaGetDeviceProperties( &props, 0 ) );
-    CUDART_CHECK(cudaMallocArray(&texArray, &channelDesc, Width, Height, cudaArraySurfaceLoadStore));
+    cuda(GetDeviceProperties( &props, 0 ) );
+    cuda(MallocArray(&texArray, &channelDesc, Width, Height, cudaArraySurfaceLoadStore));
 
     printf( "\tWidth\n\t" );
     for ( int threadWidth = 4; threadWidth <= 64; threadWidth += 4 ) {
@@ -191,13 +191,13 @@ main( int argc, char *argv[] )
     cudaError_t status;
     cudaDeviceProp prop;
 
-    CUDART_CHECK(cudaGetDeviceProperties(&prop, 0));
+    cuda(GetDeviceProperties(&prop, 0));
     if ( prop.major < 2 ) {
         printf( "This application requires SM 2.x (for surface load/store)\n" );
         goto Error;
     }
-    CUDART_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
-    CUDART_CHECK(cudaFree(0));
+    cuda(SetDeviceFlags(cudaDeviceMapHost));
+    cuda(Free(0));
     ShmooSurf2Dmemset<float>( 8192, 8192 );
     ret = 0;
 

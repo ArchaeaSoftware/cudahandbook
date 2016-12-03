@@ -92,27 +92,27 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
         }
     }
 
-    CUDART_CHECK(cudaMallocArray(&texArray, &channelDesc, texN));
+    cuda(MallocArray(&texArray, &channelDesc, texN));
 
-    CUDART_CHECK(cudaHostAlloc( (void **) &outHost, 
+    cuda(HostAlloc( (void **) &outHost, 
                                 outN*sizeof(float2), 
                                 cudaHostAllocMapped));
-    CUDART_CHECK(cudaHostGetDevicePointer( (void **) 
+    cuda(HostGetDevicePointer( (void **) 
                                            &outDevice, 
                                            outHost, 0 ));
 
-    CUDART_CHECK(cudaMemcpyToArray( texArray, 
+    cuda(MemcpyToArray( texArray, 
                                     0, 0, 
                                     texContents, 
                                     texN*sizeof(T), 
                                     cudaMemcpyHostToDevice));
-    CUDART_CHECK(cudaBindTextureToArray(tex, texArray));
+    cuda(BindTextureToArray(tex, texArray));
 
     tex.filterMode = filterMode;
     tex.addressMode[0] = addressMode;
-    CUDART_CHECK(cudaHostGetDevicePointer(&outDevice, outHost, 0));
+    cuda(HostGetDevicePointer(&outDevice, outHost, 0));
     TexReadout<<<2,384>>>( outDevice, outN, base, increment );
-    CUDART_CHECK(cudaThreadSynchronize());
+    cuda(ThreadSynchronize());
 
     for ( int i = 0; i < outN; i++ ) {
         printf( "(%.2f, %.2f)\n", outHost[i].x, outHost[i].y );
@@ -130,7 +130,7 @@ main( int argc, char *argv[] )
 {
     int ret = 1;
     cudaError_t status;
-    CUDART_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
+    cuda(SetDeviceFlags(cudaDeviceMapHost));
 
     //CreateAndPrintTex<float>( NULL, 8, 8, 0.0f, 1.0f, cudaFilterModePoint );
     //CreateAndPrintTex<float>( NULL, 8, 8, 0.0f, 1.0f, cudaFilterModeLinear );

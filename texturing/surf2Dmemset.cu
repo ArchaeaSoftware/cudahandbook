@@ -121,7 +121,7 @@ surf2DmemsetArray( cudaArray *array, T value )
 
     cudaError_t status;
     
-    CUDART_CHECK(cudaBindSurfaceToArray(surf2D, array));
+    cuda(BindSurfaceToArray(surf2D, array));
     if ( CUDA_SUCCESS != cuArrayGetDescriptor( &desc, drvArray ) ) {
         status = cudaErrorInvalidValue;
         goto Error;
@@ -165,17 +165,17 @@ CreateAndPrintTex(
 
     // use 2D memset implemented with surface write to initialize texture
 
-    CUDART_CHECK(cudaMallocArray(&texArray, &channelDesc, inWidth, inHeight, cudaArraySurfaceLoadStore));
+    cuda(MallocArray(&texArray, &channelDesc, inWidth, inHeight, cudaArraySurfaceLoadStore));
 
     CUDART_CHECK(surf2DmemsetArray( texArray, 3.141592654f ) );
 
-    CUDART_CHECK(cudaBindTextureToArray(tex, texArray));
+    cuda(BindTextureToArray(tex, texArray));
 
     outPitch = outWidth*sizeof(float4);
     outPitch = (outPitch+0x3f)&~0x3f;
 
-    CUDART_CHECK(cudaHostAlloc( (void **) &outHost, outWidth*outPitch, cudaHostAllocMapped));
-    CUDART_CHECK(cudaHostGetDevicePointer( (void **) &outDevice, outHost, 0 ));
+    cuda(HostAlloc( (void **) &outHost, outWidth*outPitch, cudaHostAllocMapped));
+    cuda(HostGetDevicePointer( (void **) &outDevice, outHost, 0 ));
 
     tex.filterMode = filterMode;
     tex.addressMode[0] = addressModeX;
@@ -184,7 +184,7 @@ CreateAndPrintTex(
     blocks.y = 1;
     threads.x = 64; threads.y = 4;
     TexReadout<<<blocks,threads>>>( outDevice, outWidth, outPitch, outHeight, base, increment );
-    CUDART_CHECK(cudaThreadSynchronize());
+    cuda(ThreadSynchronize());
 
     for ( int row = 0; row < outHeight; row++ ) {
         float4 *outrow = (float4 *) ((char *) outHost + row*outPitch);
@@ -207,13 +207,13 @@ main( int argc, char *argv[] )
     cudaError_t status;
     cudaDeviceProp prop;
 
-    CUDART_CHECK(cudaGetDeviceProperties(&prop, 0));
+    cuda(GetDeviceProperties(&prop, 0));
     if ( prop.major < 2 ) {
         printf( "This application requires SM 2.x (for surface load/store)\n" );
         goto Error;
     }
-    CUDART_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
-    CUDART_CHECK(cudaFree(0));
+    cuda(SetDeviceFlags(cudaDeviceMapHost));
+    cuda(Free(0));
 
     // go through once each with linear and point filtering
     do {

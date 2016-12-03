@@ -72,7 +72,7 @@ checksumGPU()
     cudaError_t status;
     size_t i;
 
-    CUDART_CHECK( cudaMemcpyFromSymbol(host_checksumGPU, checksumGPU_array, 
+    cuda(MemcpyFromSymbol(host_checksumGPU, checksumGPU_array, 
         TOTAL_THREADS*sizeof(int)));
     for ( i = 0; i < TOTAL_THREADS; i++ ) {
         sum += host_checksumGPU[i];
@@ -163,7 +163,7 @@ TexChecksum( int *out, int c, size_t N )
     int zero[TOTAL_THREADS];
 
     memset( zero, 0, TOTAL_THREADS*sizeof(int));
-    CUDART_CHECK(cudaMemcpyToSymbol( checksumGPU_array, zero, TOTAL_THREADS*sizeof(int) ));
+    cuda(MemcpyToSymbol( checksumGPU_array, zero, TOTAL_THREADS*sizeof(int) ));
     switch ( c ) {
         case 1:
             TexChecksum1<<<NUM_BLOCKS,NUM_THREADS>>>( N / sizeof(int) );
@@ -207,8 +207,8 @@ main( int argc, char *argv[] )
     int checksumGPU2;
     int checksumGPU4;
 
-    CUDART_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
-    CUDART_CHECK(cudaGetDeviceProperties( &props, 0));
+    cuda(SetDeviceFlags(cudaDeviceMapHost));
+    cuda(GetDeviceProperties( &props, 0));
     if ( argc != 2 ) {
         printf( "GPU has %d Mb of device memory\n", props.totalGlobalMem>>20 );
         printf( "Usage: %s <Mb> where Mb is the number of megabytes to test.\n", argv[0] );
@@ -228,8 +228,8 @@ main( int argc, char *argv[] )
     }
     else {
         printf( "Device alloc of %d Mb failed, trying mapped host memory\n", numMb );
-        CUDART_CHECK( cudaHostAlloc( (void **) &hostTex, numBytes, cudaHostAllocMapped ) );
-        CUDART_CHECK( cudaHostGetDevicePointer( (void **) &deviceTex, hostTex, 0 ) );
+        cuda(HostAlloc( (void **) &hostTex, numBytes, cudaHostAllocMapped ) );
+        cuda(HostGetDevicePointer( (void **) &deviceTex, hostTex, 0 ) );
         bAllocedHost = true;
     }
 
@@ -242,10 +242,10 @@ main( int argc, char *argv[] )
 
     printf( "Expected checksum: 0x%x\n", checksumCPU );
     if ( ! bAllocedHost ) {
-        CUDART_CHECK(cudaMemcpy( deviceTex, hostTex, numBytes, cudaMemcpyHostToDevice ));
+        cuda(Memcpy( deviceTex, hostTex, numBytes, cudaMemcpyHostToDevice ));
     }
     if ( numBytes <= CUDA_MAX_BYTES_INT1 ) {
-        CUDART_CHECK(cudaBindTexture( NULL, tex1, deviceTex, cudaCreateChannelDesc<unsigned int>(), numBytes ) );
+        cuda(BindTexture( NULL, tex1, deviceTex, cudaCreateChannelDesc<unsigned int>(), numBytes ) );
         if ( ! TexChecksum( &checksumGPU1, 1, numBytes ) ) {
             printf( "TexCheckSums failed (unsigned int)\n" );
             goto Error;
@@ -256,7 +256,7 @@ main( int argc, char *argv[] )
         printf( "    tex1 checksum: (not performed)\n" );
     }
     if ( numBytes <= CUDA_MAX_BYTES_INT2 ) {
-        CUDART_CHECK(cudaBindTexture( NULL, tex2, deviceTex, cudaCreateChannelDesc<int2>(), numBytes ) );
+        cuda(BindTexture( NULL, tex2, deviceTex, cudaCreateChannelDesc<int2>(), numBytes ) );
         if ( ! TexChecksum( &checksumGPU2, 2, numBytes ) ) {
             printf( "TexCheckSums failed (int2)\n" );
             goto Error;
@@ -290,10 +290,10 @@ main( int argc, char *argv[] )
             texSizes[iTexture] = texSizes[iTexture-1];
             iTexture++;
         }
-        CUDART_CHECK( cudaBindTexture( NULL, tex4_0, texBases[0], int4Desc, texSizes[0] ) );
-        CUDART_CHECK( cudaBindTexture( NULL, tex4_1, texBases[1], int4Desc, texSizes[1] ) );
-        CUDART_CHECK( cudaBindTexture( NULL, tex4_2, texBases[2], int4Desc, texSizes[2] ) );
-        CUDART_CHECK( cudaBindTexture( NULL, tex4_3, texBases[3], int4Desc, texSizes[3] ) );
+        cuda(BindTexture( NULL, tex4_0, texBases[0], int4Desc, texSizes[0] ) );
+        cuda(BindTexture( NULL, tex4_1, texBases[1], int4Desc, texSizes[1] ) );
+        cuda(BindTexture( NULL, tex4_2, texBases[2], int4Desc, texSizes[2] ) );
+        cuda(BindTexture( NULL, tex4_3, texBases[3], int4Desc, texSizes[3] ) );
         if ( ! TexChecksum( &checksumGPU4, 4, numBytes ) ) {
             printf( "TexCheckSums failed (int4)\n" );
             goto Error;

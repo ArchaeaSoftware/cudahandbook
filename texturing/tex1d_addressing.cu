@@ -156,20 +156,20 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
         }
     }
 
-    CUDA_CHECK(cudaMallocArray(&texArray, &channelDesc, texN/**sizeof(T)*/));
+    cuda(MallocArray(&texArray, &channelDesc, texN/**sizeof(T)*/));
 
-    CUDA_CHECK(cudaMemcpyToArray( texArray, 0, 0, texContents, 
+    cuda(MemcpyToArray( texArray, 0, 0, texContents, 
                                   texN*sizeof(T), cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaBindTextureToArray(tex, texArray));
+    cuda(BindTextureToArray(tex, texArray));
 
-    CUDA_CHECK(cudaHostAlloc( (void **) &outHost, outN*sizeof(float2), cudaHostAllocMapped));
-    CUDA_CHECK(cudaHostGetDevicePointer( (void **) &outDevice, outHost, 0 ));
+    cuda(HostAlloc( (void **) &outHost, outN*sizeof(float2), cudaHostAllocMapped));
+    cuda(HostGetDevicePointer( (void **) &outDevice, outHost, 0 ));
 
     tex.normalized = true;
     tex.filterMode = filterMode;
     tex.addressMode[0] = addressMode;
     TexReadout<<<2,384>>>( outDevice, outN, base, increment );
-    CUDA_CHECK(cudaThreadSynchronize());
+    cuda(ThreadSynchronize());
 
     for ( int i = 0; i < outN; i++ ) {
         float x = base+(float)i*increment;
@@ -198,8 +198,8 @@ main( int argc, char *argv[] )
     int ret = 1;
     cudaError_t status;
 
-    CUDA_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
-    CUDA_CHECK(cudaFree(0));
+    cuda(SetDeviceFlags(cudaDeviceMapHost));
+    cuda(Free(0));
 
     // go through once each with linear and point filtering
     do {

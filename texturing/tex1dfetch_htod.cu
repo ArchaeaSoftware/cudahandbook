@@ -68,7 +68,7 @@ MeasureBandwidth( void *out, size_t N, int blocks, int threads )
     chTimerGetTime( &start );
 
     TexReadout<<<2,384>>>( (float *) out, N );
-    CUDA_CHECK(cudaThreadSynchronize());
+    cuda(ThreadSynchronize());
 
     chTimerGetTime( &stop );
 
@@ -91,17 +91,17 @@ ComputeMaximumBandwidth( size_t N )
     int cMaxBlocks = 0;
     int cMaxThreads = 0;
 
-    CUDA_CHECK(cudaHostAlloc( (void **) &inHost, N*sizeof(T), cudaHostAllocMapped));
-    CUDA_CHECK(cudaHostGetDevicePointer( (void **) &inDevice, inHost, 0 ));
-    CUDA_CHECK(cudaHostAlloc( (void **) &outHost, N*sizeof(T), 0 ) );
+    cuda(HostAlloc( (void **) &inHost, N*sizeof(T), cudaHostAllocMapped));
+    cuda(HostGetDevicePointer( (void **) &inDevice, inHost, 0 ));
+    cuda(HostAlloc( (void **) &outHost, N*sizeof(T), 0 ) );
 
-    CUDA_CHECK(cudaMalloc( (void **) &outDevice, N*sizeof(T)));
+    cuda(Malloc( (void **) &outDevice, N*sizeof(T)));
 
     for ( int i = 0; i < N; i++ ) {
         inHost[i] = (T) i;
     }
 
-    CUDA_CHECK(cudaBindTexture(NULL, tex, inDevice, cudaCreateChannelDesc<T>(), N*sizeof(T)));
+    cuda(BindTexture(NULL, tex, inDevice, cudaCreateChannelDesc<T>(), N*sizeof(T)));
 
     {
         for ( int cBlocks = 8; cBlocks <= 512; cBlocks += 8 ) {
@@ -115,7 +115,7 @@ ComputeMaximumBandwidth( size_t N )
                     printf( "New maximum of %.2f M/s reached at %d blocks of %d threads\n",
                         fMaxBandwidth, cMaxBlocks, cMaxThreads );
                 }
-                CUDA_CHECK( cudaMemcpy( outHost, outDevice, N*sizeof(T), cudaMemcpyDeviceToHost ) );
+                cuda(Memcpy( outHost, outDevice, N*sizeof(T), cudaMemcpyDeviceToHost ) );
 
                 for ( int i = 0; i < N; i++ ) {
                     assert( outHost[i] == inHost[i] );
@@ -142,8 +142,8 @@ main( int argc, char *argv[] )
     cudaError_t status;
     float fMaxBW = 0.0f;
 
-    CUDA_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
-    CUDA_CHECK(cudaFree(0));
+    cuda(SetDeviceFlags(cudaDeviceMapHost));
+    cuda(Free(0));
 
     fMaxBW = ComputeMaximumBandwidth<float>(64*1048576);
     printf( "Maximum bandwidth achieved: %.2f\n", fMaxBW );

@@ -63,10 +63,10 @@ CheckTex( float *hostOut, const float *in, size_t offset, size_t N )
     cudaError_t status;
     bool ret = false;
     memset( hostOut, 0, N*sizeof(float) );
-    CUDA_CHECK(cudaHostGetDevicePointer( (void **) &deviceOut, hostOut, 0 ));
+    cuda(HostGetDevicePointer( (void **) &deviceOut, hostOut, 0 ));
     
     TexReadout<<<2,384>>>( deviceOut, offset>>2, N );
-    CUDA_CHECK(cudaThreadSynchronize());
+    cuda(ThreadSynchronize());
     for ( int i = 0; i < N; i++ ) {
         if ( in[i] != hostOut[i] ) {
             printf( "Mismatch at index %d\n", i );
@@ -91,25 +91,25 @@ main( int argc, char *argv[] )
     cudaDeviceProp props;
     size_t offset;
 
-    CUDA_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
-    CUDA_CHECK(cudaGetDeviceProperties( &props, 0));
+    cuda(SetDeviceFlags(cudaDeviceMapHost));
+    cuda(GetDeviceProperties( &props, 0));
     printf( "Base texture alignment requirement: %d bytes\n", props.textureAlignment );
 
     for ( int i = 0; i < NUM_FLOATS; i++ ) {
         fInit[i] = (float) i;
     }
 
-    CUDA_CHECK(cudaMalloc( (void **) &deviceTex, 2*NUM_FLOATS*sizeof(float)) );
-    CUDA_CHECK(cudaHostAlloc( (void **) &foutHost, NUM_FLOATS*sizeof(float), cudaHostAllocMapped));
-    CUDA_CHECK(cudaHostGetDevicePointer( (void **) &foutDevice, foutHost, 0 ));
+    cuda(Malloc( (void **) &deviceTex, 2*NUM_FLOATS*sizeof(float)) );
+    cuda(HostAlloc( (void **) &foutHost, NUM_FLOATS*sizeof(float), cudaHostAllocMapped));
+    cuda(HostGetDevicePointer( (void **) &foutDevice, foutHost, 0 ));
 
     for ( offset = 0; offset <= NUM_FLOATS/2; offset += 4 )
     {
         size_t texOffset;
-        CUDA_CHECK(cudaMemset(deviceTex, 0xcc, 2*NUM_FLOATS*sizeof(float)));
-        CUDA_CHECK(cudaMemcpy(deviceTex+offset, fInit, NUM_FLOATS*sizeof(float), cudaMemcpyHostToDevice));
+        cuda(Memset(deviceTex, 0xcc, 2*NUM_FLOATS*sizeof(float)));
+        cuda(Memcpy(deviceTex+offset, fInit, NUM_FLOATS*sizeof(float), cudaMemcpyHostToDevice));
 
-        CUDA_CHECK(cudaBindTexture( &texOffset, tex, deviceTex+offset, NUM_FLOATS*sizeof(float)) );
+        cuda(BindTexture( &texOffset, tex, deviceTex+offset, NUM_FLOATS*sizeof(float)) );
         printf( "My offset = %d, texture offset = %d\n", offset, texOffset );
 
         if ( ! CheckTex( foutHost, fInit, texOffset, NUM_FLOATS ) ) {

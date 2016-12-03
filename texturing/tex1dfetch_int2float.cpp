@@ -8,6 +8,7 @@
 #include <cuda.h>
 
 #include <stdio.h>
+#include <memory.h>
 
 #include <chError.h>    
 
@@ -55,22 +56,22 @@ PrintTex( float *host, size_t N )
     CUdeviceptr device;
     CUresult status;
     memset( host, 0, N*sizeof(float) );
-    CUDA_CHECK(cuMemHostGetDevicePointer( &device, host, 0 ));
+    cu(MemHostGetDevicePointer( &device, host, 0 ));
 
     {
         int offset = 0;
-        CUDA_CHECK(cuParamSetv(g_function, offset, &device, sizeof(CUdeviceptr))); offset += sizeof(CUdeviceptr);
-        CUDA_CHECK(cuParamSetv(g_function, offset, &N, sizeof(size_t))); offset += sizeof(size_t);
-        CUDA_CHECK(cuParamSetSize(g_function, offset ));
+        cu(ParamSetv(g_function, offset, &device, sizeof(CUdeviceptr))); offset += sizeof(CUdeviceptr);
+        cu(ParamSetv(g_function, offset, &N, sizeof(size_t))); offset += sizeof(size_t);
+        cu(ParamSetSize(g_function, offset ));
     }
-    CUDA_CHECK(cuFuncSetBlockShape(g_function, 2, 1, 1));
-    CUDA_CHECK(cuLaunchGrid(g_function, 384, 1));
-    CUDA_CHECK(cuCtxSynchronize());
+    cu(FuncSetBlockShape(g_function, 2, 1, 1));
+    cu(LaunchGrid(g_function, 384, 1));
+    cu(CtxSynchronize());
     for ( int i = 0; i < N; i++ ) {
         char c = (char) i;
         printf( "%.2f ", host[i] );
         if ( host[i] != TexPromoteToFloat( c ) )
-            _asm int 3
+           _asm int 3
 /*        
 // this works for unsigned char
         if ( fabsf(host[i] - (float)i*(1.0f/255.0f) ) > 1e-5f )
@@ -121,23 +122,23 @@ main( int argc, char *argv[] )
     CUdeviceptr foutDevice;
     CUresult status;
 
-    CUDA_CHECK(cuInit(0));
-    CUDA_CHECK(cuDeviceGet(&g_device, 0));
-    CUDA_CHECK(cuCtxCreate(&g_ctx, CU_CTX_MAP_HOST, g_device));
+    cu(Init(0));
+    cu(DeviceGet(&g_device, 0));
+    cu(CtxCreate(&g_ctx, CU_CTX_MAP_HOST, g_device));
     CUDA_CHECK(LoadPTXModule(&g_module, "tex1dfetch_int2float_kernel.ptx"));
-    CUDA_CHECK(cuModuleGetFunction(&g_function, g_module, "TexReadout"));
-    CUDA_CHECK(cuModuleGetTexRef(&g_texref, g_module, "tex1"));
+    cu(ModuleGetFunction(&g_function, g_module, "TexReadout"));
+    cu(ModuleGetTexRef(&g_texref, g_module, "tex1"));
 
-    CUDA_CHECK(cuMemAlloc( &p, NUM_FLOATS*sizeof(float)) );
-    CUDA_CHECK(cuMemHostAlloc( (void **) &finHost, NUM_FLOATS*sizeof(float), CU_MEMHOSTALLOC_DEVICEMAP));
-    CUDA_CHECK(cuMemHostGetDevicePointer( &finDevice, finHost, 0 ));
+    cu(MemAlloc( &p, NUM_FLOATS*sizeof(float)) );
+    cu(MemHostAlloc( (void **) &finHost, NUM_FLOATS*sizeof(float), CU_MEMHOSTALLOC_DEVICEMAP));
+    cu(MemHostGetDevicePointer( &finDevice, finHost, 0 ));
 
-    CUDA_CHECK(cuTexRefSetFormat(g_texref, CU_AD_FORMAT_SIGNED_INT8, 1));
-    //CUDA_CHECK(cuTexRefSetFlags(g_texref, CU_TRSF_READ_AS_INTEGER));
-    CUDA_CHECK(cuTexRefSetAddress(NULL, g_texref, finDevice, NUM_FLOATS*sizeof(float)));
+    cu(TexRefSetFormat(g_texref, CU_AD_FORMAT_SIGNED_INT8, 1));
+    //cu(TexRefSetFlags(g_texref, CU_TRSF_READ_AS_INTEGER));
+    cu(TexRefSetAddress(NULL, g_texref, finDevice, NUM_FLOATS*sizeof(float)));
 
-    CUDA_CHECK(cuMemHostAlloc( (void **) &foutHost, NUM_FLOATS*sizeof(float), CU_MEMHOSTALLOC_DEVICEMAP));
-    CUDA_CHECK(cuMemHostGetDevicePointer( &foutDevice, foutHost, 0 ));
+    cu(MemHostAlloc( (void **) &foutHost, NUM_FLOATS*sizeof(float), CU_MEMHOSTALLOC_DEVICEMAP));
+    cu(MemHostGetDevicePointer( &foutDevice, foutHost, 0 ));
 
     for ( int i = 0; i < NUM_FLOATS; i++ ) {
         finHost[i] = (unsigned char) i;//(float) i;

@@ -94,9 +94,9 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
 
     cudaError_t status;
     
-    CUDART_CHECK(cudaEventCreate(&start));
-    CUDART_CHECK(cudaEventCreate(&stop));
-    CUDART_CHECK(cudaBindTextureToArray(tex, array));
+    cuda(EventCreate(&start));
+    cuda(EventCreate(&stop));
+    cuda(BindTextureToArray(tex, array));
     if ( CUDA_SUCCESS != cuArrayGetDescriptor( &desc, drvArray ) ) {
         status = cudaErrorInvalidValue;
         goto Error;
@@ -110,7 +110,7 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
         status = cudaErrorInvalidValue;
         goto Error;
     }
-    CUDART_CHECK(cudaEventRecord(start, 0));
+    cuda(EventRecord(start, 0));
     {
         dim3 threads(threadWidth,threadHeight);
         dim3 blocks = dim3(INTDIVIDE_CEILING(desc.Width, threadWidth), 
@@ -121,9 +121,9 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
         }
 
     }
-    CUDART_CHECK(cudaEventRecord(stop, 0));
-    CUDART_CHECK(cudaDeviceSynchronize());
-    CUDART_CHECK(cudaEventElapsedTime(ms, start, stop));
+    cuda(EventRecord(stop, 0));
+    cuda(DeviceSynchronize());
+    cuda(EventElapsedTime(ms, start, stop));
 Error:
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
@@ -144,8 +144,8 @@ ShmooTex2D(
     double maxBandwidth = 0.0;
     int minThreadWidth, minThreadHeight;
 
-    CUDART_CHECK(cudaGetDeviceProperties( &props, 0 ) );
-    CUDART_CHECK(cudaMallocArray(&texArray, &channelDesc, Width, Height, cudaArraySurfaceLoadStore));
+    cuda(GetDeviceProperties( &props, 0 ) );
+    cuda(MallocArray(&texArray, &channelDesc, Width, Height, cudaArraySurfaceLoadStore));
 
     printf( "\tWidth\n\t" );
     for ( int threadWidth = 4; threadWidth <= 64; threadWidth += 2 ) {
@@ -189,8 +189,8 @@ main( int argc, char *argv[] )
 
     cudaError_t status;
 
-    CUDART_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
-    CUDART_CHECK(cudaFree(0));
+    cuda(SetDeviceFlags(cudaDeviceMapHost));
+    cuda(Free(0));
     ShmooTex2D<float>( 4096, 4096, 10 );
 
     ret = 0;

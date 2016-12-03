@@ -95,16 +95,16 @@ CheckTexPromoteToFloat( size_t N )
     float *foutHost, *foutDevice;
     cudaError_t status;
 
-    CUDART_CHECK(cudaHostAlloc( (void **) &inHost, 
+    cuda(HostAlloc( (void **) &inHost, 
                                 N*sizeof(T), 
                                 cudaHostAllocMapped));
-    CUDART_CHECK(cudaHostGetDevicePointer( (void **) &inDevice, 
+    cuda(HostGetDevicePointer( (void **) &inDevice, 
                                            inHost, 
                                            0 ));
-    CUDART_CHECK(cudaHostAlloc( (void **) &foutHost, 
+    cuda(HostAlloc( (void **) &foutHost, 
                                 N*sizeof(float), 
                                 cudaHostAllocMapped));
-    CUDART_CHECK(cudaHostGetDevicePointer( (void **) &foutDevice, 
+    cuda(HostGetDevicePointer( (void **) &foutDevice, 
                                            foutHost, 
                                            0 ));
 
@@ -113,13 +113,13 @@ CheckTexPromoteToFloat( size_t N )
     }
     memset( foutHost, 0, N*sizeof(float) );
 
-    CUDART_CHECK( cudaBindTexture( NULL, 
-                                   tex, 
-                                   inDevice, 
-                                   cudaCreateChannelDesc<T>(), 
-                                   N*sizeof(T)));
+    cuda(BindTexture( NULL, 
+                      tex, 
+                      inDevice, 
+                      cudaCreateChannelDesc<T>(), 
+                      N*sizeof(T)));
     TexReadout<<<2,384>>>( foutDevice, N );
-    CUDART_CHECK(cudaThreadSynchronize());
+    cuda(ThreadSynchronize());
 
     for ( int i = 0; i < N; i++ ) {
         printf( "%.2f ", foutHost[i] );
@@ -137,8 +137,8 @@ main( int argc, char *argv[] )
     int ret = 1;
     cudaError_t status;
 
-    CUDART_CHECK(cudaSetDeviceFlags(cudaDeviceMapHost));
-    CUDART_CHECK(cudaFree(0));
+    cuda(SetDeviceFlags(cudaDeviceMapHost));
+    cuda(Free(0));
     CheckTexPromoteToFloat<signed char>( 256 );
     CheckTexPromoteToFloat<unsigned char>( 256 );
 
