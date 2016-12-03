@@ -65,17 +65,17 @@ MeasureTimes(
     cudaEvent_t evStart = 0;
     cudaEvent_t evStop = 0;
 
-    CUDART_CHECK( cudaHostAlloc( &hptrOut, N*sizeof(float), cudaHostAllocMapped ) );
-    CUDART_CHECK( cudaHostGetDevicePointer( &dptrOut, hptrOut, 0 ) );
+    cuda(HostAlloc( &hptrOut, N*sizeof(float), cudaHostAllocMapped ) );
+    cuda(HostGetDevicePointer( &dptrOut, hptrOut, 0 ) );
     memset( hptrOut, 0, N*sizeof(float) );
 
-    CUDART_CHECK( cudaHostAlloc( &hptrY, N*sizeof(float), cudaHostAllocMapped ) );
-    CUDART_CHECK( cudaHostGetDevicePointer( &dptrY, hptrY, 0 ) );
-    CUDART_CHECK( cudaHostAlloc( &hptrX, N*sizeof(float), cudaHostAllocMapped ) );
-    CUDART_CHECK( cudaHostGetDevicePointer( &dptrX, hptrX, 0 ) );
+    cuda(HostAlloc( &hptrY, N*sizeof(float), cudaHostAllocMapped ) );
+    cuda(HostGetDevicePointer( &dptrY, hptrY, 0 ) );
+    cuda(HostAlloc( &hptrX, N*sizeof(float), cudaHostAllocMapped ) );
+    cuda(HostGetDevicePointer( &dptrX, hptrX, 0 ) );
 
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
+    cuda(EventCreate( &evStart ) );
+    cuda(EventCreate( &evStop ) );
     for ( size_t i = 0; i < N; i++ ) {
         hptrX[i] = (float) rand() / RAND_MAX;
         hptrY[i] = (float) rand() / RAND_MAX;
@@ -86,10 +86,10 @@ MeasureTimes(
     //
 
     chTimerGetTime( &chStart );
-    CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
+    cuda(EventRecord( evStart, 0 ) );
         saxpyGPU<<<nBlocks, nThreads>>>( dptrOut, dptrX, dptrY, N, alpha );
-    CUDART_CHECK( cudaEventRecord( evStop, 0 ) );
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(EventRecord( evStop, 0 ) );
+    cuda(DeviceSynchronize() );
 
     //
     // end timing
@@ -103,7 +103,7 @@ MeasureTimes(
             goto Error;
         }
     }
-    CUDART_CHECK( cudaEventElapsedTime( msTotal, evStart, evStop ) );
+    cuda(EventElapsedTime( msTotal, evStart, evStop ) );
 Error:
     cudaEventDestroy( evStop );
     cudaEventDestroy( evStart );
@@ -140,7 +140,7 @@ main( int argc, char *argv[] )
 
     N = 1048576*N_Mfloats;
 
-    CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
+    cuda(SetDeviceFlags( cudaDeviceMapHost ) );
     {
         float msTotalGPU, msWallClock;
         CUDART_CHECK( MeasureTimes( &msTotalGPU, &msWallClock, N, alpha, nBlocks, nThreads ) );

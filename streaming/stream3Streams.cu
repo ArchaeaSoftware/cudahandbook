@@ -79,37 +79,37 @@ MeasureTimes(
     }
     memset( streams, 0, nStreams*sizeof(cudaStream_t) );
     for ( int i = 0; i < nStreams; i++ ) {
-        CUDART_CHECK( cudaStreamCreate( &streams[i] ) );
+        cuda(StreamCreate( &streams[i] ) );
     }
-    CUDART_CHECK( cudaHostAlloc( &hptrOut, N*sizeof(float), 0 ) );
+    cuda(HostAlloc( &hptrOut, N*sizeof(float), 0 ) );
     memset( hptrOut, 0, N*sizeof(float) );
-    CUDART_CHECK( cudaHostAlloc( &hptrY, N*sizeof(float), 0 ) );
-    CUDART_CHECK( cudaHostAlloc( &hptrX, N*sizeof(float), 0 ) );
+    cuda(HostAlloc( &hptrY, N*sizeof(float), 0 ) );
+    cuda(HostAlloc( &hptrX, N*sizeof(float), 0 ) );
 
-    CUDART_CHECK( cudaMalloc( &dptrOut, N*sizeof(float) ) );
-    CUDART_CHECK( cudaMemset( dptrOut, 0, N*sizeof(float) ) );
+    cuda(Malloc( &dptrOut, N*sizeof(float) ) );
+    cuda(Memset( dptrOut, 0, N*sizeof(float) ) );
 
-    CUDART_CHECK( cudaMalloc( &dptrY, N*sizeof(float) ) );
-    CUDART_CHECK( cudaMemset( dptrY, 0, N*sizeof(float) ) );
+    cuda(Malloc( &dptrY, N*sizeof(float) ) );
+    cuda(Memset( dptrY, 0, N*sizeof(float) ) );
 
-    CUDART_CHECK( cudaMalloc( &dptrX, N*sizeof(float) ) );
-    CUDART_CHECK( cudaMemset( dptrY, 0, N*sizeof(float) ) );
+    cuda(Malloc( &dptrX, N*sizeof(float) ) );
+    cuda(Memset( dptrY, 0, N*sizeof(float) ) );
 
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
+    cuda(EventCreate( &evStart ) );
+    cuda(EventCreate( &evStop ) );
 
     chTimerGetTime( &chStart );
 
-    CUDART_CHECK( cudaEventRecord( evStart, 0 ) );
+    cuda(EventRecord( evStart, 0 ) );
 
     for ( int iStream = 0; iStream < nStreams; iStream++ ) {
-        CUDART_CHECK( cudaMemcpyAsync( 
+        cuda(MemcpyAsync( 
                           dptrX+iStream*streamStep, 
                           hptrX+iStream*streamStep, 
                           streamStep*sizeof(float), 
                           cudaMemcpyHostToDevice, 
                           streams[iStream] ) );
-        CUDART_CHECK( cudaMemcpyAsync( 
+        cuda(MemcpyAsync( 
                           dptrY+iStream*streamStep, 
                           hptrY+iStream*streamStep, 
                           streamStep*sizeof(float), 
@@ -127,7 +127,7 @@ MeasureTimes(
     }
 
     for ( int iStream = 0; iStream < nStreams; iStream++ ) {
-        CUDART_CHECK( cudaMemcpyAsync( 
+        cuda(MemcpyAsync( 
                           hptrOut+iStream*streamStep, 
                           dptrOut+iStream*streamStep, 
                           streamStep*sizeof(float), 
@@ -135,8 +135,8 @@ MeasureTimes(
                           streams[iStream] ) );
     }
 
-    CUDART_CHECK( cudaEventRecord( evStop, 0 ) );
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(EventRecord( evStop, 0 ) );
+    cuda(DeviceSynchronize() );
     chTimerGetTime( &chStop );
     *msWallClock = 1000.0f*chTimerElapsedTime( &chStart, &chStop );
     for ( size_t i = 0; i < N; i++ ) {
@@ -145,7 +145,7 @@ MeasureTimes(
             goto Error;
         }
     }
-    CUDART_CHECK( cudaEventElapsedTime( msTotal, evStart, evStop ) );
+    cuda(EventElapsedTime( msTotal, evStart, evStop ) );
 Error:
     if ( streams ) {
         for ( int i = 0; i < nStreams; i++ ) {
@@ -195,7 +195,7 @@ main( int argc, char *argv[] )
 
     N = 1048576*N_Mfloats;
 
-    CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
+    cuda(SetDeviceFlags( cudaDeviceMapHost ) );
     printf( "Streams\tTime (ms)\tMB/s\n" );
     for ( int numStreams = 1; numStreams <= maxStreams; numStreams++ ) {
         float msTotal, msWallClock;
