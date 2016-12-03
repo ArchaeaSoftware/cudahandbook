@@ -89,18 +89,18 @@ ComputeNBodyGravitation_GPU_AOS_const(
     size_t bodiesLeft = N;
 
     void *p;
-    CUDART_CHECK( cudaGetSymbolAddress( &p, g_constantBodies ) );
+    cuda(GetSymbolAddress( &p, g_constantBodies ) );
 
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
-    CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
+    cuda(EventCreate( &evStart ) );
+    cuda(EventCreate( &evStop ) );
+    cuda(EventRecord( evStart, NULL ) );
     for ( size_t i = 0; i < N; i += g_bodiesPerPass ) {
         // bodiesThisPass = max(bodiesLeft, g_bodiesPerPass);
         size_t bodiesThisPass = bodiesLeft;
         if ( bodiesThisPass > g_bodiesPerPass ) {
             bodiesThisPass = g_bodiesPerPass;
         }
-        CUDART_CHECK( cudaMemcpyToSymbolAsync( 
+        cuda(MemcpyToSymbolAsync( 
             g_constantBodies,
             ((float4 *) posMass)+i,
             bodiesThisPass*sizeof(float4),
@@ -111,9 +111,9 @@ ComputeNBodyGravitation_GPU_AOS_const(
             force, posMass, softeningSquared, bodiesThisPass, N );
         bodiesLeft -= bodiesThisPass;
     }
-    CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
-    CUDART_CHECK( cudaDeviceSynchronize() );
-    CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
+    cuda(EventRecord( evStop, NULL ) );
+    cuda(DeviceSynchronize() );
+    cuda(EventElapsedTime( &ms, evStart, evStop ) );
 Error:
     cudaEventDestroy( evStop );
     cudaEventDestroy( evStart );

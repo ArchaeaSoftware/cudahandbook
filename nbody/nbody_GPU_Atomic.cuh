@@ -117,16 +117,16 @@ ComputeGravitation_GPU_Atomic(
     cudaError_t status;
     cudaEvent_t evStart = 0, evStop = 0;
     float ms = 0.0;
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
-    CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
-    CUDART_CHECK( cudaMemset( force, 0, 3*N*sizeof(float) ) );
+    cuda(EventCreate( &evStart ) );
+    cuda(EventCreate( &evStop ) );
+    cuda(EventRecord( evStart, NULL ) );
+    cuda(Memset( force, 0, 3*N*sizeof(float) ) );
     ComputeNBodyGravitation_Atomic<float> <<<300,256>>>( force, posMass, N, softeningSquared );
-    CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
-    CUDART_CHECK( cudaDeviceSynchronize() );
-    CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
+    cuda(EventRecord( evStop, NULL ) );
+    cuda(DeviceSynchronize() );
+    cuda(EventElapsedTime( &ms, evStart, evStop ) );
 Error:
-    CUDART_CHECK( cudaEventDestroy( evStop ) );
-    CUDART_CHECK( cudaEventDestroy( evStart ) );
+    cuda(EventDestroy( evStop ) );
+    cuda(EventDestroy( evStart ) );
     return ms;
 }

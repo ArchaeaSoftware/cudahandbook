@@ -117,15 +117,15 @@ ComputeGravitation_GPU_Shuffle( float *force, float *posMass, float softeningSqu
     cudaError_t status;
     cudaEvent_t evStart = 0, evStop = 0;
     float ms = 0.0f;
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
-    CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
+    cuda(EventCreate( &evStart ) );
+    cuda(EventCreate( &evStop ) );
+    cuda(EventRecord( evStart, NULL ) );
     ComputeNBodyGravitation_Shuffle <<<300,256>>>( force, posMass, softeningSquared, N );
-    CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
-    CUDART_CHECK( cudaDeviceSynchronize() );
-    CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
+    cuda(EventRecord( evStop, NULL ) );
+    cuda(DeviceSynchronize() );
+    cuda(EventElapsedTime( &ms, evStart, evStop ) );
 Error:
-    CUDART_CHECK( cudaEventDestroy( evStop ) );
-    CUDART_CHECK( cudaEventDestroy( evStart ) );
+    cuda(EventDestroy( evStop ) );
+    cuda(EventDestroy( evStart ) );
     return ms;
 }

@@ -303,9 +303,9 @@ ComputeGravitation_GPU_AOS_tiled_const(
     cudaError_t status;
     dim3 blocks( N/nTile, N/32, 1 );
 
-    CUDART_CHECK( cudaMemset( force, 0, 3*N*sizeof(float) ) );
+    cuda(Memset( force, 0, 3*N*sizeof(float) ) );
     ComputeNBodyGravitation_GPU_tiled_const<nTile><<<blocks,nTile>>>( force, posMass, N, softeningSquared );
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(DeviceSynchronize() );
 Error:
     return status;
 }
@@ -321,20 +321,20 @@ ComputeGravitation_GPU_AOS_tiled_const(
     cudaError_t status;
     cudaEvent_t evStart = 0, evStop = 0;
     float ms = 0.0;
-    CUDART_CHECK( cudaDeviceSetCacheConfig( cudaFuncCachePreferShared ) );
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
-    CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
+    cuda(DeviceSetCacheConfig( cudaFuncCachePreferShared ) );
+    cuda(EventCreate( &evStart ) );
+    cuda(EventCreate( &evStop ) );
+    cuda(EventRecord( evStart, NULL ) );
     CUDART_CHECK( ComputeGravitation_GPU_AOS_tiled_const<32>(
         force, 
         posMass,
         softeningSquared,
         N ) );
-    CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
-    CUDART_CHECK( cudaDeviceSynchronize() );
-    CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
+    cuda(EventRecord( evStop, NULL ) );
+    cuda(DeviceSynchronize() );
+    cuda(EventElapsedTime( &ms, evStart, evStop ) );
 Error:
-    CUDART_CHECK( cudaEventDestroy( evStop ) );
-    CUDART_CHECK( cudaEventDestroy( evStart ) );
+    cuda(EventDestroy( evStop ) );
+    cuda(EventDestroy( evStart ) );
     return ms;
 }

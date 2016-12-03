@@ -165,11 +165,11 @@ ComputeGravitation_GPU_SOA_tiled(
     cudaError_t status;
     dim3 blocks( N/nTile, N/32, 1 );
 
-    CUDART_CHECK( cudaMemset( forces[0], 0, N*sizeof(float) ) );
-    CUDART_CHECK( cudaMemset( forces[1], 0, N*sizeof(float) ) );
-    CUDART_CHECK( cudaMemset( forces[2], 0, N*sizeof(float) ) );
+    cuda(Memset( forces[0], 0, N*sizeof(float) ) );
+    cuda(Memset( forces[1], 0, N*sizeof(float) ) );
+    cuda(Memset( forces[2], 0, N*sizeof(float) ) );
     ComputeNBodyGravitation_GPU_SOA_tiled<nTile><<<blocks,nTile>>>( forces[0], forces[1], forces[2], posMass, N, softeningSquared );
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(DeviceSynchronize() );
 Error:
     return status;
 }
@@ -212,31 +212,31 @@ ComputeGravitation_GPU_SOA_tiled(
     float ms = 0.0;
 
 float *forces[3] = {0};
-CUDART_CHECK( cudaMalloc( &forces[0], N*sizeof(float) ) );
-CUDART_CHECK( cudaMalloc( &forces[1], N*sizeof(float) ) );
-CUDART_CHECK( cudaMalloc( &forces[2], N*sizeof(float) ) );
+cuda(Malloc( &forces[0], N*sizeof(float) ) );
+cuda(Malloc( &forces[1], N*sizeof(float) ) );
+cuda(Malloc( &forces[2], N*sizeof(float) ) );
 
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
+    cuda(EventCreate( &evStart ) );
+    cuda(EventCreate( &evStop ) );
 
 AOStoSOA_GPU_3<<<300,256>>>( forces[0], forces[1], forces[2], force, N );
 
-    CUDART_CHECK( cudaEventRecord( evStart, NULL ) );
+    cuda(EventRecord( evStart, NULL ) );
     CUDART_CHECK( ComputeGravitation_GPU_SOA_tiled<128>(
         forces, 
         posMass,
         softeningSquared,
         N ) );
-    CUDART_CHECK( cudaEventRecord( evStop, NULL ) );
+    cuda(EventRecord( evStop, NULL ) );
 
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(DeviceSynchronize() );
 SOAtoAOS_GPU_3<<<300,256>>>( force, forces[0], forces[1], forces[2], N );
 
 
-    CUDART_CHECK( cudaDeviceSynchronize() );
-    CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
+    cuda(DeviceSynchronize() );
+    cuda(EventElapsedTime( &ms, evStart, evStop ) );
 Error:
-    CUDART_CHECK( cudaEventDestroy( evStop ) );
-    CUDART_CHECK( cudaEventDestroy( evStart ) );
+    cuda(EventDestroy( evStop ) );
+    cuda(EventDestroy( evStart ) );
     return ms;
 }

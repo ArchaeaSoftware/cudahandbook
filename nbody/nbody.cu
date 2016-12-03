@@ -267,7 +267,7 @@ ComputeGravitation(
 
     // CPU->GPU copies in case we are measuring GPU performance
     if ( g_bCUDAPresent ) {
-        CUDART_CHECK( cudaMemcpyAsync( 
+        cuda(MemcpyAsync( 
             g_dptrAOS_PosMass, 
             g_hostAOS_PosMass, 
             4*g_N*sizeof(float), 
@@ -338,7 +338,7 @@ ComputeGravitation(
                 g_dptrAOS_PosMass,
                 g_softening*g_softening,
                 g_N );
-            CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
+            cuda(Memcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
         case GPU_AOS_tiled:
             *ms = ComputeGravitation_GPU_AOS_tiled( 
@@ -346,7 +346,7 @@ ComputeGravitation(
                 g_dptrAOS_PosMass,
                 g_softening*g_softening,
                 g_N );
-            CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
+            cuda(Memcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
         case GPU_AOS_tiled_const:
             *ms = ComputeGravitation_GPU_AOS_tiled_const( 
@@ -354,46 +354,46 @@ ComputeGravitation(
                 g_dptrAOS_PosMass,
                 g_softening*g_softening,
                 g_N );
-            CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
+            cuda(Memcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
 #if 0
 // commented out - too slow even on SM 3.0
         case GPU_Atomic:
-            CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*sizeof(float) ) );
+            cuda(Memset( g_dptrAOS_Force, 0, 3*sizeof(float) ) );
             *ms = ComputeGravitation_GPU_Atomic( 
                 g_dptrAOS_Force,
                 g_dptrAOS_PosMass,
                 g_softening*g_softening,
                 g_N );
-            CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
+            cuda(Memcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
 #endif
         case GPU_Shared:
-            CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
+            cuda(Memset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
             *ms = ComputeGravitation_GPU_Shared( 
                 g_dptrAOS_Force,
                 g_dptrAOS_PosMass,
                 g_softening*g_softening,
                 g_N );
-            CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
+            cuda(Memcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
         case GPU_Const:
-            CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
+            cuda(Memset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
             *ms = ComputeNBodyGravitation_GPU_AOS_const( 
                 g_dptrAOS_Force,
                 g_dptrAOS_PosMass,
                 g_softening*g_softening,
                 g_N );
-            CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
+            cuda(Memcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
         case GPU_Shuffle:
-            CUDART_CHECK( cudaMemset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
+            cuda(Memset( g_dptrAOS_Force, 0, 3*g_N*sizeof(float) ) );
             *ms = ComputeGravitation_GPU_Shuffle( 
                 g_dptrAOS_Force,
                 g_dptrAOS_PosMass,
                 g_softening*g_softening,
                 g_N );
-            CUDART_CHECK( cudaMemcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
+            cuda(Memcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
         case multiGPU_SingleCPUThread:
             memset( g_hostAOS_Force, 0, 3*g_N*sizeof(float) );
@@ -516,9 +516,9 @@ initializeGPU( void *_p )
     cudaError_t status;
 
     gpuInit_struct *p = (gpuInit_struct *) _p;
-    CUDART_CHECK( cudaSetDevice( p->iGPU ) );
-    CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
-    CUDART_CHECK( cudaFree(0) );
+    cuda(SetDevice( p->iGPU ) );
+    cuda(SetDeviceFlags( cudaDeviceMapHost ) );
+    cuda(Free(0) );
 Error:
     p->status = status;    
 }
@@ -560,7 +560,7 @@ main( int argc, char *argv[] )
     g_bCUDAPresent = (cudaSuccess == status) && (g_numGPUs > 0);
     if ( g_bCUDAPresent ) {
         cudaDeviceProp prop;
-        CUDART_CHECK( cudaGetDeviceProperties( &prop, 0 ) );
+        cuda(GetDeviceProperties( &prop, 0 ) );
         g_bSM30Present = prop.major >= 3;
     }
     g_bNoCPU = chCommandLineGetBool( "nocpu", argc, argv );
@@ -711,27 +711,27 @@ main( int argc, char *argv[] )
     if ( g_bCUDAPresent ) {
         cudaDeviceProp propForVersion;
 
-        CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
-        CUDART_CHECK( cudaGetDeviceProperties( &propForVersion, 0 ) );
+        cuda(SetDeviceFlags( cudaDeviceMapHost ) );
+        cuda(GetDeviceProperties( &propForVersion, 0 ) );
         if ( propForVersion.major < 3 ) {
             // Only SM 3.x supports shuffle and fast atomics, so we cannot run
             // some algorithms on this board.
             g_maxAlgorithm = multiGPU_MultiCPUThread;
         }
 
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_PosMass, 4*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+        cuda(HostAlloc( (void **) &g_hostAOS_PosMass, 4*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
         for ( int i = 0; i < 3; i++ ) {
-            CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Pos[i], g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
-            CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Force[i], g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+            cuda(HostAlloc( (void **) &g_hostSOA_Pos[i], g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+            cuda(HostAlloc( (void **) &g_hostSOA_Force[i], g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
         }
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_Force, 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_Force_Golden, 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostAOS_VelInvMass, 4*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_Mass, g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
-        CUDART_CHECK( cudaHostAlloc( (void **) &g_hostSOA_InvMass, g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+        cuda(HostAlloc( (void **) &g_hostAOS_Force, 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+        cuda(HostAlloc( (void **) &g_hostAOS_Force_Golden, 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+        cuda(HostAlloc( (void **) &g_hostAOS_VelInvMass, 4*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+        cuda(HostAlloc( (void **) &g_hostSOA_Mass, g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+        cuda(HostAlloc( (void **) &g_hostSOA_InvMass, g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
 
-        CUDART_CHECK( cudaMalloc( &g_dptrAOS_PosMass, 4*g_N*sizeof(float) ) );
-        CUDART_CHECK( cudaMalloc( (void **) &g_dptrAOS_Force, 3*g_N*sizeof(float) ) );
+        cuda(Malloc( &g_dptrAOS_PosMass, 4*g_N*sizeof(float) ) );
+        cuda(Malloc( (void **) &g_dptrAOS_Force, 3*g_N*sizeof(float) ) );
 
         if ( g_bGPUCrossCheck  ) {
             printf( "GPU cross check enabled (%d GPUs), disabling CPU\n", g_numGPUs );
@@ -742,7 +742,7 @@ main( int argc, char *argv[] )
                 goto Error;
             }
             for ( int i = 0; i < g_numGPUs; i++ ) {
-                CUDART_CHECK( cudaHostAlloc( (void **) (&g_hostAOS_gpuCrossCheckForce[i]), 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+                cuda(HostAlloc( (void **) (&g_hostAOS_gpuCrossCheckForce[i]), 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
             }
         }
     }

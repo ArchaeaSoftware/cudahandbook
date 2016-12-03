@@ -86,9 +86,9 @@ gpuWorkerThread( void *_p )
     //
     // Each GPU has its own device pointer to the host pointer.
     //
-    CUDART_CHECK( cudaMalloc( &dptrPosMass, 4*p->N*sizeof(float) ) );
-    CUDART_CHECK( cudaMalloc( &dptrForce, 3*p->n*sizeof(float) ) );
-    CUDART_CHECK( cudaMemcpyAsync( 
+    cuda(Malloc( &dptrPosMass, 4*p->N*sizeof(float) ) );
+    cuda(Malloc( &dptrForce, 3*p->n*sizeof(float) ) );
+    cuda(MemcpyAsync( 
         dptrPosMass, 
         p->hostPosMass, 
         4*p->N*sizeof(float), 
@@ -102,7 +102,7 @@ gpuWorkerThread( void *_p )
         p->N );
     // NOTE: synchronous memcpy, so no need for further 
     // synchronization with device
-    CUDART_CHECK( cudaMemcpy( 
+    cuda(Memcpy( 
         p->hostForce+3*p->i, 
         dptrForce, 
         3*p->n*sizeof(float), 
