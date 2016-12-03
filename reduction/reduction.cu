@@ -81,13 +81,13 @@ TimedReduction(
     cudaEvent_t stop = 0;
     cudaError_t status;
 
-    CUDART_CHECK( cudaMalloc( &deviceAnswer, sizeof(int) ) );
-    CUDART_CHECK( cudaMalloc( &partialSums, cBlocks*sizeof(int) ) );
-    CUDART_CHECK( cudaEventCreate( &start ) );
-    CUDART_CHECK( cudaEventCreate( &stop ) );
-    CUDART_CHECK( cudaThreadSynchronize() );
+    cuda(Malloc( &deviceAnswer, sizeof(int) ) );
+    cuda(Malloc( &partialSums, cBlocks*sizeof(int) ) );
+    cuda(EventCreate( &start ) );
+    cuda(EventCreate( &stop ) );
+    cuda(ThreadSynchronize() );
 
-    CUDART_CHECK( cudaEventRecord( start, 0 ) );
+    cuda(EventRecord( start, 0 ) );
     hostReduction( 
         deviceAnswer, 
         partialSums, 
@@ -95,8 +95,8 @@ TimedReduction(
         N, 
         cBlocks, 
         cThreads );
-    CUDART_CHECK( cudaEventRecord( stop, 0 ) );
-    CUDART_CHECK( cudaMemcpy( 
+    cuda(EventRecord( stop, 0 ) );
+    cuda(Memcpy( 
         answer, 
         deviceAnswer, 
         sizeof(int), 
@@ -159,13 +159,13 @@ usPerInvocation( int cIterations, size_t N,
     double ret = 0.0f;
     chTimerTimestamp start, stop;
 
-    CUDART_CHECK( cudaMalloc( &smallArray, N*sizeof(int) ) );
-    CUDART_CHECK( cudaMalloc( &partialSums, 1*sizeof(int) ) );
+    cuda(Malloc( &smallArray, N*sizeof(int) ) );
+    cuda(Malloc( &partialSums, 1*sizeof(int) ) );
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
         pfnReduction( partialSums, partialSums, smallArray, N, 1, 256 );
     }
-    CUDART_CHECK( cudaThreadSynchronize() );
+    cuda(ThreadSynchronize() );
     chTimerGetTime( &stop );
     ret = chTimerElapsedTime( &start, &stop );
     ret = (ret / (double) cIterations) * 1e6;
@@ -209,10 +209,10 @@ main( int argc, char *argv[] )
     hostData = (int *) malloc( cInts*sizeof(int) );
     if ( ! hostData )
         goto Error;
-    CUDART_CHECK( cudaSetDevice( device ) );
-    CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
-    CUDART_CHECK( cudaMalloc( &deviceData, cInts*sizeof(int) ) );
-    CUDART_CHECK( cudaGetDeviceProperties( &props, 0 ) );
+    cuda(SetDevice( device ) );
+    cuda(SetDeviceFlags( cudaDeviceMapHost ) );
+    cuda(Malloc( &deviceData, cInts*sizeof(int) ) );
+    cuda(GetDeviceProperties( &props, 0 ) );
 
     sum = 0;
     for ( size_t i = 0; i < cInts; i++ ) {
@@ -220,7 +220,7 @@ main( int argc, char *argv[] )
         sum += value;
         hostData[i] = value;
     }
-    CUDART_CHECK( cudaMemcpy( deviceData, hostData, cInts*sizeof(int), 
+    cuda(Memcpy( deviceData, hostData, cInts*sizeof(int), 
         cudaMemcpyHostToDevice ) );
 
     {

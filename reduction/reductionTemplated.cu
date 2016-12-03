@@ -125,18 +125,18 @@ TimedReduction(
     cudaEvent_t stop = 0;
     cudaError_t status;
 
-    CUDART_CHECK( cudaMalloc( &deviceAnswer, sizeof(ReductionType) ) );
-    CUDART_CHECK( cudaMalloc( &partialSums, cBlocks*sizeof(ReductionType) ) );
-    CUDART_CHECK( cudaEventCreate( &start ) );
-    CUDART_CHECK( cudaEventCreate( &stop ) );
-    CUDART_CHECK( cudaThreadSynchronize() );
+    cuda(Malloc( &deviceAnswer, sizeof(ReductionType) ) );
+    cuda(Malloc( &partialSums, cBlocks*sizeof(ReductionType) ) );
+    cuda(EventCreate( &start ) );
+    cuda(EventCreate( &stop ) );
+    cuda(ThreadSynchronize() );
 
-    CUDART_CHECK( cudaEventRecord( start, 0 ) );
+    cuda(EventRecord( start, 0 ) );
     hostReduction( deviceAnswer, partialSums, deviceIn, N, cBlocks, cThreads );
-    CUDART_CHECK( cudaEventRecord( stop, 0 ) );
-    CUDART_CHECK( cudaMemcpy( answer, deviceAnswer, sizeof(T), cudaMemcpyDeviceToHost ) );
+    cuda(EventRecord( stop, 0 ) );
+    cuda(Memcpy( answer, deviceAnswer, sizeof(T), cudaMemcpyDeviceToHost ) );
 
-    CUDART_CHECK( cudaEventElapsedTime( &ms, start, stop ) )
+    cuda(EventElapsedTime( &ms, start, stop ) )
     ret = ms * 1000.0f;
 
     // fall through to free resources before returning
@@ -203,13 +203,13 @@ usPerInvocation( int cIterations, size_t N,
     double ret = 0.0f;
     chTimerTimestamp start, stop;
 
-    CUDART_CHECK( cudaMalloc( &smallArray, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMalloc( &partialSums, 1*sizeof(ReductionType) ) );
+    cuda(Malloc( &smallArray, N*sizeof(T) ) );
+    cuda(Malloc( &partialSums, 1*sizeof(ReductionType) ) );
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
         pfnReduction( partialSums, partialSums, smallArray, N, 1, 256 );
     }
-    CUDART_CHECK( cudaThreadSynchronize() );
+    cuda(ThreadSynchronize() );
     chTimerGetTime( &stop );
     ret = chTimerElapsedTime( &start, &stop );
     ret = (ret / (double) cIterations) * 1e6;
@@ -246,10 +246,10 @@ ShmooReport( size_t N, bool bFloat )
     hostData = (T *) malloc( N*sizeof(T) );
     if ( ! hostData )
         goto Error;
-    CUDART_CHECK( cudaSetDeviceFlags( cudaDeviceMapHost ) );
-    CUDART_CHECK( cudaMalloc( &deviceData, N*sizeof(T) ) );
-    CUDART_CHECK( cudaGetDeviceProperties( &props, 0 ) );
-    CUDART_CHECK( cudaMemcpy( deviceData, hostData, N*sizeof(T), cudaMemcpyHostToDevice ) );
+    cuda(SetDeviceFlags( cudaDeviceMapHost ) );
+    cuda(Malloc( &deviceData, N*sizeof(T) ) );
+    cuda(GetDeviceProperties( &props, 0 ) );
+    cuda(Memcpy( deviceData, hostData, N*sizeof(T), cudaMemcpyHostToDevice ) );
 
     forkPrint( g_fileShmoo, "N\tThreads(1)\tus(1)\t"
                                "Threads(2)\tus(2)\t"
