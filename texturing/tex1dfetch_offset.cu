@@ -93,7 +93,7 @@ main( int argc, char *argv[] )
 
     cuda(SetDeviceFlags(cudaDeviceMapHost));
     cuda(GetDeviceProperties( &props, 0));
-    printf( "Base texture alignment requirement: %d bytes\n", props.textureAlignment );
+    printf( "Base texture alignment requirement: %d bytes\n", (int) props.textureAlignment );
 
     for ( int i = 0; i < NUM_FLOATS; i++ ) {
         fInit[i] = (float) i;
@@ -110,7 +110,7 @@ main( int argc, char *argv[] )
         cuda(Memcpy(deviceTex+offset, fInit, NUM_FLOATS*sizeof(float), cudaMemcpyHostToDevice));
 
         cuda(BindTexture( &texOffset, tex, deviceTex+offset, NUM_FLOATS*sizeof(float)) );
-        printf( "My offset = %d, texture offset = %d\n", offset, texOffset );
+        printf( "My offset = %d, texture offset = %d\n", (int) offset, (int) texOffset );
 
         if ( ! CheckTex( foutHost, fInit, texOffset, NUM_FLOATS ) ) {
             goto Error;

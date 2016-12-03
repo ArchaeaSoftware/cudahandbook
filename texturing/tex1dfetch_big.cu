@@ -210,7 +210,7 @@ main( int argc, char *argv[] )
     cuda(SetDeviceFlags(cudaDeviceMapHost));
     cuda(GetDeviceProperties( &props, 0));
     if ( argc != 2 ) {
-        printf( "GPU has %d Mb of device memory\n", props.totalGlobalMem>>20 );
+        printf( "GPU has %d Mb of device memory\n", (int) (props.totalGlobalMem>>20) );
         printf( "Usage: %s <Mb> where Mb is the number of megabytes to test.\n", argv[0] );
         return 0;
     }

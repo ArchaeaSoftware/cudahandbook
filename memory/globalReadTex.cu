@@ -280,7 +280,7 @@ template<class T, bool bCoalesced>
 void
 Shmoo( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
 {
-    printf( "Operand size: %d byte%c\n", sizeof(T), sizeof(T)==1 ? '\0' : 's' );
+    printf( "Operand size: %d byte%c\n", (int) sizeof(T), sizeof(T)==1 ? '\0' : 's' );
     printf( "Input size: %dM operands\n", (int) (N>>20) );
     printf( "Unroll\t" );
     for ( int cThreads = threadStart; cThreads <= threadStop; cThreads *= 2 ) {
