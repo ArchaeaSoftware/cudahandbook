@@ -136,8 +136,8 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
     cudaEvent_t evStart = 0;
     cudaEvent_t evStop = 0;
 
-    CUDART_CHECK( cudaMalloc( &in, N*sizeof(T) ) );
-    CUDART_CHECK( cudaMalloc( &out, cBlocks*cThreads*sizeof(T) ) );
+    cuda(Malloc( &in, N*sizeof(T) ) );
+    cuda(Malloc( &out, cBlocks*cThreads*sizeof(T) ) );
 
     hostIn = new T[N];
     if ( ! hostIn )
@@ -154,15 +154,15 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
         hostIn[i] = nextrand;
     }
 
-    CUDART_CHECK( cudaMemcpy( in, hostIn, N*sizeof(T), cudaMemcpyHostToDevice ) );
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
+    cuda(Memcpy( in, hostIn, N*sizeof(T), cudaMemcpyHostToDevice ) );
+    cuda(EventCreate( &evStart ) );
+    cuda(EventCreate( &evStop ) );
 
     {
         // confirm that kernel launch with this configuration writes correct result
         GlobalReads<T,n><<<cBlocks,cThreads>>>( out, in+bOffset, N-bOffset, true );
-        CUDART_CHECK( cudaMemcpy( hostOut, out, cBlocks*cThreads*sizeof(T), cudaMemcpyDeviceToHost ) );
-        CUDART_CHECK( cudaGetLastError() ); 
+        cuda(Memcpy( hostOut, out, cBlocks*cThreads*sizeof(T), cudaMemcpyDeviceToHost ) );
+        cuda(GetLastError() ); 
         T sumGPU = T(0);
         for ( size_t i = 0; i < cBlocks*cThreads; i++ ) {
             sumGPU = plus( sumGPU, hostOut[i] );
@@ -179,10 +179,10 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
         GlobalReads<T,n><<<cBlocks,cThreads>>>( out, in+bOffset, N-bOffset, false );
     }
     cudaEventRecord( evStop );
-    CUDART_CHECK( cudaThreadSynchronize() );
+    cuda(ThreadSynchronize() );
     // make configurations that cannot launch error-out with 0 bandwidth
-    CUDART_CHECK( cudaGetLastError() ); 
-    CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
+    cuda(GetLastError() ); 
+    cuda(EventElapsedTime( &ms, evStart, evStop ) );
     elapsedTime = ms/1000.0f;
 
     // bytes per second
@@ -259,8 +259,8 @@ main( int argc, char *argv[] )
     if ( chCommandLineGet( &device, "device", argc, argv ) ) {
         printf( "Using device %d...\n", device );
     }
-    CUDART_CHECK( cudaSetDevice(device) );
-    CUDART_CHECK( cudaGetDeviceProperties( &prop, device ) );
+    cuda(SetDevice(device) );
+    cuda(GetDeviceProperties( &prop, device ) );
     printf( "Running globalRead.cu microbenchmark on %s\n", prop.name );
     if ( chCommandLineGet( &size, "size", argc, argv ) ) {
         printf( "Using %dM operands ...\n", size );

@@ -89,30 +89,30 @@ ReportTimesAndIDs( FILE *clocksFile, FILE *tidsFile, dim3 gridSize, dim3 blockSi
     unsigned int *deviceThreadIDs = 0;
     unsigned int *hostOut = 0;
 
-    CUDART_CHECK( cudaMalloc( &deviceClockValues, numTimes*sizeof(int) ) );
-    CUDART_CHECK( cudaMalloc( &deviceThreadIDs, numTimes*sizeof(int) ) );
-    CUDART_CHECK( cudaMallocHost( &hostOut, numTimes*sizeof(int) ) );
+    cuda(Malloc( &deviceClockValues, numTimes*sizeof(int) ) );
+    cuda(Malloc( &deviceThreadIDs, numTimes*sizeof(int) ) );
+    cuda(MallocHost( &hostOut, numTimes*sizeof(int) ) );
 
-    CUDART_CHECK( cudaEventCreate( &start ) );
-    CUDART_CHECK( cudaEventCreate( &stop ) );
+    cuda(EventCreate( &start ) );
+    cuda(EventCreate( &stop ) );
 
     WriteClockValues<<<gridSize, blockSize>>>( deviceClockValues, deviceThreadIDs );
-    CUDART_CHECK( cudaThreadSynchronize() );
+    cuda(ThreadSynchronize() );
 
-    CUDART_CHECK( cudaEventRecord( start, 0 ) );
+    cuda(EventRecord( start, 0 ) );
     WriteClockValues<<<gridSize, blockSize>>>( deviceClockValues, deviceThreadIDs );
-    CUDART_CHECK( cudaEventRecord( stop, 0 ) );
+    cuda(EventRecord( stop, 0 ) );
 
-    CUDART_CHECK( cudaThreadSynchronize() );
+    cuda(ThreadSynchronize() );
 
     {
         float ms;
-        CUDART_CHECK( cudaEventElapsedTime( &ms, start, stop ) );
+        cuda(EventElapsedTime( &ms, start, stop ) );
         printf( "%.2f ms for %d threads = %.2f us/thread\n", ms, (int) numTimes, ms*1e3/numTimes );
     }
 
     if ( clocksFile ) {
-        CUDART_CHECK( cudaMemcpy( hostOut, deviceClockValues, numTimes*sizeof(int), cudaMemcpyDeviceToHost ) );
+        cuda(Memcpy( hostOut, deviceClockValues, numTimes*sizeof(int), cudaMemcpyDeviceToHost ) );
         // turn clock values into completion times by subtracting minimum reported clock value
         unsigned int minTime = ~(unsigned int) 0;
         for ( size_t i = 0; i < numTimes; i++ ) {
@@ -127,7 +127,7 @@ ReportTimesAndIDs( FILE *clocksFile, FILE *tidsFile, dim3 gridSize, dim3 blockSi
         WriteOutput( clocksFile, gridSize, blockSize, hostOut );
     }
     if ( tidsFile ) {
-        CUDART_CHECK( cudaMemcpy( hostOut, deviceThreadIDs, numTimes*sizeof(int), cudaMemcpyDeviceToHost ) );
+        cuda(Memcpy( hostOut, deviceThreadIDs, numTimes*sizeof(int), cudaMemcpyDeviceToHost ) );
         fprintf( tidsFile, "Thread IDs:\n" );
         WriteOutput( tidsFile, gridSize, blockSize, hostOut );
     }

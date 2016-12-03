@@ -120,10 +120,10 @@ BandwidthWrites( size_t N, int cBlocks, int cThreads )
     cudaEvent_t evStart = 0;
     cudaEvent_t evStop = 0;
 
-    CUDART_CHECK( cudaMalloc( &out, N*sizeof(T) ) );
+    cuda(Malloc( &out, N*sizeof(T) ) );
 
-    CUDART_CHECK( cudaEventCreate( &evStart ) );
-    CUDART_CHECK( cudaEventCreate( &evStop ) );
+    cuda(EventCreate( &evStart ) );
+    cuda(EventCreate( &evStop ) );
 
     cIterations = 10;
     cudaEventRecord( evStart );
@@ -131,10 +131,10 @@ BandwidthWrites( size_t N, int cBlocks, int cThreads )
         GlobalWrites<T,n><<<cBlocks,cThreads>>>( out+bOffset, (T) 0xcc, N-bOffset );
     }
     cudaEventRecord( evStop );
-    CUDART_CHECK( cudaThreadSynchronize() );
+    cuda(ThreadSynchronize() );
     // make configurations that cannot launch error-out with 0 bandwidth
-    CUDART_CHECK( cudaGetLastError() ); 
-    CUDART_CHECK( cudaEventElapsedTime( &ms, evStart, evStop ) );
+    cuda(GetLastError() ); 
+    cuda(EventElapsedTime( &ms, evStart, evStop ) );
     elapsedTime = ms/1000.0f;
 
     // bytes per second
