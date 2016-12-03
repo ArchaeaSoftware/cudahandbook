@@ -57,9 +57,9 @@ PrintShuffle( int offset, size_t cInts )
     int *dptr = 0;
     cudaError_t status;
     int h[64];
-    CUDART_CHECK( cudaMalloc( &dptr, cInts*sizeof(int) ) );
+    cuda(Malloc( &dptr, cInts*sizeof(int) ) );
     TestShuffle<<<1,cInts>>>( dptr, dptr, cInts );
-    CUDART_CHECK( cudaMemcpy( h, dptr, cInts*sizeof(int), cudaMemcpyDeviceToHost ) );
+    cuda(Memcpy( h, dptr, cInts*sizeof(int), cudaMemcpyDeviceToHost ) );
     for ( size_t i = 0; i < cInts; i++ ) {
         printf( "%3x", h[i] );
         if (31==i%32) printf("\n");

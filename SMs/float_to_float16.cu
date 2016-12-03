@@ -200,14 +200,14 @@ main()
     if ( ! convertedFloats ) {
         return 1;
     }
-    CUDART_CHECK( cudaMalloc( &deviceFloats, 
+    cuda(Malloc( &deviceFloats, 
         sizeComparisonArray*sizeof(*deviceFloats ) ) );
     for ( int i = 0; i < numRounds; i++ ) {
         ConvertFloatRange<<<32,384>>>( 
             deviceFloats, 
             (int) ((size_t)i*sizeComparisonArray), 
             sizeComparisonArray );
-        CUDART_CHECK( cudaMemcpy( 
+        cuda(Memcpy( 
             convertedFloats, 
             deviceFloats, 
             sizeComparisonArray*sizeof(unsigned short), 

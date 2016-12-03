@@ -110,8 +110,8 @@ DoFunnelShift( int *out, int lo, int hi, int shift, bool bRight, bool bClamp )
     int emulatedValue;
     cudaError_t status;
 
-    CUDART_CHECK( cudaHostAlloc( &hptr, 4*sizeof(int), cudaHostAllocMapped ) );
-    CUDART_CHECK( cudaHostGetDevicePointer( &dptr, hptr, 0 ) );
+    cuda(HostAlloc( &hptr, 4*sizeof(int), cudaHostAllocMapped ) );
+    cuda(HostGetDevicePointer( &dptr, hptr, 0 ) );
     hptr[1] = lo;
     hptr[2] = hi;
     hptr[3] = shift;
@@ -135,7 +135,7 @@ DoFunnelShift( int *out, int lo, int hi, int shift, bool bRight, bool bClamp )
             TestFunnelShift<SHIFT_FLAGS_LEFT><<<1,1>>>( dptr );
         }
     }
-    CUDART_CHECK( cudaDeviceSynchronize() );
+    cuda(DeviceSynchronize() );
     printf( "d value: 0x%x (%d decimal)\n", emulatedValue, emulatedValue );
     *out = hptr[0];
 Error:
