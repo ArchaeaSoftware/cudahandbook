@@ -38,13 +38,17 @@
 
 #include <stdio.h>
 
+#ifdef __HIPCC__
+
+#endif
+
 #include "chError.h"
 #include "chTimer.h"
 
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    hipError_t status;
     int *deviceInt = 0;
     int *hostInt = 0;
     const int cIterations = 100000;
@@ -58,7 +62,7 @@ main( int argc, char *argv[] )
     chTimerTimestamp start, stop;
 
     cuda(Malloc( &deviceInt, numBytes ) );
-    cuda(HostAlloc( &hostInt, numBytes, 0 ) );
+    cuda(HostMalloc( (void **) &hostInt, numBytes, 0 ) );
 
     for ( size_t byteCount = byteIncrement; 
           byteCount <= numBytes; 
@@ -68,7 +72,7 @@ main( int argc, char *argv[] )
         chTimerGetTime( &start );
         for ( int i = 0; i < cIterations; i++ ) {
             cuda(MemcpyAsync( deviceInt, hostInt, byteCount, 
-                cudaMemcpyHostToDevice, NULL ) );
+                hipMemcpyHostToDevice, NULL ) );
         }
         cuda(DeviceSynchronize() );
         chTimerGetTime( &stop );
@@ -81,8 +85,8 @@ main( int argc, char *argv[] )
     }
 
 
-    cudaFree( deviceInt );
-    cudaFreeHost( hostInt );
+    hipFree( deviceInt );
+    hipHostFree( hostInt );
     return 0;
 Error:
     printf( "Error performing allocation\n" );

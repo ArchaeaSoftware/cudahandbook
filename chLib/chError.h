@@ -39,7 +39,6 @@
  *
  */
 
-
 #ifndef __CHERROR_H__
 #define __CHERROR_H__
 
@@ -47,15 +46,27 @@
 #include <stdio.h>
 #endif
 
-#include <chCUDA.h>
+#ifdef __HIPCC__
+
+#include <hip/hip_runtime.h>
+#define cuda( fn ) do { \
+	            status = (hip##fn); \
+	            if ( hipSuccess != (status) ) { \
+			                                    goto Error; \
+			                                } \
+	            } while (0);
+#else
 
 #ifndef NO_CUDA
+
+#include <chCUDA.h>
 
 template<typename T>
 inline const char *
 chGetErrorString( T status )
 {
-    return cudaGetErrorString(status);
+    return hipGetErrorString(status);
+    //return cudaGetErrorString(status);
 }
 
 template<>
@@ -163,7 +174,7 @@ chGetErrorString( CUresult status )
 #ifdef DEBUG
 #define CUDART_CHECK( fn ) do { \
         (status) =  (fn); \
-        if ( cudaSuccess != (status) ) { \
+        if ( hipSuccess != (status) ) { \
             fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t" \
                 "%s returned 0x%x (%s)\n", \
                 __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
@@ -172,9 +183,9 @@ chGetErrorString( CUresult status )
     } while (0);
 
 #define cuda( fn ) do { \
-        (status) =  (cuda##fn); \
-        if ( cudaSuccess != (status) ) { \
-            fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t" \
+        (status) =  (hip##fn); \
+        if ( hipSuccess != (status) ) { \
+            fprintf( stderr, "HIP Runtime Failure (line %d of file %s):\n\t" \
                 "%s returned 0x%x (%s)\n", \
                 __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
             goto Error; \
@@ -182,7 +193,7 @@ chGetErrorString( CUresult status )
     } while (0);
 
 #define cu( fn ) do { \
-        (status) =  (cu##fn); \
+        (status) =  (hip##fn); \
         if ( CUDA_SUCCESS != (status) ) { \
             fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t%s "\
                 "returned 0x%x (%s)\n", \
@@ -203,17 +214,16 @@ chGetErrorString( CUresult status )
 
 #else
 
-
 #define CUDART_CHECK( fn ) do { \
     status = (fn); \
-    if ( cudaSuccess != (status) ) { \
+    if ( hipSuccess != (status) ) { \
 	    goto Error; \
 	} \
     } while (0);
 
 #define cuda( fn ) do { \
-    status = (cuda##fn); \
-    if ( cudaSuccess != (status) ) { \
+    status = (hip##fn); \
+    if ( hipSuccess != (status) ) { \
 	    goto Error; \
 	} \
     } while (0);
@@ -244,14 +254,14 @@ chGetErrorString( T status )
     return "CUDA support is not built in.";
 }
 
-static inline const char* cudaGetErrorString( cudaError_t error )
-{
-	return "CUDA support is not built in.";
-}
+//static inline const char* cudaGetErrorString( hipError_t error )
+//{
+//	return "CUDA support is not built in.";
+//}
 
 #define CUDART_CHECK( fn ) do { \
     status = (fn); \
-    if ( cudaSuccess != (status) ) { \
+    if ( hipSuccess != (status) ) { \
             goto Error; \
         } \
     } while (0);
@@ -266,3 +276,6 @@ static inline const char* cudaGetErrorString( cudaError_t error )
 #endif
 
 #endif
+
+#endif // __HIPCC__
+

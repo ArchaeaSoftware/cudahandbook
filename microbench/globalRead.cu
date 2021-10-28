@@ -131,10 +131,10 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
     double elapsedTime;
     float ms;
     int cIterations;
-    cudaError_t status;
+    hipError_t status;
     T sumCPU;
-    cudaEvent_t evStart = 0;
-    cudaEvent_t evStop = 0;
+    hipEvent_t evStart = 0;
+    hipEvent_t evStop = 0;
 
     cuda(Malloc( &in, N*sizeof(T) ) );
     cuda(Malloc( &out, cBlocks*cThreads*sizeof(T) ) );
@@ -154,14 +154,14 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
         hostIn[i] = nextrand;
     }
 
-    cuda(Memcpy( in, hostIn, N*sizeof(T), cudaMemcpyHostToDevice ) );
+    cuda(Memcpy( in, hostIn, N*sizeof(T), hipMemcpyHostToDevice ) );
     cuda(EventCreate( &evStart ) );
     cuda(EventCreate( &evStop ) );
 
     {
         // confirm that kernel launch with this configuration writes correct result
         GlobalReads<T,n><<<cBlocks,cThreads>>>( out, in+bOffset, N-bOffset, true );
-        cuda(Memcpy( hostOut, out, cBlocks*cThreads*sizeof(T), cudaMemcpyDeviceToHost ) );
+        cuda(Memcpy( hostOut, out, cBlocks*cThreads*sizeof(T), hipMemcpyDeviceToHost ) );
         cuda(GetLastError() ); 
         T sumGPU = T(0);
         for ( size_t i = 0; i < cBlocks*cThreads; i++ ) {
@@ -174,11 +174,11 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
     }
 
     cIterations = 10;
-    cudaEventRecord( evStart );
+    cuda(EventRecord( evStart ) );
     for ( int i = 0; i < cIterations; i++ ) {
         GlobalReads<T,n><<<cBlocks,cThreads>>>( out, in+bOffset, N-bOffset, false );
     }
-    cudaEventRecord( evStop );
+    cuda(EventRecord( evStop ) );
     cuda(DeviceSynchronize() );
     // make configurations that cannot launch error-out with 0 bandwidth
     cuda(GetLastError() ); 
@@ -193,10 +193,10 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
 Error:
     if ( hostIn ) delete[] hostIn;
     if ( hostOut ) delete[] hostOut;
-    cudaEventDestroy( evStart );
-    cudaEventDestroy( evStop );
-    cudaFree( in );
-    cudaFree( out );
+    hipEventDestroy( evStart );
+    hipEventDestroy( evStop );
+    hipFree( in );
+    hipFree( out );
     return ret;
 }
 
@@ -252,10 +252,10 @@ Shmoo( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    hipError_t status;
     int device = 0;
     int size = 16;
-    cudaDeviceProp prop;
+    hipDeviceProp_t prop;
     if ( chCommandLineGet( &device, "device", argc, argv ) ) {
         printf( "Using device %d...\n", device );
     }

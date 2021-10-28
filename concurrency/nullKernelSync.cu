@@ -38,7 +38,17 @@
 
 #include <stdio.h>
 
-#include "chError.h"
+//#include "chError.h"
+
+#include <hip/hip_runtime.h>
+
+#define cuda( fn ) do { \
+	            status = (hip##fn); \
+	            if ( hipSuccess != (status) ) { \
+			                                    goto Error; \
+			                                } \
+	            } while (0);
+
 #include "chTimer.h"
 
 __global__
@@ -50,11 +60,11 @@ NullKernel()
 double
 usPerLaunch( int cIterations )
 {
-    cudaError_t status;
+    hipError_t status;
     double microseconds, ret;
     chTimerTimestamp start, stop;
 
-    cuda(Free(0) );
+    hipFree(0);//(Free(0) );
 
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
@@ -67,7 +77,7 @@ usPerLaunch( int cIterations )
     ret = microseconds / (float) cIterations;
 
 Error:
-    return (status) ? 0.0 : ret;
+    return ret;//return (status) ? 0.0 : ret;
 }
 
 int
