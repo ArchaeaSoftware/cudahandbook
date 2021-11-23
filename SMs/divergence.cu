@@ -46,39 +46,58 @@
 // apply blockDim and/or gridDim to n before passing in.
 //
 template<int base>
-void __device__ sumFloats( float *p, size_t N, size_t n )
+void __device__ sumInts( uint32_t *p, size_t N, size_t n )
 {
-    float f = base;
     for ( size_t i = 0; i < N; i++ ) {
-        *p += f;
+        *p += base;
         p += n;
     }
 }
 
-typedef void(*psumFloats)(float *, size_t, size_t);
+typedef void(*psumInts)(uint32_t *, size_t, size_t);
 
-__device__ psumFloats rgSumFloats[] = {
-    sumFloats< 0>, sumFloats< 1>, sumFloats< 2>, sumFloats< 3>,
-    sumFloats< 4>, sumFloats< 5>, sumFloats< 6>, sumFloats< 7>,
-    sumFloats< 8>, sumFloats< 9>, sumFloats<10>, sumFloats<11>,
-    sumFloats<12>, sumFloats<13>, sumFloats<14>, sumFloats<15>,
-    sumFloats<16>, sumFloats<17>, sumFloats<18>, sumFloats<19>,
-    sumFloats<20>, sumFloats<21>, sumFloats<22>, sumFloats<23>,
-    sumFloats<24>, sumFloats<25>, sumFloats<26>, sumFloats<27>,
-    sumFloats<28>, sumFloats<29>, sumFloats<30>, sumFloats<31> };
+__device__ psumInts rgSumInts[] = {
+    sumInts< 0>, sumInts< 1>, sumInts< 2>, sumInts< 3>,
+    sumInts< 4>, sumInts< 5>, sumInts< 6>, sumInts< 7>,
+    sumInts< 8>, sumInts< 9>, sumInts<10>, sumInts<11>,
+    sumInts<12>, sumInts<13>, sumInts<14>, sumInts<15>,
+    sumInts<16>, sumInts<17>, sumInts<18>, sumInts<19>,
+    sumInts<20>, sumInts<21>, sumInts<22>, sumInts<23>,
+    sumInts<24>, sumInts<25>, sumInts<26>, sumInts<27>,
+    sumInts<28>, sumInts<29>, sumInts<30>, sumInts<31> };
 
+template<uint32_t sh>
 __global__ void
-sumFloats_bywarp( float *p, size_t N )
+sumInts_bythread( uint32_t *p, size_t N )
 {
-    uint32_t warpid = threadIdx.x>>5;
+    uint32_t warpish_id = threadIdx.x>>sh;
     N /= blockDim.x*gridDim.x;
-    rgSumFloats[warpid]( p+threadIdx.x+blockIdx.x*blockDim.x, N, blockDim.x*gridDim.x );
+    rgSumInts[warpish_id&31]( p+threadIdx.x+blockIdx.x*blockDim.x, N, blockDim.x*gridDim.x );
 }
 
-__global__ void
-sumFloats_bythread( float *p, size_t N )
+template<uint32_t sh>
+static double
+timeByThreads( uint32_t *p, size_t N )
 {
-    
+    cudaError_t status;
+    float elapsed_time;
+    double ret = 0.0;
+    cudaEvent_t start = 0, stop = 0;
+
+    cuda(EventCreate( &start ));
+    cuda(EventCreate( &stop ));
+
+    cuda(EventRecord( start ));
+    sumInts_bythread<sh><<<3072,1024>>>( p, N );
+    cuda(EventRecord( stop ));
+    cuda(DeviceSynchronize());
+    cuda(EventElapsedTime( &elapsed_time, start, stop ));
+    ret = N*1000.0/elapsed_time/1e9;
+    printf( "%2d threads: %f Gops/s\n", 1<<sh, ret );
+Error:
+    cudaEventDestroy( stop );
+    cudaEventDestroy( start );
+    return ret;
 }
 
 int
@@ -86,26 +105,20 @@ main()
 {
     cudaError_t status;
     size_t N = 1024*1024*1024UL;
-    float *p = 0;
-    float et;
-    cudaEvent_t start = 0, stop = 0;
+    uint32_t *p = 0;
 
-    cuda(Malloc( (void **) &p, N*sizeof(float)) );
-    cuda(Memset( p, 0, N*sizeof(float)) );
-    cuda(EventCreate( &start ));
-    cuda(EventCreate( &stop ));
+    cuda(Malloc( (void **) &p, N*sizeof(uint32_t)) );
+    cuda(Memset( p, 0, N*sizeof(uint32_t)) );
 
-    cuda(EventRecord( start ));
-    sumFloats_bywarp<<<3072,256>>>( p, N );
-    cuda(EventRecord( stop ));
-    cuda(DeviceSynchronize());
-    cuda(EventElapsedTime( &et, start, stop ));
-    
-    printf( "%.2f ms = %.2f Gops/s\n", et, (double) N*1000.0/et/1e9 );
+    timeByThreads<6>( p, N );
+    timeByThreads<5>( p, N );
+    timeByThreads<4>( p, N );
+    timeByThreads<3>( p, N );
+    timeByThreads<2>( p, N );
+    timeByThreads<1>( p, N );
+    timeByThreads<0>( p, N );
 
     cudaFree( p );
-    cudaEventDestroy( stop );
-    cudaEventDestroy( start );
     return 0;
 Error:
     return 1;
