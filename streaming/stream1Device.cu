@@ -48,6 +48,7 @@
 #include <stdlib.h>
 
 #include "saxpyCPU.h"
+#include "saxpyGPU.cuh"
 
 //
 // saxpy global function adds x[i]*alpha to each element y[i]
@@ -97,11 +98,13 @@ saxpy_unrolled(
     }
 }
 
+#if 0
 __global__ void
 saxpyGPU( float *out, const float *px, const float *py, size_t N, float alpha )
 {
     saxpy_unrolled<4>( out, px, py, N, alpha );
 }
+#endif
 
 cudaError_t
 MeasureTimes( 
@@ -115,15 +118,15 @@ MeasureTimes(
     int nBlocks, 
     int nThreads )
 {
-    cudaError_t status;
+    hipError_t status;
     chTimerTimestamp chStart, chStop;
     float *dptrOut = 0, *hptrOut = 0;
     float *dptrY = 0, *hptrY = 0;
     float *dptrX = 0, *hptrX = 0;
-    cudaEvent_t evStart = 0;
-    cudaEvent_t evHtoD = 0;
-    cudaEvent_t evKernel = 0;
-    cudaEvent_t evDtoH = 0;
+    hipEvent_t evStart = 0;
+    hipEvent_t evHtoD = 0;
+    hipEvent_t evKernel = 0;
+    hipEvent_t evDtoH = 0;
 
     hptrOut = new float[N];
     memset( hptrOut, 0, N*sizeof(float) );
@@ -144,8 +147,8 @@ MeasureTimes(
     cuda(EventCreate( &evKernel ) );
     cuda(EventCreate( &evDtoH ) );
     for ( size_t i = 0; i < N; i++ ) {
-        hptrX[i] = (float) rand() / RAND_MAX;
-        hptrY[i] = (float) rand() / RAND_MAX;
+        hptrX[i] = (float) rand() / (float) RAND_MAX;
+        hptrY[i] = (float) rand() / (float) RAND_MAX;
     }
 
     //
@@ -154,12 +157,12 @@ MeasureTimes(
 
     chTimerGetTime( &chStart );
     cuda(EventRecord( evStart, 0 ) );
-    cuda(Memcpy( dptrX, hptrX, N*sizeof(float), cudaMemcpyHostToDevice ) );
-    cuda(Memcpy( dptrY, hptrY, N*sizeof(float), cudaMemcpyHostToDevice ) );
+    cuda(Memcpy( dptrX, hptrX, N*sizeof(float), hipMemcpyHostToDevice ) );
+    cuda(Memcpy( dptrY, hptrY, N*sizeof(float), hipMemcpyHostToDevice ) );
     cuda(EventRecord( evHtoD, 0 ) );
         saxpyGPU<<<nBlocks, nThreads>>>( dptrOut, dptrX, dptrY, N, alpha );
     cuda(EventRecord( evKernel, 0 ) );
-    cuda(Memcpy( hptrOut, dptrOut, N*sizeof(float), cudaMemcpyDeviceToHost ) );
+    cuda(Memcpy( hptrOut, dptrOut, N*sizeof(float), hipMemcpyDeviceToHost ) );
     cuda(EventRecord( evDtoH, 0 ) );
     cuda(DeviceSynchronize() );
 
@@ -234,11 +237,11 @@ main( int argc, char *argv[] )
     }
 
 Error:
-    if ( status == cudaErrorMemoryAllocation ) {
+    if ( status == hipErrorMemoryAllocation ) {
         printf( "Memory allocation failed\n" );
     }
     else if ( cudaSuccess != status ) {
         printf( "Failed\n" );
     }
-    return cudaSuccess != status;
+    return hipSuccess != status;
 }

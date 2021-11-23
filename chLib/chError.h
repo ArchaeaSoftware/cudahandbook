@@ -55,6 +55,23 @@
 			                                    goto Error; \
 			                                } \
 	            } while (0);
+#define CUDART_CHECK( fn ) do { \
+    status = (fn); \
+    if ( hipSuccess != (status) ) { \
+	    goto Error; \
+	} \
+    } while (0);
+
+
+#define cudaSuccess hipSuccess
+#define cudaFree hipFree
+#define cudaEventDestroy hipEventDestroy
+
+typedef hipError_t cudaError_t;
+#define cudaErrorUnknown hipErrorUnknown
+
+#define cudaDeviceMapHost hipDeviceMapHost
+
 #else
 
 #ifndef NO_CUDA
