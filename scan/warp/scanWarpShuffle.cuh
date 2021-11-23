@@ -69,7 +69,7 @@ exclusive_scan_warp_shfl(int mysum)
 {
     const unsigned int lane   = threadIdx.x & 31;
     for(int i = 0; i < levels; ++i)
-        mysum = shfl_scan_add_step(mysum, 1 << i);
+        mysum = scanWarpShuffle_step( mysum, 1 << i);
     mysum = __shfl_up(mysum, 1);
     return (lane) ? mysum : 0;
 }

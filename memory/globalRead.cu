@@ -179,7 +179,7 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
         GlobalReads<T,n><<<cBlocks,cThreads>>>( out, in+bOffset, N-bOffset, false );
     }
     cudaEventRecord( evStop );
-    cuda(ThreadSynchronize() );
+    cuda(DeviceSynchronize() );
     // make configurations that cannot launch error-out with 0 bandwidth
     cuda(GetLastError() ); 
     cuda(EventElapsedTime( &ms, evStart, evStop ) );

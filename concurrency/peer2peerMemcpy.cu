@@ -195,7 +195,7 @@ main( int argc, char *argv[] )
     for ( int i = 0; i < cIterations; i++ ) {
         chMemcpyPeerToPeer( deviceInt[0], 0, deviceInt[1], 1, numInts*sizeof(int) ) ;
     }
-    cuda(ThreadSynchronize() );
+    cuda(DeviceSynchronize() );
     chTimerGetTime( &stop );
 
     {

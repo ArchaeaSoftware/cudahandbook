@@ -66,7 +66,7 @@ CheckTex( float *hostOut, const float *in, size_t offset, size_t N )
     cuda(HostGetDevicePointer( (void **) &deviceOut, hostOut, 0 ));
     
     TexReadout<<<2,384>>>( deviceOut, offset>>2, N );
-    cuda(ThreadSynchronize());
+    cuda(DeviceSynchronize());
     for ( int i = 0; i < N; i++ ) {
         if ( in[i] != hostOut[i] ) {
             printf( "Mismatch at index %d\n", i );

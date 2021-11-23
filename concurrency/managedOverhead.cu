@@ -73,7 +73,7 @@ usPerLaunch( int cIterations, size_t cPages=0 )
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
         NullKernel<<<1,1>>>();
-        cuda(ThreadSynchronize() );
+        cuda(DeviceSynchronize() );
         if ( bTouch && 0 != p ) {
             for ( int iPage = 0; iPage < cPages; iPage++ ) {
                 ((volatile unsigned char *) p)[iPage*pageSize] |= 1;

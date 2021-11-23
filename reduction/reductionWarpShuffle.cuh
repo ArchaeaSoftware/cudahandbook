@@ -61,11 +61,11 @@ Reduction2_kernel( int *out, const int *in, size_t N )
         volatile int *wsSum = sPartials;
         if ( blockDim.x > 32 ) wsSum[tid] += wsSum[tid + 32];
         int mySum = wsSum[tid];
-        mySum += __shfl_xor( mySum, 16 );
-        mySum += __shfl_xor( mySum,  8 );
-        mySum += __shfl_xor( mySum,  4 );
-        mySum += __shfl_xor( mySum,  2 );
-        mySum += __shfl_xor( mySum,  1 );
+        mySum += __shfl_xor_sync( 0xffffffff, mySum, 16 );
+        mySum += __shfl_xor_sync( 0xffffffff, mySum,  8 );
+        mySum += __shfl_xor_sync( 0xffffffff, mySum,  4 );
+        mySum += __shfl_xor_sync( 0xffffffff, mySum,  2 );
+        mySum += __shfl_xor_sync( 0xffffffff, mySum,  1 );
 /*        wsSum[tid] += wsSum[tid + 16];
         wsSum[tid] += wsSum[tid + 8];
         wsSum[tid] += wsSum[tid + 4];

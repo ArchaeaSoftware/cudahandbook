@@ -59,7 +59,7 @@ usPerLaunch( int cIterations )
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
         NullKernel<<<1,1>>>();
-        cuda(ThreadSynchronize() );
+        cuda(DeviceSynchronize() );
     }
     chTimerGetTime( &stop );
 

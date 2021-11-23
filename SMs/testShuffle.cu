@@ -48,7 +48,7 @@ TestShuffle( int *out, const int *in, size_t N  )
     size_t i = blockIdx.x*blockDim.x+threadIdx.x;
 
     int value = (int) i;//in[i];
-    out[i] = __shfl_up( value, 1 );
+    out[i] = __shfl_up_sync( 0xffffffff, value, 1 );
 }
 
 cudaError_t

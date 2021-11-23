@@ -65,7 +65,7 @@ PrintTex( float *host, size_t N )
     cuda(HostGetDevicePointer( (void **) &device, host, 0 ));
     
     TexReadout<<<2,384>>>( device, N );
-    cuda(ThreadSynchronize());
+    cuda(DeviceSynchronize());
     for ( int i = 0; i < N; i++ ) {
         printf( "%.2f ", host[i] );
     }

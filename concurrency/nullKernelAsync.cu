@@ -60,7 +60,7 @@ usPerLaunch( int cIterations )
     for ( int i = 0; i < cIterations; i++ ) {
         NullKernel<<<1,1>>>();
     }
-    cuda(ThreadSynchronize());
+    cuda(DeviceSynchronize());
     chTimerGetTime( &stop );
 
     microseconds = 1e6*chTimerElapsedTime( &start, &stop );

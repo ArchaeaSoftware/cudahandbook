@@ -119,7 +119,7 @@ CheckTexPromoteToFloat( size_t N )
                       cudaCreateChannelDesc<T>(), 
                       N*sizeof(T)));
     TexReadout<<<2,384>>>( foutDevice, N );
-    cuda(ThreadSynchronize());
+    cuda(DeviceSynchronize());
 
     for ( int i = 0; i < N; i++ ) {
         printf( "%.2f ", foutHost[i] );

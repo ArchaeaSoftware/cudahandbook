@@ -68,7 +68,7 @@ MeasureBandwidth( void *out, size_t N, int blocks, int threads )
     chTimerGetTime( &start );
 
     TexReadout<<<2,384>>>( (float *) out, N );
-    cuda(ThreadSynchronize());
+    cuda(DeviceSynchronize());
 
     chTimerGetTime( &stop );
 

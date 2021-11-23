@@ -96,7 +96,7 @@ TimeScan( void (*pfnScanGPU)(T *, const T *, size_t, int),
     for ( int i = 0; i < cIterations; i++ ) {
         pfnScanGPU( outGPU, inGPU, N, numThreads );
     }
-    if ( cudaSuccess != cudaThreadSynchronize() )
+    if ( cudaSuccess != cudaDeviceSynchronize() )
         goto Error;
     chTimerGetTime( &stop );
 

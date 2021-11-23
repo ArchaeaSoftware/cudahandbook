@@ -189,7 +189,7 @@ void displayCB(void)		/* function called whenever redisplay needed */
     else {
         RenderTextureUnnormalized<<<g_height, 384>>>( g_deviceFrameBuffer, g_width, g_height );
     }
-    if ( cudaSuccess != cudaThreadSynchronize() )
+    if ( cudaSuccess != cudaDeviceSynchronize() )
         return;
     glRasterPos2f( 0.0f, 0.0f );
     glDrawPixels( g_width, g_height, GL_RGBA, GL_UNSIGNED_BYTE, g_hostFrameBuffer );

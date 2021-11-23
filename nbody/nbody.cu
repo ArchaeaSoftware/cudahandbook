@@ -7,8 +7,8 @@
  * parallelizable, with lots of FLOPS per unit of external 
  * memory bandwidth required.
  *
- * Build with: nvcc -I ../chLib <options> nbody.cu nbody_CPU_SSE.cpp nbody_CPU_SSE_threaded.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu
- *   On Linux: nvcc -I ../chLib <options> nbody.cu nbody_CPU_SSE.cpp nbody_CPU_SSE_threaded.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu -lpthread -lrt
+ * Build with: nvcc -I ../chLib nbody.cu nbody_CPU_SSE.cpp nbody_CPU_AOS.cpp nbody_CPU_AOS_tiled.cpp nbody_CPU_SSE_threaded.cpp nbody_CPU_SOA.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu
+ *   On Linux: nvcc -I ../chLib nbody.cu nbody_CPU_SSE.cpp nbody_CPU_AOS.cpp nbody_CPU_AOS_tiled.cpp nbody_CPU_SSE_threaded.cpp nbody_CPU_SOA.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu -lcudart_static -ldl -lrt
  * Requires: No minimum SM requirement.  If SM 3.x is not available,
  * this application quietly replaces the shuffle and fast-atomic
  * implementations with the shared memory implementation.
@@ -482,7 +482,7 @@ ComputeGravitation(
             sumY += g_hostAOS_Force[i*3+1];
             sumZ += g_hostAOS_Force[i*3+2];
         }
-        *maxRelError = max( fabs(sumX), max(fabs(sumY), fabs(sumZ)) );
+        *maxRelError = std::max( fabs(sumX), std::max(fabs(sumY), fabs(sumZ)) );
         if ( g_ZeroThreshold != 0.0 && 
              fabs( *maxRelError ) > g_ZeroThreshold ) {
             printf( "Maximum sum of forces > threshold (%E > %E)\n",

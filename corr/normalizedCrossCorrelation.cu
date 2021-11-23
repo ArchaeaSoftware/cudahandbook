@@ -476,7 +476,8 @@ main(int argc, char *argv[])
 
     int sharedPitch;
     int sharedMem;
-    char *inputFilename = "coins.pgm";
+    char defaultInputFilename[] = "coins.pgm";
+    char *inputFilename = defaultInputFilename;
     char *outputFilename = NULL;
 
     cudaArray *pArrayImage = NULL;

@@ -112,7 +112,7 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
     tex.addressMode[0] = addressMode;
     cuda(HostGetDevicePointer(&outDevice, outHost, 0));
     TexReadout<<<2,384>>>( outDevice, outN, base, increment );
-    cuda(ThreadSynchronize());
+    cuda(DeviceSynchronize());
 
     for ( int i = 0; i < outN; i++ ) {
         printf( "(%.2f, %.2f)\n", outHost[i].x, outHost[i].y );

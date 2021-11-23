@@ -85,7 +85,7 @@ TimedReduction(
     cuda(Malloc( &partialSums, cBlocks*sizeof(int) ) );
     cuda(EventCreate( &start ) );
     cuda(EventCreate( &stop ) );
-    cuda(ThreadSynchronize() );
+    cuda(DeviceSynchronize() );
 
     cuda(EventRecord( start, 0 ) );
     hostReduction( 
@@ -165,7 +165,7 @@ usPerInvocation( int cIterations, size_t N,
     for ( int i = 0; i < cIterations; i++ ) {
         pfnReduction( partialSums, partialSums, smallArray, N, 1, 256 );
     }
-    cuda(ThreadSynchronize() );
+    cuda(DeviceSynchronize() );
     chTimerGetTime( &stop );
     ret = chTimerElapsedTime( &start, &stop );
     ret = (ret / (double) cIterations) * 1e6;

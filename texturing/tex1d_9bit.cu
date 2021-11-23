@@ -98,7 +98,7 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
     tex.addressMode[0] = addressMode;
     cuda(HostGetDevicePointer(&outDevice, outHost, 0));
     TexReadout<<<2,384>>>( outDevice, outN, base, increment );
-    cuda(ThreadSynchronize());
+    cuda(DeviceSynchronize());
 
     printf( "X\tY\tActual Value\tExpected Value\tDiff\n" );
     for ( int i = 0; i < outN; i++ ) {

@@ -60,7 +60,7 @@ main( int argc, char *argv[] )
         cuda(MemcpyAsync( deviceInt, hostInt, sizeof(int), 
             cudaMemcpyHostToDevice, NULL ) );
     }
-    cuda(ThreadSynchronize() );
+    cuda(DeviceSynchronize() );
     chTimerGetTime( &stop );
 
     {

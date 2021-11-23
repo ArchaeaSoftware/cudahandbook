@@ -61,7 +61,7 @@ main( int argc, char *argv[] )
             cuda(Memcpy( hostInt, deviceInt, sizeof(int), 
                 cudaMemcpyDeviceToHost ) );
         }
-        cuda(ThreadSynchronize() );
+        cuda(DeviceSynchronize() );
         chTimerGetTime( &stop );
         cIterations *= 2;
     } while ( chTimerElapsedTime( &start, &stop ) < 0.5f ) ;

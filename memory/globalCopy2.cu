@@ -160,7 +160,7 @@ BandwidthCopy( T *deviceOut, T *deviceIn0, T *deviceIn1,
         GlobalCopy<T,n><<<cBlocks,cThreads>>>( deviceOut+bOffsetDst, deviceIn0+bOffsetSrc, deviceIn1+bOffsetSrc, N-bOffsetDst-bOffsetSrc );
     }
     cudaEventRecord( evStop );
-    cuda(ThreadSynchronize() );
+    cuda(DeviceSynchronize() );
     // make configurations that cannot launch error-out with 0 bandwidth
     cuda(GetLastError() ); 
     cuda(EventElapsedTime( &ms, evStart, evStop ) );

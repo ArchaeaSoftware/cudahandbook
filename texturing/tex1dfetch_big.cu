@@ -177,7 +177,7 @@ TexChecksum( int *out, int c, size_t N )
         default:
             goto Error;
     }
-    if ( cudaSuccess != cudaThreadSynchronize() )
+    if ( cudaSuccess != cudaDeviceSynchronize() )
         goto Error;
     *out = checksumGPU();
     ret = true;

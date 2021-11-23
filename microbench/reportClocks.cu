@@ -97,13 +97,13 @@ ReportTimesAndIDs( FILE *clocksFile, FILE *tidsFile, dim3 gridSize, dim3 blockSi
     cuda(EventCreate( &stop ) );
 
     WriteClockValues<<<gridSize, blockSize>>>( deviceClockValues, deviceThreadIDs );
-    cuda(ThreadSynchronize() );
+    cuda(DeviceSynchronize() );
 
     cuda(EventRecord( start, 0 ) );
     WriteClockValues<<<gridSize, blockSize>>>( deviceClockValues, deviceThreadIDs );
     cuda(EventRecord( stop, 0 ) );
 
-    cuda(ThreadSynchronize() );
+    cuda(DeviceSynchronize() );
 
     {
         float ms;

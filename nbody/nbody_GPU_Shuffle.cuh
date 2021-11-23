@@ -56,10 +56,10 @@ ComputeNBodyGravitation_Shuffle(
                 float fx, fy, fz;
                 float4 shufDstPosMass;
 
-                shufDstPosMass.x = __shfl( shufSrcPosMass.x, k );
-                shufDstPosMass.y = __shfl( shufSrcPosMass.y, k );
-                shufDstPosMass.z = __shfl( shufSrcPosMass.z, k );
-                shufDstPosMass.w = __shfl( shufSrcPosMass.w, k );
+                shufDstPosMass.x = __shfl_sync( 0xffffffff, shufSrcPosMass.x, k );
+                shufDstPosMass.y = __shfl_sync( 0xffffffff, shufSrcPosMass.y, k );
+                shufDstPosMass.z = __shfl_sync( 0xffffffff, shufSrcPosMass.z, k );
+                shufDstPosMass.w = __shfl_sync( 0xffffffff, shufSrcPosMass.w, k );
 
                 bodyBodyInteraction(
                     &fx, &fy, &fz, 

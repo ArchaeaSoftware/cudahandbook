@@ -157,7 +157,7 @@ CreateAndPrintTex(
     blocks.y = 1;
     threads.x = 64; threads.y = 4;
     TexReadout<<<blocks,threads>>>( outDevice, outWidth, outPitch, outHeight, base, increment );
-    cuda(ThreadSynchronize());
+    cuda(DeviceSynchronize());
 
     for ( int row = 0; row < outHeight; row++ ) {
         float4 *outrow = (float4 *) ((char *) outHost + row*outPitch);

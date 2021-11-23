@@ -261,7 +261,8 @@ main(int argc, char *argv[])
 
     dim3 threads;
 
-    char *inputFilename = "coins.pgm";
+    char defaultInputFilename[] = "coins.pgm";
+    char *inputFilename = defaultInputFilename;
     char *outputFilename = NULL;
 
     cudaArray *pArrayImage = NULL;

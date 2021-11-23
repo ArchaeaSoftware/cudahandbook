@@ -145,7 +145,7 @@ main( int argc, char *argv[] )
     for ( int i = 0; i < cIterations; i++ ) {
         chMemcpyHtoD( deviceInt, testVector, numInts*sizeof(int) ) ;
     }
-    cuda(ThreadSynchronize() );
+    cuda(DeviceSynchronize() );
     chTimerGetTime( &stop );
 
     {

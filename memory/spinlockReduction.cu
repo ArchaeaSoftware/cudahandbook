@@ -208,7 +208,7 @@ AtomicsPerSecond( size_t N, int cBlocks, int cThreads )
     }
 
     cudaEventRecord( evStop );
-    cuda(ThreadSynchronize() );
+    cuda(DeviceSynchronize() );
 
     // make configurations that cannot launch error-out with 0 bandwidth
     cuda(GetLastError() ); 

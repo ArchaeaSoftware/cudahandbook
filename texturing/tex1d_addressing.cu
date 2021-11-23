@@ -169,7 +169,7 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
     tex.filterMode = filterMode;
     tex.addressMode[0] = addressMode;
     TexReadout<<<2,384>>>( outDevice, outN, base, increment );
-    cuda(ThreadSynchronize());
+    cuda(DeviceSynchronize());
 
     for ( int i = 0; i < outN; i++ ) {
         float x = base+(float)i*increment;

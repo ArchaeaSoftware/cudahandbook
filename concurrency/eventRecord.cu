@@ -72,7 +72,7 @@ usPerLaunch( int cIterations, int cEvents )
             cuda(EventRecord( events[j], NULL ) );
         }
     }
-    cuda(ThreadSynchronize() );
+    cuda(DeviceSynchronize() );
     chTimerGetTime( &stop );
 
     microseconds = 1e6*chTimerElapsedTime( &start, &stop );

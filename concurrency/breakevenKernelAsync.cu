@@ -67,7 +67,7 @@ main( int argc, char *argv[] )
     for ( int i = 0; i < cIterations; i++ ) {
         WaitKernel<<<1,1>>>( 0, false );
     }
-    cudaThreadSynchronize();
+    cudaDeviceSynchronize();
 
     printf("Cycles\tus\n" );
     for ( int cycles = 0; cycles < 2500; cycles += 100 ) {
@@ -76,7 +76,7 @@ main( int argc, char *argv[] )
         for ( int i = 0; i < cIterations; i++ ) {
             WaitKernel<<<1,1>>>( cycles, false );
         }
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         chTimerGetTime( &stop );
         double microseconds = 1e6*chTimerElapsedTime( &start, &stop );
         double usPerLaunch = microseconds / (float) cIterations;
