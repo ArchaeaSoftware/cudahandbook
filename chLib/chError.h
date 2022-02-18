@@ -66,6 +66,11 @@
 #define cudaSuccess hipSuccess
 #define cudaFree hipFree
 #define cudaEventDestroy hipEventDestroy
+#define cudaMemcpyHostToDevice hipMemcpyHostToDevice
+#define cudaMemcpyDeviceToHost hipMemcpyDeviceToHost
+#define cudaMemcpyDeviceToDevice hipMemcpyDeviceToDevice
+
+typedef hipEvent_t cudaEvent_t;
 
 typedef hipError_t cudaError_t;
 #define cudaErrorUnknown hipErrorUnknown
