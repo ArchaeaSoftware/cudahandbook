@@ -62,20 +62,31 @@
 	} \
     } while (0);
 
+typedef hipEvent_t cudaEvent_t;
+typedef hipError_t cudaError_t;
 
-#define cudaSuccess hipSuccess
+#ifdef __cplusplus
+
+template<typename T> hipError_t hipHostAlloc( T **pp, size_t N, unsigned int Flags ) {
+    return hipHostMalloc( (void **) pp, N, Flags );
+}
+
+#endif
+
+// entry points
+#define cudaDeviceMapHost hipDeviceMapHost
 #define cudaFree hipFree
+#define cudaHostFree hipHostFree
 #define cudaEventDestroy hipEventDestroy
+
 #define cudaMemcpyHostToDevice hipMemcpyHostToDevice
 #define cudaMemcpyDeviceToHost hipMemcpyDeviceToHost
 #define cudaMemcpyDeviceToDevice hipMemcpyDeviceToDevice
 
-typedef hipEvent_t cudaEvent_t;
-
-typedef hipError_t cudaError_t;
+// error defines
+#define cudaSuccess hipSuccess
 #define cudaErrorUnknown hipErrorUnknown
-
-#define cudaDeviceMapHost hipDeviceMapHost
+#define cudaErrorMemoryAllocation hipErrorMemoryAllocation
 
 #else
 
@@ -87,8 +98,11 @@ template<typename T>
 inline const char *
 chGetErrorString( T status )
 {
+#ifdef __HIPCC__
     return hipGetErrorString(status);
-    //return cudaGetErrorString(status);
+#else
+    return cudaGetErrorString(status);
+#endif
 }
 
 template<>
