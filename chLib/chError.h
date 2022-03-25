@@ -71,21 +71,34 @@ template<typename T> hipError_t hipHostAlloc( T **pp, size_t N, unsigned int Fla
     return hipHostMalloc( (void **) pp, N, Flags );
 }
 
+template<typename T> hipError_t hipHostGetDevicePointer( T **pp, void *p, unsigned int Flags ) {
+    return hipHostGetDevicePointer( (void **) pp, p, Flags );
+}
+
 #endif
 
 // entry points
 #define cudaDeviceMapHost hipDeviceMapHost
 #define cudaFree hipFree
 #define cudaHostFree hipHostFree
+#define cudaHostGetDevicePointer hipHostGetDevicePointer
+#define cudaStreamDestroy hipStreamDestroy
 #define cudaEventDestroy hipEventDestroy
 
+// data types
+typedef hipStream_t cudaStream_t;
+
+// defines
 #define cudaMemcpyHostToDevice hipMemcpyHostToDevice
 #define cudaMemcpyDeviceToHost hipMemcpyDeviceToHost
 #define cudaMemcpyDeviceToDevice hipMemcpyDeviceToDevice
 
+#define cudaHostAllocMapped 0
+
 // error defines
 #define cudaSuccess hipSuccess
 #define cudaErrorUnknown hipErrorUnknown
+#define cudaErrorInvalidValue hipErrorInvalidValue
 #define cudaErrorMemoryAllocation hipErrorMemoryAllocation
 
 #else

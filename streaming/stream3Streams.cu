@@ -158,9 +158,9 @@ Error:
     cudaFree( dptrOut );
     cudaFree( dptrX );
     cudaFree( dptrY );
-    cudaFreeHost( hptrOut );
-    cudaFreeHost( hptrX );
-    cudaFreeHost( hptrY );
+    cudaHostFree( hptrOut );
+    cudaHostFree( hptrX );
+    cudaHostFree( hptrY );
     return status;
 }
 

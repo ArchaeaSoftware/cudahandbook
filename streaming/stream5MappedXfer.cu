@@ -75,8 +75,8 @@ MeasureTimes(
     cuda(EventCreate( &evStart ) );
     cuda(EventCreate( &evStop ) );
     for ( size_t i = 0; i < N; i++ ) {
-        hptrX[i] = (float) rand() / RAND_MAX;
-        hptrY[i] = (float) rand() / RAND_MAX;
+        hptrX[i] = (float) ((double) rand() / RAND_MAX);
+        hptrY[i] = (float) ((double) rand() / RAND_MAX);
     }
 
     //
@@ -107,9 +107,9 @@ Error:
     cudaEventDestroy( evStop );
     cudaEventDestroy( evStart );
     cudaFree( dptrOut );
-    cudaFreeHost( hptrOut );
-    cudaFreeHost( hptrX );
-    cudaFreeHost( hptrY );
+    cudaHostFree( hptrOut );
+    cudaHostFree( hptrX );
+    cudaHostFree( hptrY );
     return status;
 }
 
