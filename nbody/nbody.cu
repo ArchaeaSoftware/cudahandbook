@@ -563,6 +563,10 @@ main( int argc, char *argv[] )
         cuda(GetDeviceProperties( &prop, 0 ) );
         g_bSM30Present = prop.major >= 3;
     }
+    else {
+        fprintf( stderr, "nbody: no GPUs\n" );
+        exit(1);
+    }
     g_bNoCPU = chCommandLineGetBool( "nocpu", argc, argv );
     if ( g_bNoCPU && ! g_bCUDAPresent ) {
         printf( "--nocpu specified, but no CUDA present...exiting\n" );
