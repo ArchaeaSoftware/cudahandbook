@@ -39,12 +39,62 @@
 #include <chCUDA.h>
 #include <chTimer.h>
 
+#include "nbody.h"
 #include "bodybodyInteraction.cuh"
+
+template<typename T>
+bool
+NBodyAlgorithm<T>::Initialize( size_t N, T softening )
+{
+    N_ = N;
+    softening_ = softening;
+    return true;
+}
+
+template<typename T>
+float
+NBodyAlgorithm<T>::computeTimeStep( std::vector<Force3D<T> >& force )
+{
+    T softeningSquared = softening_*softening_;
+    chTimerTimestamp start, end;
+    chTimerGetTime( &start );
+    for ( size_t i = 0; i < N; i++ )
+    {
+        Force3D<T> acc = { 0, 0, 0 };
+        float myX = posMass_[i].x_;
+        float myY = posMass_[i].y_;
+        float myZ = posMass_[i].z_;
+
+        for ( size_t j = 0; j < N; j++ ) {
+            float fx, fy, fz;
+            float bodyX = posMass_[j].x_;
+            float bodyY = posMass_[j].y_;
+            float bodyZ = posMass_[j].z_;
+            float bodyMass = posMass_[j].mass_;
+
+            bodyBodyInteraction<float>(
+                &fx, &fy, &fz,
+                myX, myY, myZ,
+                bodyX, bodyY, bodyZ, bodyMass,
+                softeningSquared );
+            acc.dx_ += fx;
+            acc.dy_ += fy;
+            acc.dz_ += fz;
+        }
+
+        force[i] = acc.dx_;
+        force[i] = acc.dy_;
+        force[i] = acc.dz_;
+    }
+    chTimerGetTime( &end );
+    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    
+}
 
 float
 ComputeGravitation_AOS(
     float *force,
-    float *posMass,
+    const std::vector<PosMass<float>>& posMass,// float *posMass,
     float softeningSquared,
     size_t N
 )
@@ -54,16 +104,16 @@ ComputeGravitation_AOS(
     for ( size_t i = 0; i < N; i++ )
     {
         float acc[3] = {0, 0, 0};
-        float myX = posMass[i*4+0];
-        float myY = posMass[i*4+1];
-        float myZ = posMass[i*4+2];
+        float myX = posMass[i].x_;
+        float myY = posMass[i].y_;
+        float myZ = posMass[i].z_;
 
         for ( size_t j = 0; j < N; j++ ) {
             float fx, fy, fz;
-            float bodyX = posMass[j*4+0];
-            float bodyY = posMass[j*4+1];
-            float bodyZ = posMass[j*4+2];
-            float bodyMass = posMass[j*4+3];
+            float bodyX = posMass[j].x_;
+            float bodyY = posMass[j].y_;
+            float bodyZ = posMass[j].z_;
+            float bodyMass = posMass[j].mass_;
 
             bodyBodyInteraction<float>(
                 &fx, &fy, &fz,

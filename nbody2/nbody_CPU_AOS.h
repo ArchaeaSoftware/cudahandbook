@@ -36,7 +36,7 @@
 float
 ComputeGravitation_AOS(
     float *force,
-    float *posMass,
+    const std::vector<PosMass<float>>& posMass, //float *posMass,
     float softeningSquared,
     size_t N
 );

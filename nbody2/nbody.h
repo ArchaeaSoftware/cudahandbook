@@ -48,10 +48,6 @@ extern bool g_GPUCrosscheck;
 extern FILE *g_fGPUCrosscheckInput;
 extern FILE *g_fGPUCrosscheckOutput;
 
-extern float *g_hostAOS_PosMass;
-extern float *g_hostAOS_VelInvMass;
-extern float *g_hostAOS_Force;
-
 // for GPU cross-check
 const int g_maxGPUs = 32;
 extern float *g_hostAOS_gpuCrossCheckForce[g_maxGPUs];
@@ -59,11 +55,6 @@ extern float *g_hostAOS_gpuCrossCheckForce[g_maxGPUs];
 extern float *g_dptrAOS_PosMass;
 extern float *g_dptrAOS_Force;
 
-
-// Buffer to hold the golden version of the forces, used for comparison
-// Along with timing results, we report the maximum relative error with 
-// respect to this array.
-extern float *g_hostAOS_Force_Golden;
 
 extern float *g_hostSOA_Pos[3];
 extern float *g_hostSOA_Force[3];
@@ -77,65 +68,87 @@ extern float g_damping;
 extern float g_dt;
 
 template<typename T>
-struct Body {
+struct PosMass {
     T x_, y_, z_, mass_;
 };
 
+template<typename T>
+struct VelInvMass {
+    T dx_, dy_, dz_, invMass_;
+};
+
+template<typename T>
+struct Force3D {
+    T ddx_, ddy_, ddz_;
+};
+
+// base implementation has AOS on CPU
+// GPU implementations inherit from this class because they need 
+// system memory copies of everything anyway
 template<typename T>
 class NBodyAlgorithm {
 public:
     inline NBodyAlgorithm<T>() { }
     virtual ~NBodyAlgorithm<T>() { }
-    virtual bool Initialize( size_t N );
+    virtual bool Initialize( size_t N, T softening );
 
     size_t N() const { return N_; }
-    virtual Body<T> getBody( size_t i) const = 0;
+    T softening() const { return softening_; }
+
+    // return value is elapsed time needed for the time step
+    virtual float computeTimeStep( std::vector<Force3D<T> >& force );
+
+    // accessors
+    void setBody( size_t i, const PosMass<T>& body ) { posMass_[i] = body; }
+    PosMass<T>& getBody( size_t i ) { return posMass_[i]; }
+    PosMass<T> getBody( size_t i ) const { return posMass_[i]; }
 
 private:
     size_t N_;
+
+    T softening_;
+
+    std::vector<Force3D<T>> force_;
+    std::vector<PosMass<T>> posMass_;
+    std::vector<VelInvMass<T>> velinvMass_;
 };
 
+struct alignas(32) aligned_float {
+    float f_;
+    aligned_float( float f) { f_ = f; }
+    operator float() { return f_; }
+};
+
+struct alignas(32) aligned_double {
+    float d_;
+    aligned_double( double d) { d_ = d; }
+    operator double() { return d_; }
+};
+
+#if 0
 template<typename T>
 class NBodyAlgorithm_SOA : public NBodyAlgorithm<T> {
 public:
-    NBodyAlgorithm_SOA<T>() { x_ = y_ = z_ = mass_ = nullptr; }
-    virtual ~NBodyAlgorithm_SOA<T>();
+    NBodyAlgorithm_SOA<T>() { }
+    virtual ~NBodyAlgorithm_SOA<T>() { }
+    virtual bool Initialize( size_t N, T softening );
 
-    virtual bool Initialize( size_t N );
-    virtual Body<T> getBody( size_t i ) const;
 private:
-    T *x_, *y_, *z_, *mass_;
+    std::vector<T> x_, y_, z_, mass_; // use aligned_float for 32B alignment
 };
 
 template<typename T>
-inline
-NBodyAlgorithm_SOA<T>::~NBodyAlgorithm_SOA()
-{
-    free( x_ );
-    free( y_ );
-    free( z_ );
-    free( mass_ );
-}
-
-template<typename T>
 inline bool
-NBodyAlgorithm_SOA<T>::Initialize( size_t N )
+NBodyAlgorithm_SOA<T>::Initialize( size_t N, T softening )
 {
-    NBodyAlgorithm<T>::Initialize( N );
-    x_ = (T *) aligned_alloc( 64, N*sizeof(T) );
-    y_ = (T *) aligned_alloc( 64, N*sizeof(T) );
-    z_ = (T *) aligned_alloc( 64, N*sizeof(T) );
-    mass_ = (T *) aligned_alloc( 64, N*sizeof(T) );
-    if ( nullptr == x_ || nullptr==y_ || nullptr==z_ || nullptr==mass_ )
-        goto Error;
+    NBodyAlgorithm<T>::Initialize( N, softening );
+    x_ = std::vector<T, alignas(64)>( N );
+    y_ = std::vector<T, alignas(64)>( N );
+    z_ = std::vector<T, alignas(64)>( N );
+    mass_ = std::vector<T, alignas(64)>( N );
     return true;
-Error:
-    free( x_ );
-    free( y_ );
-    free( z_ );
-    free( mass_ );
-    return false;
 }
+#endif
 
 enum nbodyAlgorithm_enum {
     CPU_AOS = 0,    /* This is the golden implementation */
@@ -208,9 +221,23 @@ extern int g_numCPUCores;
 extern int g_numGPUs;
 extern cudahandbook::threading::workerThread *g_GPUThreadPool;
 
+//extern float *g_hostAOS_PosMass;
+extern std::vector<PosMass<float>> g_hostAOS_PosMass;
+extern std::vector<VelInvMass<float>> g_hostAOS_VelInvMass;
+extern std::vector<Force3D<float>> g_hostAOS_Force;
+
+// Buffer to hold the golden version of the forces, used for comparison
+// Along with timing results, we report the maximum relative error with 
+// respect to this array.
+extern std::vector<Force3D<float>> g_hostAOS_Force_Golden;
+
+
+
+#if 0
 extern float ComputeGravitation_GPU_Shared           ( float *force, float *posMass, float softeningSquared, size_t N );
 extern float ComputeGravitation_multiGPU_singlethread( float *force, float *posMass, float softeningSquared, size_t N );
 extern float ComputeGravitation_multiGPU_threaded    ( float *force, float *posMass, float softeningSquared, size_t N );
+#endif
 
 
 #endif
