@@ -240,8 +240,8 @@ NBodyAlgorithm_GPU<T>::Initialize( size_t N, int seed, T softening )
     cuda(EventCreate( &evStart_ ) );
     cuda(EventCreate( &evStop_ ) );
     gpuForce_ = thrust::device_vector<Force3D<float>>( N );
-    gpuPosMass_ = thrust::device_vector<Force3D<float>>( N );
-    gpuVelInvMass_ = thrust::device_vector<Force3D<float>>( N );
+    gpuPosMass_ = thrust::device_vector<PosMass<float>>( N );
+    gpuVelInvMass_ = thrust::device_vector<VelInvMass<float>>( N );
     return true;
 Error:
     return false;
@@ -287,52 +287,69 @@ NBodyAlgorithm<T>::computeTimeStep( std::vector<Force3D<T> >& force )
 }
 
 template<typename T>
+__global__ void
+ComputeNBodyGravitation_Shared(
+    Force3D<T> *force,
+    PosMass<T> *posMass,
+    T softeningSquared,
+    size_t N )
+{
+    extern __shared__ float4 shPosMass[];
+    for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
+              i < N;
+              i += blockDim.x*gridDim.x )
+    {
+        float acc[3] = {0};
+        float4 myPosMass = ((float4 *) posMass)[i];
+#pragma unroll 32
+        for ( int j = 0; j < N; j += blockDim.x ) {
+            shPosMass[threadIdx.x] = ((float4 *) posMass)[j+threadIdx.x];
+            __syncthreads();
+            for ( size_t k = 0; k < blockDim.x; k++ ) {
+                float fx, fy, fz;
+                float4 bodyPosMass = shPosMass[k];
+
+                bodyBodyInteraction(
+                    &fx, &fy, &fz,
+                    myPosMass.x, myPosMass.y, myPosMass.z,
+                    bodyPosMass.x,
+                    bodyPosMass.y,
+                    bodyPosMass.z,
+                    bodyPosMass.w,
+                    softeningSquared );
+                acc[0] += fx;
+                acc[1] += fy;
+                acc[2] += fz;
+            }
+            __syncthreads();
+        }
+        force[i].ddx_ = acc[0];
+        force[i].ddy_ = acc[1];
+        force[i].ddz_ = acc[2];
+    }
+}
+
+template<typename T>
 float
 NBodyAlgorithm_GPU<T>::computeTimeStep( std::vector<Force3D<T> >& force )
 {
     cudaError_t status;
-    float et = 0.0f;
+    float ms = 0.0f;
+    float softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
 
     cuda(Memcpy( thrust::raw_pointer_cast(gpuPosMass_.data()), NBodyAlgorithm<T>::posMass().data(), NBodyAlgorithm<T>::N()*sizeof(PosMass<float>), cudaMemcpyHostToDevice ) );
-
-
+    cuda(EventRecord( evStart_, NULL ) );
+    ComputeNBodyGravitation_Shared<<<1024,256, 256*sizeof(float4)>>>(
+        thrust::raw_pointer_cast(gpuForce_.data()),
+        thrust::raw_pointer_cast(gpuPosMass_.data()),
+        softeningSquared,
+        NBodyAlgorithm<T>::N() );
+    cuda(EventRecord( evStop_, NULL ) );
+    cuda(DeviceSynchronize() );
+    cuda(Memcpy( NBodyAlgorithm<T>::force().data(), thrust::raw_pointer_cast(gpuForce_.data()), NBodyAlgorithm<T>::N()*sizeof(Force3D<float>), cudaMemcpyDeviceToHost ) );
+    cuda(EventElapsedTime( &ms, evStart_, evStop_ ) );
 Error:
-    return et;
-#if 0
-    T softeningSquared = softening_*softening_;
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
-    for ( size_t i = 0; i < N_; i++ )
-    {
-        Force3D<T> acc = { 0, 0, 0 };
-        float myX = posMass_[i].x_;
-        float myY = posMass_[i].y_;
-        float myZ = posMass_[i].z_;
-
-        for ( size_t j = 0; j < N_; j++ ) {
-            float fx, fy, fz;
-            float bodyX = posMass_[j].x_;
-            float bodyY = posMass_[j].y_;
-            float bodyZ = posMass_[j].z_;
-            float bodyMass = posMass_[j].mass_;
-
-            bodyBodyInteraction<float>(
-                &fx, &fy, &fz,
-                myX, myY, myZ,
-                bodyX, bodyY, bodyZ, bodyMass,
-                softeningSquared );
-            acc.ddx_ += fx;
-            acc.ddy_ += fy;
-            acc.ddz_ += fz;
-        }
-
-        force[i].ddx_ = acc.ddx_;
-        force[i].ddy_ = acc.ddy_;
-        force[i].ddz_ = acc.ddz_;
-    }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
-#endif
+    return ms;
 }
 
 template<typename T>

@@ -149,8 +149,8 @@ private:
     cudaEvent_t evStart_, evStop_;
 
     thrust::device_vector<Force3D<float>> gpuForce_;
-    thrust::device_vector<Force3D<float>> gpuPosMass_;
-    thrust::device_vector<Force3D<float>> gpuVelInvMass_;
+    thrust::device_vector<PosMass<float>> gpuPosMass_;
+    thrust::device_vector<VelInvMass<float>> gpuVelInvMass_;
 };
 
 struct alignas(32) aligned_float {
