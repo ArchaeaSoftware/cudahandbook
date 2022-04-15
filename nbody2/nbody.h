@@ -39,6 +39,8 @@
 //#include "nbody_CPU_SIMD.h"
 
 #include <chThread.h>
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
 
 extern bool g_bCUDAPresent;
 extern bool g_bGPUCrossCheck;
@@ -90,7 +92,7 @@ class NBodyAlgorithm {
 public:
     inline NBodyAlgorithm<T>() { }
     virtual ~NBodyAlgorithm<T>() { }
-    virtual bool Initialize( size_t N, T softening );
+    virtual bool Initialize( size_t N, int seed, T softening );
 
     size_t N() const { return N_; }
     T softening() const { return softening_; }
@@ -98,19 +100,57 @@ public:
     // return value is elapsed time needed for the time step
     virtual float computeTimeStep( std::vector<Force3D<T> >& force );
 
+#if 1
     // accessors
     void setBody( size_t i, const PosMass<T>& body ) { posMass_[i] = body; }
     PosMass<T>& getBody( size_t i ) { return posMass_[i]; }
     PosMass<T> getBody( size_t i ) const { return posMass_[i]; }
+
+    const std::vector<Force3D<T>>& force() const { return force_; }
+    const std::vector<PosMass<T>>& posMass() const { return posMass_; }
+    const std::vector<VelInvMass<T>>& velInvMass() const { return velInvMass_; }
+
+    std::vector<Force3D<T>>& force() { return force_; }
+    std::vector<PosMass<T>>& posMass() { return posMass_; }
+    std::vector<VelInvMass<T>>& velInvMass() { return velInvMass_; }
+#else
+    thrust::host_vector<PosMass<T>>& posMass() { return posMass_; }
+    const thrust::host_vector<PosMass<T>>& posMass() const { return posMass_; }
+#endif
 
 private:
     size_t N_;
 
     T softening_;
 
+#if 0
+    thrust::host_vector<Force3D<T>> force_;
+    thrust::host_vector<PosMass<T>> posMass_;
+    thrust::host_vector<VelInvMass<T>> velInvMass_;
+#else
     std::vector<Force3D<T>> force_;
     std::vector<PosMass<T>> posMass_;
-    std::vector<VelInvMass<T>> velinvMass_;
+    std::vector<VelInvMass<T>> velInvMass_;
+#endif
+};
+
+template<typename T>
+class NBodyAlgorithm_GPU : public NBodyAlgorithm<T> {
+public:
+    inline NBodyAlgorithm_GPU<T>() { evStart_ = evStop_ = nullptr; }
+    virtual ~NBodyAlgorithm_GPU<T>() { 
+        cudaEventDestroy( evStart_ );
+        cudaEventDestroy( evStop_ );
+    }
+    virtual bool Initialize( size_t N, int seed, T softening );
+    virtual float computeTimeStep( std::vector<Force3D<T> >& force );
+private:
+
+    cudaEvent_t evStart_, evStop_;
+
+    thrust::device_vector<Force3D<float>> gpuForce_;
+    thrust::device_vector<Force3D<float>> gpuPosMass_;
+    thrust::device_vector<Force3D<float>> gpuVelInvMass_;
 };
 
 struct alignas(32) aligned_float {
@@ -131,7 +171,7 @@ class NBodyAlgorithm_SOA : public NBodyAlgorithm<T> {
 public:
     NBodyAlgorithm_SOA<T>() { }
     virtual ~NBodyAlgorithm_SOA<T>() { }
-    virtual bool Initialize( size_t N, T softening );
+    virtual bool Initialize( size_t N, int seed, T softening );
 
 private:
     std::vector<T> x_, y_, z_, mass_; // use aligned_float for 32B alignment
@@ -139,7 +179,7 @@ private:
 
 template<typename T>
 inline bool
-NBodyAlgorithm_SOA<T>::Initialize( size_t N, T softening )
+NBodyAlgorithm_SOA<T>::Initialize( size_t N, int seed, T softening )
 {
     NBodyAlgorithm<T>::Initialize( N, softening );
     x_ = std::vector<T, alignas(64)>( N );
