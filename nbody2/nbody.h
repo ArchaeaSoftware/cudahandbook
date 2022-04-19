@@ -157,30 +157,18 @@ struct alignas(32) aligned_double {
     operator double() { return d_; }
 };
 
-#if 0
 template<typename T>
 class NBodyAlgorithm_SOA : public NBodyAlgorithm<T> {
 public:
     NBodyAlgorithm_SOA<T>() { }
     virtual ~NBodyAlgorithm_SOA<T>() { }
+    virtual const char *getAlgoName() const { return "CPU SOA"; }
     virtual bool Initialize( size_t N, int seed, T softening );
-
+    virtual float computeTimeStep( );
 private:
     std::vector<T> x_, y_, z_, mass_; // use aligned_float for 32B alignment
+    std::vector<T> ddx_, ddy_, ddz_;  // force
 };
-
-template<typename T>
-inline bool
-NBodyAlgorithm_SOA<T>::Initialize( size_t N, int seed, T softening )
-{
-    NBodyAlgorithm<T>::Initialize( N, softening );
-    x_ = std::vector<T, alignas(64)>( N );
-    y_ = std::vector<T, alignas(64)>( N );
-    z_ = std::vector<T, alignas(64)>( N );
-    mass_ = std::vector<T, alignas(64)>( N );
-    return true;
-}
-#endif
 
 enum nbodyAlgorithm_enum {
     CPU_AOS = 0,    /* This is the golden implementation */

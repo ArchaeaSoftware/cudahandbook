@@ -251,6 +251,21 @@ Error:
 }
 
 template<typename T>
+inline bool
+NBodyAlgorithm_SOA<T>::Initialize( size_t N, int seed, T softening )
+{
+    NBodyAlgorithm<T>::Initialize( N, seed, softening );
+    x_ = std::vector<T>( N );
+    y_ = std::vector<T>( N );
+    z_ = std::vector<T>( N );
+    mass_ = std::vector<T>( N );
+    ddx_ = std::vector<T>( N );
+    ddy_ = std::vector<T>( N );
+    ddz_ = std::vector<T>( N );
+    return true;
+}
+
+template<typename T>
 float
 NBodyAlgorithm<T>::computeTimeStep( )
 {
@@ -284,6 +299,59 @@ NBodyAlgorithm<T>::computeTimeStep( )
         force_[i].ddx_ = acc.ddx_;
         force_[i].ddy_ = acc.ddy_;
         force_[i].ddz_ = acc.ddz_;
+    }
+    chTimerGetTime( &end );
+    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+}
+
+template<typename T>
+float
+NBodyAlgorithm_SOA<T>::computeTimeStep( )
+{
+    auto posMass = NBodyAlgorithm<T>::posMass();
+    auto& force = NBodyAlgorithm<T>::force();
+    size_t N = NBodyAlgorithm<T>::N();
+    T softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
+    chTimerTimestamp start, end;
+    chTimerGetTime( &start );
+    for ( size_t i = 0; i < N; i++ ) {
+        x_[i] = posMass[i].x_;
+        y_[i] = posMass[i].y_;
+        z_[i] = posMass[i].z_;
+        mass_[i] = posMass[i].mass_;
+    }
+    for ( size_t i = 0; i < N; i++ )
+    {
+        Force3D<T> acc = { 0, 0, 0 };
+        float myX = x_[i];
+        float myY = y_[i];
+        float myZ = z_[i];
+
+        for ( size_t j = 0; j < N; j++ ) {
+            float fx, fy, fz;
+            float bodyX = x_[j];
+            float bodyY = y_[j];
+            float bodyZ = z_[j];
+            float bodyMass = mass_[j];
+
+            bodyBodyInteraction<float>(
+                &fx, &fy, &fz,
+                myX, myY, myZ,
+                bodyX, bodyY, bodyZ, bodyMass,
+                softeningSquared );
+            acc.ddx_ += fx;
+            acc.ddy_ += fy;
+            acc.ddz_ += fz;
+        }
+
+        ddx_[i] = acc.ddx_;
+        ddy_[i] = acc.ddy_;
+        ddz_[i] = acc.ddz_;
+    }
+    for ( size_t i = 0; i < N; i++ ) {
+        force[i].ddx_ = ddx_[i];
+        force[i].ddy_ = ddy_[i];
+        force[i].ddz_ = ddz_[i];
     }
     chTimerGetTime( &end );
     return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
@@ -360,14 +428,6 @@ ComputeGravitation(
     //bool bSOA = false;
 
 #if 0
-    // AOS -> SOA data structures in case we are measuring SOA performance
-    for ( size_t i = 0; i < g_N; i++ ) {
-        g_hostSOA_Pos[0][i]  = g_hostAOS_PosMass[i].x_;
-        g_hostSOA_Pos[1][i]  = g_hostAOS_PosMass[i].y_;
-        g_hostSOA_Pos[2][i]  = g_hostAOS_PosMass[i].z_;
-        g_hostSOA_Mass[i]    = g_hostAOS_PosMass[i].mass_;
-        g_hostSOA_InvMass[i] = 1.0f / g_hostSOA_Mass[i];
-    }
     if ( bCrossCheck ) {
 #ifdef HAVE_SIMD_THREADED
         if ( g_bUseSIMDForCrossCheck ) {
@@ -690,9 +750,6 @@ main( int argc, char *argv[] )
         return 1;
     }
 
-    // for reproducible results for a given N
-    srand(7);
-
     {
         g_numCPUCores = processorCount();
         g_CPUThreadPool = new workerThread[g_numCPUCores];
@@ -881,7 +938,8 @@ main( int argc, char *argv[] )
             g_maxAlgorithm = multiGPU_MultiCPUThread;
         }
 
-        gpuAlgo = new NBodyAlgorithm_GPU<float>;
+        gpuAlgo = new NBodyAlgorithm_SOA<float>;
+        //gpuAlgo = new NBodyAlgorithm_GPU<float>;
         if ( ! gpuAlgo->Initialize( g_N, seed, g_softening ) )
             goto Error;
 
