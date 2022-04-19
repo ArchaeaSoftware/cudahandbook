@@ -100,6 +100,7 @@ public:
 
     // return value is elapsed time needed for the time step
     virtual float computeTimeStep( );//std::vector<Force3D<T> >& force );
+    virtual void integrateGravitation( T dt, T damping );
 
     // accessors
     void setBody( size_t i, const PosMass<T>& body ) { posMass_[i] = body; }
@@ -134,7 +135,7 @@ public:
     }
     virtual const char *getAlgoName() const { return "GPU AOS"; }
     virtual bool Initialize( size_t N, int seed, T softening );
-    virtual float computeTimeStep( );//std::vector<Force3D<T> >& force );
+    virtual float computeTimeStep( );
 private:
 
     cudaEvent_t evStart_, evStop_;

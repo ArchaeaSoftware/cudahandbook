@@ -92,14 +92,6 @@ randomUnitBodies( int seed, std::vector<PosMass<float>>& pos, std::vector<VelInv
     }
 }
 
-template<typename T>
-static float
-relError( float a, float b )
-{
-    if ( a == b ) return 0.0f;
-    return fabsf(a-b)/b;
-}
-
 bool g_bCUDAPresent;
 bool g_bSM30Present;
 
@@ -145,6 +137,15 @@ relError( T a, T b )
     return (relErr<0.0f) ? -relErr : relErr;
 }
 
+template<typename T>
+static T
+absError( T a, T b )
+{
+    if ( a == b ) return 0.0f;
+    return (T) fabs(a-b);
+}
+
+
 #include "nbody_CPU_AOS.h"
 
 //#include "nbody_CPU_AOS_tiled.h"
@@ -161,14 +162,15 @@ relError( T a, T b )
 //#include "nbody_GPU_Atomic.cuh"
 #endif
 
+template<typename T>
 void
-integrateGravitation_AOS( std::vector<PosMass<float>>& posMass, std::vector<VelInvMass<float>>& pvel, const std::vector<Force3D<float>>& pforce, float dt, float damping, size_t N )
+NBodyAlgorithm<T>::integrateGravitation( T dt, T damping )
 {
-    for ( size_t i = 0; i < N; i++ ) {
-        float pos[3] = { posMass[i].x_, posMass[i].y_, posMass[i].z_ };
-        float vel[3] = { pvel[i].dx_, pvel[i].dy_, pvel[i].dz_ };
-        float invMass = pvel[i].invMass_;
-        float force[3] = { pforce[i].ddx_, pforce[i].ddy_, pforce[i].ddz_ };
+    for ( size_t i = 0; i < N_; i++ ) {
+        float pos[3] = { posMass_[i].x_, posMass_[i].y_, posMass_[i].z_ };
+        float vel[3] = { velInvMass_[i].dx_, velInvMass_[i].dy_, velInvMass_[i].dz_ };
+        float invMass = velInvMass_[i].invMass_;
+        float force[3] = { force_[i].ddx_, force_[i].ddy_, force_[i].ddz_ };
 
         // acceleration = force / mass;
         // new velocity = old velocity + acceleration * deltaTime
@@ -185,13 +187,13 @@ integrateGravitation_AOS( std::vector<PosMass<float>>& posMass, std::vector<VelI
         pos[1] += vel[1] * dt;
         pos[2] += vel[2] * dt;
 
-        posMass[i].x_ = pos[0];
-        posMass[i].y_ = pos[1];
-        posMass[i].z_ = pos[2];
+        posMass_[i].x_ = pos[0];
+        posMass_[i].y_ = pos[1];
+        posMass_[i].z_ = pos[2];
 
-        pvel[i].dx_ = vel[0];
-        pvel[i].dy_ = vel[1];
-        pvel[i].dz_ = vel[2];
+        velInvMass_[i].dx_ = vel[0];
+        velInvMass_[i].dy_ = vel[1];
+        velInvMass_[i].dz_ = vel[2];
     }
 }
 
@@ -289,40 +291,32 @@ NBodyAlgorithm<T>::computeTimeStep( )
 
 template<typename T>
 __global__ void
-ComputeNBodyGravitation_Shared(
+ComputeNBodyGravitation_GPU_AOS(
     Force3D<T> *force,
     PosMass<T> *posMass,
     T softeningSquared,
     size_t N )
 {
-    extern __shared__ float4 shPosMass[];
     for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
               i < N;
               i += blockDim.x*gridDim.x )
     {
-        float acc[3] = {0};
-        float4 myPosMass = ((float4 *) posMass)[i];
-#pragma unroll 32
-        for ( int j = 0; j < N; j += blockDim.x ) {
-            shPosMass[threadIdx.x] = ((float4 *) posMass)[j+threadIdx.x];
-            __syncthreads();
-            for ( size_t k = 0; k < blockDim.x; k++ ) {
-                float fx, fy, fz;
-                float4 bodyPosMass = shPosMass[k];
-
-                bodyBodyInteraction(
-                    &fx, &fy, &fz,
-                    myPosMass.x, myPosMass.y, myPosMass.z,
-                    bodyPosMass.x,
-                    bodyPosMass.y,
-                    bodyPosMass.z,
-                    bodyPosMass.w,
-                    softeningSquared );
-                acc[0] += fx;
-                acc[1] += fy;
-                acc[2] += fz;
-            }
-            __syncthreads();
+        T acc[3] = {0};
+        float4 me = ((float4 *) posMass)[i];
+        T myX = me.x;
+        T myY = me.y;
+        T myZ = me.z;
+        for ( int j = 0; j < N; j++ ) {
+            float4 body = ((float4 *) posMass)[j];
+            float fx, fy, fz;
+            bodyBodyInteraction(
+                &fx, &fy, &fz,
+                myX, myY, myZ,
+                body.x, body.y, body.z, body.w,
+                softeningSquared);
+            acc[0] += fx;
+            acc[1] += fy;
+            acc[2] += fz;
         }
         force[i].ddx_ = acc[0];
         force[i].ddy_ = acc[1];
@@ -340,7 +334,7 @@ NBodyAlgorithm_GPU<T>::computeTimeStep( )
 
     cuda(Memcpy( thrust::raw_pointer_cast(gpuPosMass_.data()), NBodyAlgorithm<T>::posMass().data(), NBodyAlgorithm<T>::N()*sizeof(PosMass<float>), cudaMemcpyHostToDevice ) );
     cuda(EventRecord( evStart_, NULL ) );
-    ComputeNBodyGravitation_Shared<<<1024,256, 256*sizeof(float4)>>>(
+    ComputeNBodyGravitation_GPU_AOS<<<1024,256>>>(
         thrust::raw_pointer_cast(gpuForce_.data()),
         thrust::raw_pointer_cast(gpuPosMass_.data()),
         softeningSquared,
@@ -413,7 +407,27 @@ ComputeGravitation(
     }
 #endif
 
+    *maxRelError = 0.0f;
+
+    if ( bCrossCheck ) {
+        auto gpuPosMass = gpuAlgo->posMass();
+        auto refPosMass = refAlgo->posMass();
+        float max = 0.0f;
+        for ( size_t i = 0; i < g_N; i++ ) {
+            float xerr = absError( gpuPosMass[i].x_, refPosMass[i].x_ );
+            float yerr = absError( gpuPosMass[i].y_, refPosMass[i].y_ );
+            float zerr = absError( gpuPosMass[i].z_, refPosMass[i].z_ );
+            if ( xerr > max ) max = xerr;
+            if ( yerr > max ) max = yerr;
+            if ( zerr > max ) max = zerr;
+        }
+        *maxRelError = max;
+        printf( "%s crosscheck against gold %s: maxRelError = gpuForce-> %E\n", 
+            gpuAlgo->getAlgoName(), refAlgo->getAlgoName(), max ); fflush( stdout );
+    }
+
     *ms = gpuAlgo->computeTimeStep( );
+
 #if 0
     switch ( algorithm ) {
         case CPU_AOS:
@@ -598,25 +612,23 @@ ComputeGravitation(
         auto refForce = refAlgo->force();
         float max = 0.0f;
         for ( size_t i = 0; i < g_N; i++ ) {
-            float xerr = relError( gpuForce[i].ddx_, refForce[i].ddx_ );
-            float yerr = relError( gpuForce[i].ddy_, refForce[i].ddy_ );
-            float zerr = relError( gpuForce[i].ddz_, refForce[i].ddz_ );
+            float xerr = absError( gpuForce[i].ddx_, refForce[i].ddx_ );
+            float yerr = absError( gpuForce[i].ddy_, refForce[i].ddy_ );
+            float zerr = absError( gpuForce[i].ddz_, refForce[i].ddz_ );
+            if ( xerr >= 1.0f || yerr >= 1.0f || zerr >= 1.0 ) {
+                asm("int $3");
+            }
             if ( xerr > max ) max = xerr;
             if ( yerr > max ) max = yerr;
             if ( zerr > max ) max = zerr;
         }
         *maxRelError = max;
-        printf( "%s crosscheck against gold %s: maxRelError = gpuForce-> %E\n", 
-            gpuAlgo->getAlgoName(), refAlgo->getAlgoName(), max ); fflush( stdout );
+        //printf( "%s crosscheck against gold %s: maxRelError = gpuForce-> %E\n", 
+        //    gpuAlgo->getAlgoName(), refAlgo->getAlgoName(), max ); fflush( stdout );
+        refAlgo->integrateGravitation( g_dt, g_damping );
     }
 
-    integrateGravitation_AOS( 
-        gpuAlgo->posMass(),
-        gpuAlgo->velInvMass(),
-        gpuAlgo->force(),
-        g_dt,
-        g_damping,
-        g_N );
+    gpuAlgo->integrateGravitation( g_dt, g_damping );
 
     if ( g_bGPUCrossCheck && g_fGPUCrosscheckInput ) {
         if ( memcmp( g_hostAOS_Force.data(), g_hostAOS_Force_Golden.data(), 3*g_N*sizeof(float) ) ) {
@@ -624,28 +636,6 @@ ComputeGravitation(
             goto Error;
         }
     }
-
-
-#if 0
-    else {
-        KahanAdder sumX;
-        KahanAdder sumY;
-        KahanAdder sumZ;
-        for ( size_t i = 0; i < g_N; i++ ) {
-            sumX += g_hostAOS_Force[i*3+0];
-            sumY += g_hostAOS_Force[i*3+1];
-            sumZ += g_hostAOS_Force[i*3+2];
-        }
-        *maxRelError = std::max( fabs(sumX), std::max(fabs(sumY), fabs(sumZ)) );
-        if ( g_ZeroThreshold != 0.0 && 
-             fabs( *maxRelError ) > g_ZeroThreshold ) {
-            printf( "Maximum sum of forces > threshold (%E > %E)\n",
-                *maxRelError,
-                g_ZeroThreshold );
-            goto Error;
-        }
-    }
-#endif
 
     return true;
 Error:
@@ -1002,14 +992,14 @@ main( int argc, char *argv[] )
             double interactionsPerSecond = (double) g_N*g_N*1000.0f / ms;
             if ( interactionsPerSecond > 1e9 ) {
                 printf ( "\r%s: %8.2f ms = %8.3fx10^9 interactions/s (Rel. error: %E)\n",
-                    rgszAlgorithmNames[g_Algorithm], 
+                    gpuAlgo->getAlgoName(),
                     ms, 
                     interactionsPerSecond/1e9, 
                     err );
             }
             else {
                 printf ( "\r%s: %8.2f ms = %8.3fx10^6 interactions/s (Rel. error: %E)\n",
-                    rgszAlgorithmNames[g_Algorithm], 
+                    gpuAlgo->getAlgoName(),
                     ms, 
                     interactionsPerSecond/1e6, 
                     err );
