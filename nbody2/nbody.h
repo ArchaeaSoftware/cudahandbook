@@ -93,14 +93,14 @@ public:
     inline NBodyAlgorithm<T>() { }
     virtual ~NBodyAlgorithm<T>() { }
     virtual bool Initialize( size_t N, int seed, T softening );
+    virtual const char *getAlgoName() const { return "CPU AOS"; }
 
     size_t N() const { return N_; }
     T softening() const { return softening_; }
 
     // return value is elapsed time needed for the time step
-    virtual float computeTimeStep( std::vector<Force3D<T> >& force );
+    virtual float computeTimeStep( );//std::vector<Force3D<T> >& force );
 
-#if 1
     // accessors
     void setBody( size_t i, const PosMass<T>& body ) { posMass_[i] = body; }
     PosMass<T>& getBody( size_t i ) { return posMass_[i]; }
@@ -113,25 +113,15 @@ public:
     std::vector<Force3D<T>>& force() { return force_; }
     std::vector<PosMass<T>>& posMass() { return posMass_; }
     std::vector<VelInvMass<T>>& velInvMass() { return velInvMass_; }
-#else
-    thrust::host_vector<PosMass<T>>& posMass() { return posMass_; }
-    const thrust::host_vector<PosMass<T>>& posMass() const { return posMass_; }
-#endif
 
 private:
     size_t N_;
 
     T softening_;
 
-#if 0
-    thrust::host_vector<Force3D<T>> force_;
-    thrust::host_vector<PosMass<T>> posMass_;
-    thrust::host_vector<VelInvMass<T>> velInvMass_;
-#else
     std::vector<Force3D<T>> force_;
     std::vector<PosMass<T>> posMass_;
     std::vector<VelInvMass<T>> velInvMass_;
-#endif
 };
 
 template<typename T>
@@ -142,8 +132,9 @@ public:
         cudaEventDestroy( evStart_ );
         cudaEventDestroy( evStop_ );
     }
+    virtual const char *getAlgoName() const { return "GPU AOS"; }
     virtual bool Initialize( size_t N, int seed, T softening );
-    virtual float computeTimeStep( std::vector<Force3D<T> >& force );
+    virtual float computeTimeStep( );//std::vector<Force3D<T> >& force );
 private:
 
     cudaEvent_t evStart_, evStop_;

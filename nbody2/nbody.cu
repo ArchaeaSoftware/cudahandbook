@@ -72,17 +72,18 @@ randomVector( float v[3] )
 }
 
 void
-randomUnitBodies( std::vector<PosMass<float>>& pos, std::vector<VelInvMass<float>>& vel, size_t N )
+randomUnitBodies( int seed, std::vector<PosMass<float>>& pos, std::vector<VelInvMass<float>>& vel, size_t N )
 {
     float r[3];
-    for ( auto p: pos ) {
+    srand( seed );
+    for ( auto& p: pos ) {
         randomVector( &r[0] );
         p.x_ = r[0];
         p.y_ = r[1];
         p.z_ = r[2];
         p.mass_ = 1.0f;  // unit mass
     }
-    for ( auto v: vel ) {
+    for ( auto& v: vel ) {
         randomVector( &r[0] );
         v.dx_ = r[0];
         v.dy_ = r[1];
@@ -223,7 +224,7 @@ NBodyAlgorithm<T>::Initialize( size_t N, int seed, T softening )
     force_ = std::vector<Force3D<T>>( N );
     posMass_ = std::vector<PosMass<T>>( N );
     velInvMass_ = std::vector<VelInvMass<T>>( N );
-    randomUnitBodies( posMass_, velInvMass_, N );
+    randomUnitBodies( seed, posMass_, velInvMass_, N );
     return true;
 }
 
@@ -249,7 +250,7 @@ Error:
 
 template<typename T>
 float
-NBodyAlgorithm<T>::computeTimeStep( std::vector<Force3D<T> >& force )
+NBodyAlgorithm<T>::computeTimeStep( )
 {
     T softeningSquared = softening_*softening_;
     chTimerTimestamp start, end;
@@ -278,9 +279,9 @@ NBodyAlgorithm<T>::computeTimeStep( std::vector<Force3D<T> >& force )
             acc.ddz_ += fz;
         }
 
-        force[i].ddx_ = acc.ddx_;
-        force[i].ddy_ = acc.ddy_;
-        force[i].ddz_ = acc.ddz_;
+        force_[i].ddx_ = acc.ddx_;
+        force_[i].ddy_ = acc.ddy_;
+        force_[i].ddz_ = acc.ddz_;
     }
     chTimerGetTime( &end );
     return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
@@ -331,7 +332,7 @@ ComputeNBodyGravitation_Shared(
 
 template<typename T>
 float
-NBodyAlgorithm_GPU<T>::computeTimeStep( std::vector<Force3D<T> >& force )
+NBodyAlgorithm_GPU<T>::computeTimeStep( )
 {
     cudaError_t status;
     float ms = 0.0f;
@@ -357,13 +358,14 @@ bool
 ComputeGravitation( 
     float *ms,
     float *maxRelError,
-    NBodyAlgorithm<T> *cpuAlgo,
+    NBodyAlgorithm<T> *refAlgo,
     NBodyAlgorithm<T> *gpuAlgo,
     bool bCrossCheck )
 {
-    cudaError_t status;
-    bool bSOA = false;
+    //cudaError_t status;
+    //bool bSOA = false;
 
+#if 0
     // AOS -> SOA data structures in case we are measuring SOA performance
     for ( size_t i = 0; i < g_N; i++ ) {
         g_hostSOA_Pos[0][i]  = g_hostAOS_PosMass[i].x_;
@@ -372,7 +374,6 @@ ComputeGravitation(
         g_hostSOA_Mass[i]    = g_hostAOS_PosMass[i].mass_;
         g_hostSOA_InvMass[i] = 1.0f / g_hostSOA_Mass[i];
     }
-#if 0
     if ( bCrossCheck ) {
 #ifdef HAVE_SIMD_THREADED
         if ( g_bUseSIMDForCrossCheck ) {
@@ -401,6 +402,7 @@ ComputeGravitation(
     }
 #endif
 
+#if 0
     // CPU->GPU copies in case we are measuring GPU performance
     if ( g_bCUDAPresent ) {
         cuda(MemcpyAsync( 
@@ -409,8 +411,9 @@ ComputeGravitation(
             4*g_N*sizeof(float), 
             cudaMemcpyHostToDevice ) );
     }
+#endif
 
-    *ms = cpuAlgo->computeTimeStep( g_hostAOS_Force );
+    *ms = gpuAlgo->computeTimeStep( );
 #if 0
     switch ( algorithm ) {
         case CPU_AOS:
@@ -558,7 +561,6 @@ ComputeGravitation(
             break;
 #endif
     }
-#endif
 
     if ( g_bGPUCrossCheck ) {
         int cDisagreements = 0;
@@ -586,11 +588,32 @@ ComputeGravitation(
             g_hostAOS_Force[i].ddz_ = g_hostSOA_Force[2][i];
         }
     }
+#endif
+
+    *maxRelError = 0.0f;
+
+    if ( bCrossCheck ) {
+        float msGPU = refAlgo->computeTimeStep( );
+        auto gpuForce = gpuAlgo->force();
+        auto refForce = refAlgo->force();
+        float max = 0.0f;
+        for ( size_t i = 0; i < g_N; i++ ) {
+            float xerr = relError( gpuForce[i].ddx_, refForce[i].ddx_ );
+            float yerr = relError( gpuForce[i].ddy_, refForce[i].ddy_ );
+            float zerr = relError( gpuForce[i].ddz_, refForce[i].ddz_ );
+            if ( xerr > max ) max = xerr;
+            if ( yerr > max ) max = yerr;
+            if ( zerr > max ) max = zerr;
+        }
+        *maxRelError = max;
+        printf( "%s crosscheck against gold %s: maxRelError = gpuForce-> %E\n", 
+            gpuAlgo->getAlgoName(), refAlgo->getAlgoName(), max ); fflush( stdout );
+    }
 
     integrateGravitation_AOS( 
-        g_hostAOS_PosMass,
-        g_hostAOS_VelInvMass,
-        g_hostAOS_Force,
+        gpuAlgo->posMass(),
+        gpuAlgo->velInvMass(),
+        gpuAlgo->force(),
         g_dt,
         g_damping,
         g_N );
@@ -603,20 +626,6 @@ ComputeGravitation(
     }
 
 
-    *maxRelError = 0.0f;
-
-    if ( bCrossCheck ) {
-        float max = 0.0f;
-        for ( size_t i = 0; i < g_N; i++ ) {
-            float xerr = relError( g_hostAOS_Force[i].ddx_, g_hostAOS_Force_Golden[i].ddx_ );
-            float yerr = relError( g_hostAOS_Force[i].ddy_, g_hostAOS_Force_Golden[i].ddy_ );
-            float zerr = relError( g_hostAOS_Force[i].ddz_, g_hostAOS_Force_Golden[i].ddz_ );
-            if ( xerr > max ) max = xerr;
-            if ( yerr > max ) max = yerr;
-            if ( zerr > max ) max = zerr;
-        }
-        *maxRelError = max;
-    }
 #if 0
     else {
         KahanAdder sumX;
@@ -733,7 +742,6 @@ main( int argc, char *argv[] )
     chCommandLineGet( &kParticles, "numbodies", argc, argv );
     g_N = kParticles*1024;
 
-#if 0
     chCommandLineGet( &kMaxIterations, "iterations", argc, argv);
 
     // Round down to the nearest multiple of the CPU count (e.g. if we have
@@ -744,6 +752,7 @@ main( int argc, char *argv[] )
         g_bGPUCrossCheck = true;
     }
     g_bGPUCrossCheck = chCommandLineGetBool( "gpu-crosscheck", argc, argv );
+#if 0
     {
         char *szFilename;
         if ( chCommandLineGet( &szFilename, "gpu-crosscheck-input-file", argc, argv ) ) {
@@ -929,13 +938,13 @@ main( int argc, char *argv[] )
         g_hostSOA_InvMass = new float[g_N];
     }
 
-    randomUnitBodies( g_hostAOS_PosMass, g_hostAOS_VelInvMass, g_N );
+#if 0
+    randomUnitBodies( seed, g_hostAOS_PosMass, g_hostAOS_VelInvMass, g_N );
     for ( size_t i = 0; i < g_N; i++ ) {
         g_hostSOA_Mass[i] = g_hostAOS_PosMass[i].mass_;
         g_hostSOA_InvMass[i] = 1.0f / g_hostSOA_Mass[i];
     }
 
-#if 0
     // gather performance data over GPU implementations
     // for different problem sizes.
 
@@ -986,7 +995,7 @@ main( int argc, char *argv[] )
         while ( ! bStop ) {
             float ms, err;
 
-            if ( ! ComputeGravitation( &ms, &err, refAlgo, refAlgo, g_bCrossCheck ) ) {
+            if ( ! ComputeGravitation( &ms, &err, refAlgo, gpuAlgo, g_bCrossCheck ) ) {
                 fprintf( stderr, "Error computing timestep\n" );
                 exit(1);
             }
