@@ -196,6 +196,16 @@ public:
     virtual float computeTimeStep( );
 };
 
+template<typename T>
+class NBodyAlgorithm_AVX : public NBodyAlgorithm_SSE<T> {
+public:
+    NBodyAlgorithm_AVX<T>() { }
+    virtual ~NBodyAlgorithm_AVX<T>() { }
+    virtual const char *getAlgoName() const { return "CPU AVX"; }
+    virtual float computeTimeStep( );
+};
+
+
 
 enum nbodyAlgorithm_enum {
     CPU_AOS = 0,    /* This is the golden implementation */
