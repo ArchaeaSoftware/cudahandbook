@@ -165,10 +165,37 @@ public:
     virtual const char *getAlgoName() const { return "CPU SOA"; }
     virtual bool Initialize( size_t N, int seed, T softening );
     virtual float computeTimeStep( );
+
+    std::vector<T>& x() { return x_; }
+    std::vector<T>& y() { return y_; }
+    std::vector<T>& z() { return z_; }
+    std::vector<T>& mass() { return mass_; }
+    std::vector<T>& ddx() { return ddx_; }
+    std::vector<T>& ddy() { return ddy_; }
+    std::vector<T>& ddz() { return ddz_; }
+
+    const std::vector<T>& x() const { return x_; }
+    const std::vector<T>& y() const { return y_; }
+    const std::vector<T>& z() const { return z_; }
+    const std::vector<T>& mass() const { return mass_; }
+    const std::vector<T>& ddx() const { return ddx_; }
+    const std::vector<T>& ddy() const { return ddy_; }
+    const std::vector<T>& ddz() const { return ddz_; }
+
 private:
     std::vector<T> x_, y_, z_, mass_; // use aligned_float for 32B alignment
     std::vector<T> ddx_, ddy_, ddz_;  // force
 };
+
+template<typename T>
+class NBodyAlgorithm_SSE : public NBodyAlgorithm_SOA<T> {
+public:
+    NBodyAlgorithm_SSE<T>() { }
+    virtual ~NBodyAlgorithm_SSE<T>() { }
+    virtual const char *getAlgoName() const { return "CPU SSE"; }
+    virtual float computeTimeStep( );
+};
+
 
 enum nbodyAlgorithm_enum {
     CPU_AOS = 0,    /* This is the golden implementation */

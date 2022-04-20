@@ -56,6 +56,7 @@
 #include "kahan.h"
 
 #include "bodybodyInteraction.cuh"
+#include "bodybodyInteraction_SSE.h"
 
 using namespace cudahandbook::threading;
 
@@ -280,6 +281,7 @@ NBodyAlgorithm<T>::computeTimeStep( )
         float myZ = posMass_[i].z_;
 
         for ( size_t j = 0; j < N_; j++ ) {
+            if ( i==j ) continue;
             float fx, fy, fz;
             float bodyX = posMass_[j].x_;
             float bodyY = posMass_[j].y_;
@@ -299,6 +301,7 @@ NBodyAlgorithm<T>::computeTimeStep( )
         force_[i].ddx_ = acc.ddx_;
         force_[i].ddy_ = acc.ddy_;
         force_[i].ddz_ = acc.ddz_;
+
     }
     chTimerGetTime( &end );
     return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
@@ -328,6 +331,7 @@ NBodyAlgorithm_SOA<T>::computeTimeStep( )
         float myZ = z_[i];
 
         for ( size_t j = 0; j < N; j++ ) {
+            if ( i == j ) continue;
             float fx, fy, fz;
             float bodyX = x_[j];
             float bodyY = y_[j];
@@ -352,6 +356,86 @@ NBodyAlgorithm_SOA<T>::computeTimeStep( )
         force[i].ddx_ = ddx_[i];
         force[i].ddy_ = ddy_[i];
         force[i].ddz_ = ddz_[i];
+    }
+    chTimerGetTime( &end );
+    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+}
+
+template<typename T>
+float
+NBodyAlgorithm_SSE<T>::computeTimeStep( )
+{
+    size_t N = NBodyAlgorithm<T>::N();
+    if ( 0 != N%4 )
+        return 0.0f;
+
+    auto posMass = NBodyAlgorithm<T>::posMass();
+    auto& force = NBodyAlgorithm<T>::force();
+
+    auto x = NBodyAlgorithm_SOA<T>::x();
+    auto y = NBodyAlgorithm_SOA<T>::y();
+    auto z = NBodyAlgorithm_SOA<T>::z();
+    auto mass = NBodyAlgorithm_SOA<T>::mass();
+    auto& ddx = NBodyAlgorithm_SOA<T>::ddx();
+    auto& ddy = NBodyAlgorithm_SOA<T>::ddy();
+    auto& ddz = NBodyAlgorithm_SOA<T>::ddz();
+
+    T softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
+    chTimerTimestamp start, end;
+    chTimerGetTime( &start );
+    for ( size_t i = 0; i < N; i++ ) {
+        x[i] = posMass[i].x_;
+        y[i] = posMass[i].y_;
+        z[i] = posMass[i].z_;
+        mass[i] = posMass[i].mass_;
+    }
+
+
+    for (int i = 0; i < N; i++)
+    {
+        __m128 ax = _mm_setzero_ps();
+        __m128 ay = _mm_setzero_ps();
+        __m128 az = _mm_setzero_ps();
+        __m128 *px = (__m128 *) x.data();
+        __m128 *py = (__m128 *) y.data();
+        __m128 *pz = (__m128 *) z.data();
+        __m128 *pmass = (__m128 *) mass.data();
+        float *pddx = (float *) ddx.data();
+        float *pddy = (float *) ddy.data();
+        float *pddz = (float *) ddz.data();
+        __m128 x0 = _mm_set_ps1( x[i] );
+        __m128 y0 = _mm_set_ps1( y[i] );
+        __m128 z0 = _mm_set_ps1( z[i] );
+        __m128i j4 = _mm_set_epi32( 3, 2, 1, 0 );
+
+        for ( int j = 0; j < N/4; j++ ) {
+            bodyBodyInteraction(
+                ax, ay, az,
+                x0, y0, z0,
+                px[j], py[j], pz[j], pmass[j],
+                _mm_set_ps1( softeningSquared ),
+                _mm_castsi128_ps( _mm_cmpeq_epi32( j4, _mm_set1_epi32( i ) ) ) );
+            j4 = _mm_add_epi32( j4, _mm_set1_epi32( 4 ) );
+        }
+
+        auto horizontal_sum_ps = []( const __m128 x ) -> __m128 {
+            const __m128 t = _mm_add_ps(x, _mm_movehl_ps(x, x));
+            return _mm_add_ss(t, _mm_shuffle_ps(t, t, 1));
+        };
+
+        // Accumulate sum of four floats in the SSE register
+        ax = horizontal_sum_ps( ax );
+        ay = horizontal_sum_ps( ay );
+        az = horizontal_sum_ps( az );
+
+        _mm_store_ss( &pddx[i], ax );
+        _mm_store_ss( &pddy[i], ay );
+        _mm_store_ss( &pddz[i], az );
+    }
+    for ( size_t i = 0; i < N; i++ ) {
+        force[i].ddx_ = ddx[i];
+        force[i].ddy_ = ddy[i];
+        force[i].ddz_ = ddz[i];
     }
     chTimerGetTime( &end );
     return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
@@ -419,7 +503,7 @@ template<typename T>
 bool
 ComputeGravitation( 
     float *ms,
-    float *maxRelError,
+    float *maxAbsError,
     NBodyAlgorithm<T> *refAlgo,
     NBodyAlgorithm<T> *gpuAlgo,
     bool bCrossCheck )
@@ -467,7 +551,7 @@ ComputeGravitation(
     }
 #endif
 
-    *maxRelError = 0.0f;
+    *maxAbsError = 0.0f;
 
     if ( bCrossCheck ) {
         auto gpuPosMass = gpuAlgo->posMass();
@@ -481,9 +565,11 @@ ComputeGravitation(
             if ( yerr > max ) max = yerr;
             if ( zerr > max ) max = zerr;
         }
-        *maxRelError = max;
-        printf( "%s crosscheck against gold %s: maxRelError = gpuForce-> %E\n", 
+        *maxAbsError = max;
+#if 0
+        printf( "%s crosscheck against gold %s: maxAbsError = gpuForce-> %E\n", 
             gpuAlgo->getAlgoName(), refAlgo->getAlgoName(), max ); fflush( stdout );
+#endif
     }
 
     *ms = gpuAlgo->computeTimeStep( );
@@ -664,7 +750,7 @@ ComputeGravitation(
     }
 #endif
 
-    *maxRelError = 0.0f;
+    *maxAbsError = 0.0f;
 
     if ( bCrossCheck ) {
         float msGPU = refAlgo->computeTimeStep( );
@@ -675,15 +761,17 @@ ComputeGravitation(
             float xerr = absError( gpuForce[i].ddx_, refForce[i].ddx_ );
             float yerr = absError( gpuForce[i].ddy_, refForce[i].ddy_ );
             float zerr = absError( gpuForce[i].ddz_, refForce[i].ddz_ );
+#if 0
             if ( xerr >= 1.0f || yerr >= 1.0f || zerr >= 1.0 ) {
                 asm("int $3");
             }
+#endif
             if ( xerr > max ) max = xerr;
             if ( yerr > max ) max = yerr;
             if ( zerr > max ) max = zerr;
         }
-        *maxRelError = max;
-        //printf( "%s crosscheck against gold %s: maxRelError = gpuForce-> %E\n", 
+        *maxAbsError = max;
+        //printf( "%s crosscheck against gold %s: maxAbsError = gpuForce-> %E\n", 
         //    gpuAlgo->getAlgoName(), refAlgo->getAlgoName(), max ); fflush( stdout );
         refAlgo->integrateGravitation( g_dt, g_damping );
     }
@@ -750,8 +838,9 @@ main( int argc, char *argv[] )
         return 1;
     }
 
-    {
         g_numCPUCores = processorCount();
+#if 0
+    {
         g_CPUThreadPool = new workerThread[g_numCPUCores];
         for ( size_t i = 0; i < g_numCPUCores; i++ ) {
             if ( ! g_CPUThreadPool[i].initialize( ) ) {
@@ -760,6 +849,7 @@ main( int argc, char *argv[] )
             }
         }
     }
+#endif
 
     status = cudaGetDeviceCount( &g_numGPUs );
     g_bCUDAPresent = (cudaSuccess == status) && (g_numGPUs > 0);
@@ -938,7 +1028,8 @@ main( int argc, char *argv[] )
             g_maxAlgorithm = multiGPU_MultiCPUThread;
         }
 
-        gpuAlgo = new NBodyAlgorithm_SOA<float>;
+        gpuAlgo = new NBodyAlgorithm_SSE<float>;
+        //gpuAlgo = new NBodyAlgorithm_SOA<float>;
         //gpuAlgo = new NBodyAlgorithm_GPU<float>;
         if ( ! gpuAlgo->Initialize( g_N, seed, g_softening ) )
             goto Error;
@@ -1049,14 +1140,14 @@ main( int argc, char *argv[] )
             }
             double interactionsPerSecond = (double) g_N*g_N*1000.0f / ms;
             if ( interactionsPerSecond > 1e9 ) {
-                printf ( "\r%s: %8.2f ms = %8.3fx10^9 interactions/s (Rel. error: %E)\n",
+                printf ( "\r%s: %8.2f ms = %8.3fx10^9 interactions/s (Abs. error: %E)\n",
                     gpuAlgo->getAlgoName(),
                     ms, 
                     interactionsPerSecond/1e9, 
                     err );
             }
             else {
-                printf ( "\r%s: %8.2f ms = %8.3fx10^6 interactions/s (Rel. error: %E)\n",
+                printf ( "\r%s: %8.2f ms = %8.3fx10^6 interactions/s (Abs. error: %E)\n",
                     gpuAlgo->getAlgoName(),
                     ms, 
                     interactionsPerSecond/1e6, 
