@@ -242,12 +242,14 @@ NBodyAlgorithm_GPU<T>::Initialize( size_t N, int seed, T softening )
     cudaError_t status;
     if ( ! NBodyAlgorithm<T>::Initialize( N, seed, softening ) )
         return false;
-    cuda(EventCreate( &evStart_ ) );
-    cuda(EventCreate( &evStop_ ) );
+    evStart_ = std::vector<cudaEvent_t>( g_numGPUs );
+    evStop_ = std::vector<cudaEvent_t>( g_numGPUs );
     gpuForce_ = std::vector< thrust::device_vector<Force3D<float>>>( g_numGPUs );
     gpuPosMass_ = std::vector< thrust::device_vector<PosMass<float>>>( g_numGPUs );
     gpuVelInvMass_ = std::vector< thrust::device_vector<VelInvMass<float>>>( g_numGPUs );
     for ( size_t i = 0; i < g_numGPUs; i++ ) {
+        cuda(EventCreate( &evStart_[i] ) );
+        cuda(EventCreate( &evStop_[i] ) );
         gpuForce_[i] = thrust::device_vector<Force3D<float>>( N );
         gpuPosMass_[i] = thrust::device_vector<PosMass<float>>( N );
         gpuVelInvMass_[i] = thrust::device_vector<VelInvMass<float>>( N );
@@ -702,21 +704,21 @@ NBodyAlgorithm_GPU<T>::computeTimeStep( )
 
     for ( size_t i = 0; i < gpuPosMass_.size(); i++ ) {
         cuda(Memcpy( thrust::raw_pointer_cast(gpuPosMass_[i].data()), NBodyAlgorithm<T>::posMass().data(), NBodyAlgorithm<T>::N()*sizeof(PosMass<float>), cudaMemcpyHostToDevice ) );
+        cuda(EventRecord( evStart_[i], NULL ) );
     }
-    cuda(EventRecord( evStart_, NULL ) );
     for ( size_t i = 0; i < gpuPosMass_.size(); i++ ) {
         ComputeNBodyGravitation_GPU_AOS<<<1024,256>>>(
             thrust::raw_pointer_cast(gpuForce_[0].data()),
             thrust::raw_pointer_cast(gpuPosMass_[0].data()),
             softeningSquared,
             NBodyAlgorithm<T>::N() );
+        cuda(EventRecord( evStop_[i], NULL ) );
     }
-    cuda(EventRecord( evStop_, NULL ) );
     cuda(DeviceSynchronize() );
     for ( size_t i = 0; i < gpuForce_.size(); i++ ) {
         cuda(Memcpy( NBodyAlgorithm<T>::force().data(), thrust::raw_pointer_cast(gpuForce_[0].data()), NBodyAlgorithm<T>::N()*sizeof(Force3D<float>), cudaMemcpyDeviceToHost ) );
+        cuda(EventElapsedTime( &ms, evStart_[i], evStop_[i] ) );
     }
-    cuda(EventElapsedTime( &ms, evStart_, evStop_ ) );
 Error:
     return ms;
 }

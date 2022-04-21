@@ -128,10 +128,10 @@ private:
 template<typename T>
 class NBodyAlgorithm_GPU : public NBodyAlgorithm<T> {
 public:
-    inline NBodyAlgorithm_GPU<T>() { evStart_ = evStop_ = nullptr; }
+    inline NBodyAlgorithm_GPU<T>() { }
     virtual ~NBodyAlgorithm_GPU<T>() { 
-        cudaEventDestroy( evStart_ );
-        cudaEventDestroy( evStop_ );
+        for ( auto e: evStart_ ) cudaEventDestroy( e );
+        for ( auto e: evStop_ ) cudaEventDestroy( e );
     }
     virtual const char *getAlgoName() const { return "GPU AOS"; }
     virtual bool Initialize( size_t N, int seed, T softening );
@@ -142,12 +142,37 @@ public:
     // implementations without duplicating the multi-GPU code.
     //virtual float gpuComputeTimeSubstep( size_t i );
 private:
+    std::vector<cudaEvent_t> evStart_, evStop_;
+
+    std::vector<thrust::device_vector<Force3D<float>>> gpuForce_;
+    std::vector<thrust::device_vector<PosMass<float>>> gpuPosMass_;
+    std::vector<thrust::device_vector<VelInvMass<float>>> gpuVelInvMass_;
+};
+
+template<typename T>
+class NBodyAlgorithm_MultiGPU : public NBodyAlgorithm_GPU<T> {
+public:
+    inline NBodyAlgorithm_MultiGPU<T>() { evStart_ = evStop_ = nullptr; }
+    virtual ~NBodyAlgorithm_MultiGPU<T>() { 
+        cudaEventDestroy( evStart_ );
+        cudaEventDestroy( evStop_ );
+    }
+    virtual const char *getAlgoName() const { return "GPU AOS"; }
+    virtual bool Initialize( size_t N, int seed, T softening );
+    virtual float computeTimeStep( );
+
+    // Processes i'th subarray for the timestep.
+    // This virtual function is used to explore different GPU
+    // implementations without duplicating the multi-GPU code.
+    virtual float gpuComputeTimeSubstep( size_t i );
+private:
     cudaEvent_t evStart_, evStop_;
 
     std::vector<thrust::device_vector<Force3D<float>>> gpuForce_;
     std::vector<thrust::device_vector<PosMass<float>>> gpuPosMass_;
     std::vector<thrust::device_vector<VelInvMass<float>>> gpuVelInvMass_;
 };
+
 
 struct alignas(32) aligned_float {
     float f_;
