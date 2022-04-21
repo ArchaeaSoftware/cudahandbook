@@ -58,6 +58,7 @@
 #include "bodybodyInteraction.cuh"
 #include "bodybodyInteraction_SSE.h"
 #include "bodybodyInteraction_AVX.h"
+#include "bodybodyInteraction_FMA.h"
 
 using namespace cudahandbook::threading;
 
@@ -546,6 +547,102 @@ NBodyAlgorithm_AVX<T>::computeTimeStep( )
         _mm_store_ss( &pddy[i], _mm256_castps256_ps128( ay ) );
         _mm_store_ss( &pddz[i], _mm256_castps256_ps128( az ) );
 #endif
+    }
+    for ( size_t i = 0; i < N; i++ ) {
+        force[i].ddx_ = ddx[i];
+        force[i].ddy_ = ddy[i];
+        force[i].ddz_ = ddz[i];
+    }
+    chTimerGetTime( &end );
+    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+}
+
+template<typename T>
+float
+NBodyAlgorithm_FMA<T>::computeTimeStep( )
+{
+    size_t N = NBodyAlgorithm<T>::N();
+    if ( 0 != N%8 )
+        return 0.0f;
+
+    auto posMass = NBodyAlgorithm<T>::posMass();
+    auto& force = NBodyAlgorithm<T>::force();
+
+    auto x = NBodyAlgorithm_SOA<T>::x();
+    auto y = NBodyAlgorithm_SOA<T>::y();
+    auto z = NBodyAlgorithm_SOA<T>::z();
+    auto mass = NBodyAlgorithm_SOA<T>::mass();
+    auto& ddx = NBodyAlgorithm_SOA<T>::ddx();
+    auto& ddy = NBodyAlgorithm_SOA<T>::ddy();
+    auto& ddz = NBodyAlgorithm_SOA<T>::ddz();
+
+    T softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
+    chTimerTimestamp start, end;
+    chTimerGetTime( &start );
+    for ( size_t i = 0; i < N; i++ ) {
+        x[i] = posMass[i].x_;
+        y[i] = posMass[i].y_;
+        z[i] = posMass[i].z_;
+        mass[i] = posMass[i].mass_;
+    }
+
+
+    for (int i = 0; i < N; i++)
+    {
+        __m256 ax = _mm256_setzero_ps();
+        __m256 ay = _mm256_setzero_ps();
+        __m256 az = _mm256_setzero_ps();
+        __m256 *px = (__m256 *) x.data();
+        __m256 *py = (__m256 *) y.data();
+        __m256 *pz = (__m256 *) z.data();
+        __m256 *pmass = (__m256 *) mass.data();
+        float *pddx = (float *) ddx.data();
+        float *pddy = (float *) ddy.data();
+        float *pddz = (float *) ddz.data();
+        __m256 x0 = _mm256_set1_ps( x[i] );
+        __m256 y0 = _mm256_set1_ps( y[i] );
+        __m256 z0 = _mm256_set1_ps( z[i] );
+        __m256i j8 = _mm256_set_epi32( 7, 6, 5, 4, 3, 2, 1, 0 );
+
+        for ( int j = 0; j < N/8; j++ ) {
+            bodyBodyInteraction_FMA(
+                ax, ay, az,
+                x0, y0, z0,
+                _mm256_loadu_ps( (float *) (px+j) ),
+                _mm256_loadu_ps( (float *) (py+j) ),
+                _mm256_loadu_ps( (float *) (pz+j) ),
+                _mm256_loadu_ps( (float *) (pmass+j) ),
+                _mm256_set1_ps( softeningSquared ),
+                _mm256_castsi256_ps( _mm256_cmpeq_epi32( j8, _mm256_set1_epi32( i ) ) ) );
+                j8 = _mm256_add_epi32( j8, _mm256_set1_epi32( 8 ) );
+        }
+
+        auto horizontal_sum_ps = []( const __m256 x ) -> float { //__m256 {
+            // hiQuad = ( x7, x6, x5, x4 )
+            const __m128 hiQuad = _mm256_extractf128_ps(x, 1);
+            // loQuad = ( x3, x2, x1, x0 )
+            const __m128 loQuad = _mm256_castps256_ps128(x);
+            // sumQuad = ( x3 + x7, x2 + x6, x1 + x5, x0 + x4 )
+            const __m128 sumQuad = _mm_add_ps(loQuad, hiQuad);
+            // loDual = ( -, -, x1 + x5, x0 + x4 )
+            const __m128 loDual = sumQuad;
+            // hiDual = ( -, -, x3 + x7, x2 + x6 )
+            const __m128 hiDual = _mm_movehl_ps(sumQuad, sumQuad);
+            // sumDual = ( -, -, x1 + x3 + x5 + x7, x0 + x2 + x4 + x6 )
+            const __m128 sumDual = _mm_add_ps(loDual, hiDual);
+            // lo = ( -, -, -, x0 + x2 + x4 + x6 )
+            const __m128 lo = sumDual;
+            // hi = ( -, -, -, x1 + x3 + x5 + x7 )
+            const __m128 hi = _mm_shuffle_ps(sumDual, sumDual, 0x1);
+            // sum = ( -, -, -, x0 + x1 + x2 + x3 + x4 + x5 + x6 + x7 )
+            const __m128 sum = _mm_add_ss(lo, hi);
+            return _mm_cvtss_f32(sum);
+        };
+
+        ddx[i] = horizontal_sum_ps( ax );
+        ddy[i] = horizontal_sum_ps( ay );
+        ddz[i] = horizontal_sum_ps( az );
+
     }
     for ( size_t i = 0; i < N; i++ ) {
         force[i].ddx_ = ddx[i];
@@ -1139,7 +1236,8 @@ main( int argc, char *argv[] )
             g_maxAlgorithm = multiGPU_MultiCPUThread;
         }
 
-        gpuAlgo = new NBodyAlgorithm_AVX<float>;
+        gpuAlgo = new NBodyAlgorithm_FMA<float>;
+        //gpuAlgo = new NBodyAlgorithm_AVX<float>;
         //gpuAlgo = new NBodyAlgorithm_SSE<float>;
         //gpuAlgo = new NBodyAlgorithm_SOA<float>;
         //gpuAlgo = new NBodyAlgorithm_GPU<float>;

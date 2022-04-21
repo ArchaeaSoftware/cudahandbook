@@ -205,7 +205,14 @@ public:
     virtual float computeTimeStep( );
 };
 
-
+template<typename T>
+class NBodyAlgorithm_FMA : public NBodyAlgorithm_SSE<T> {
+public:
+    NBodyAlgorithm_FMA<T>() { }
+    virtual ~NBodyAlgorithm_FMA<T>() { }
+    virtual const char *getAlgoName() const { return "CPU FMA"; }
+    virtual float computeTimeStep( );
+};
 
 enum nbodyAlgorithm_enum {
     CPU_AOS = 0,    /* This is the golden implementation */
