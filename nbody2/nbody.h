@@ -136,13 +136,17 @@ public:
     virtual const char *getAlgoName() const { return "GPU AOS"; }
     virtual bool Initialize( size_t N, int seed, T softening );
     virtual float computeTimeStep( );
-private:
 
+    // Processes i'th subarray for the timestep.
+    // This virtual function is used to explore different GPU
+    // implementations without duplicating the multi-GPU code.
+    //virtual float gpuComputeTimeSubstep( size_t i );
+private:
     cudaEvent_t evStart_, evStop_;
 
-    thrust::device_vector<Force3D<float>> gpuForce_;
-    thrust::device_vector<PosMass<float>> gpuPosMass_;
-    thrust::device_vector<VelInvMass<float>> gpuVelInvMass_;
+    std::vector<thrust::device_vector<Force3D<float>>> gpuForce_;
+    std::vector<thrust::device_vector<PosMass<float>>> gpuPosMass_;
+    std::vector<thrust::device_vector<VelInvMass<float>>> gpuVelInvMass_;
 };
 
 struct alignas(32) aligned_float {

@@ -53,7 +53,6 @@
 #include <chTimer.h>
 
 #include "nbody.h"
-#include "kahan.h"
 
 #include "bodybodyInteraction.cuh"
 #include "bodybodyInteraction_SSE.h"
@@ -245,9 +244,14 @@ NBodyAlgorithm_GPU<T>::Initialize( size_t N, int seed, T softening )
         return false;
     cuda(EventCreate( &evStart_ ) );
     cuda(EventCreate( &evStop_ ) );
-    gpuForce_ = thrust::device_vector<Force3D<float>>( N );
-    gpuPosMass_ = thrust::device_vector<PosMass<float>>( N );
-    gpuVelInvMass_ = thrust::device_vector<VelInvMass<float>>( N );
+    gpuForce_ = std::vector< thrust::device_vector<Force3D<float>>>( g_numGPUs );
+    gpuPosMass_ = std::vector< thrust::device_vector<PosMass<float>>>( g_numGPUs );
+    gpuVelInvMass_ = std::vector< thrust::device_vector<VelInvMass<float>>>( g_numGPUs );
+    for ( size_t i = 0; i < g_numGPUs; i++ ) {
+        gpuForce_[i] = thrust::device_vector<Force3D<float>>( N );
+        gpuPosMass_[i] = thrust::device_vector<PosMass<float>>( N );
+        gpuVelInvMass_[i] = thrust::device_vector<VelInvMass<float>>( N );
+    }
     return true;
 Error:
     return false;
@@ -696,16 +700,22 @@ NBodyAlgorithm_GPU<T>::computeTimeStep( )
     float ms = 0.0f;
     float softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
 
-    cuda(Memcpy( thrust::raw_pointer_cast(gpuPosMass_.data()), NBodyAlgorithm<T>::posMass().data(), NBodyAlgorithm<T>::N()*sizeof(PosMass<float>), cudaMemcpyHostToDevice ) );
+    for ( size_t i = 0; i < gpuPosMass_.size(); i++ ) {
+        cuda(Memcpy( thrust::raw_pointer_cast(gpuPosMass_[i].data()), NBodyAlgorithm<T>::posMass().data(), NBodyAlgorithm<T>::N()*sizeof(PosMass<float>), cudaMemcpyHostToDevice ) );
+    }
     cuda(EventRecord( evStart_, NULL ) );
-    ComputeNBodyGravitation_GPU_AOS<<<1024,256>>>(
-        thrust::raw_pointer_cast(gpuForce_.data()),
-        thrust::raw_pointer_cast(gpuPosMass_.data()),
-        softeningSquared,
-        NBodyAlgorithm<T>::N() );
+    for ( size_t i = 0; i < gpuPosMass_.size(); i++ ) {
+        ComputeNBodyGravitation_GPU_AOS<<<1024,256>>>(
+            thrust::raw_pointer_cast(gpuForce_[0].data()),
+            thrust::raw_pointer_cast(gpuPosMass_[0].data()),
+            softeningSquared,
+            NBodyAlgorithm<T>::N() );
+    }
     cuda(EventRecord( evStop_, NULL ) );
     cuda(DeviceSynchronize() );
-    cuda(Memcpy( NBodyAlgorithm<T>::force().data(), thrust::raw_pointer_cast(gpuForce_.data()), NBodyAlgorithm<T>::N()*sizeof(Force3D<float>), cudaMemcpyDeviceToHost ) );
+    for ( size_t i = 0; i < gpuForce_.size(); i++ ) {
+        cuda(Memcpy( NBodyAlgorithm<T>::force().data(), thrust::raw_pointer_cast(gpuForce_[0].data()), NBodyAlgorithm<T>::N()*sizeof(Force3D<float>), cudaMemcpyDeviceToHost ) );
+    }
     cuda(EventElapsedTime( &ms, evStart_, evStop_ ) );
 Error:
     return ms;
@@ -1059,7 +1069,8 @@ main( int argc, char *argv[] )
     }
 #endif
 
-    cuda(GetDeviceCount( &g_numGPUs ) );
+    status = cudaSuccess;
+    g_numGPUs = 1; //cuda(GetDeviceCount( &g_numGPUs ) );
     g_bCUDAPresent = (cudaSuccess == status) && (g_numGPUs > 0);
     if ( g_bCUDAPresent ) {
         cudaDeviceProp prop;
@@ -1086,6 +1097,7 @@ main( int argc, char *argv[] )
 
     chCommandLineGet( &kParticles, "numbodies", argc, argv );
     g_N = kParticles*1024;
+    printf( "g_N = %d\n", (int) g_N );
 
     chCommandLineGet( &kMaxIterations, "iterations", argc, argv);
 
