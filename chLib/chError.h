@@ -10,7 +10,7 @@
  * * The more-concise formulation of these macros is due to
  *   Allan MacKinnon.
  *
- * Copyright (c) 2011-2016, Archaea Software, LLC.
+ * Copyright (c) 2011-2022, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,254 +47,13 @@
 #endif
 
 #ifdef __HIPCC__
-
-#include <hip/hip_runtime.h>
-#define cuda( fn ) do { \
-	            status = (hip##fn); \
-	            if ( hipSuccess != (status) ) { \
-			                                    goto Error; \
-			                                } \
-	            } while (0);
-#define CUDART_CHECK( fn ) do { \
-    status = (fn); \
-    if ( hipSuccess != (status) ) { \
-	    goto Error; \
-	} \
-    } while (0);
-
-typedef hipEvent_t cudaEvent_t;
-typedef hipError_t cudaError_t;
-
-#ifdef __cplusplus
-
-template<typename T> hipError_t hipHostAlloc( T **pp, size_t N, unsigned int Flags ) {
-    return hipHostMalloc( (void **) pp, N, Flags );
-}
-
-template<typename T> hipError_t hipHostGetDevicePointer( T **pp, void *p, unsigned int Flags ) {
-    return hipHostGetDevicePointer( (void **) pp, p, Flags );
-}
-
+#include "chError_hip.h"
+#else
+#include "chError_cuda.h"
 #endif
 
-// entry points
-#define cudaDeviceMapHost hipDeviceMapHost
-#define cudaFree hipFree
-#define cudaHostFree hipHostFree
-#define cudaHostGetDevicePointer hipHostGetDevicePointer
-#define cudaStreamDestroy hipStreamDestroy
-#define cudaEventDestroy hipEventDestroy
-
-// data types
-typedef hipStream_t cudaStream_t;
-
-// defines
-#define cudaMemcpyHostToDevice hipMemcpyHostToDevice
-#define cudaMemcpyDeviceToHost hipMemcpyDeviceToHost
-#define cudaMemcpyDeviceToDevice hipMemcpyDeviceToDevice
-
-#define cudaHostAllocMapped 0
-
-// error defines
-#define cudaSuccess hipSuccess
-#define cudaErrorUnknown hipErrorUnknown
-#define cudaErrorInvalidValue hipErrorInvalidValue
-#define cudaErrorMemoryAllocation hipErrorMemoryAllocation
-
-#else
-
-#ifndef NO_CUDA
-
-#include <chCUDA.h>
-
-template<typename T>
-inline const char *
-chGetErrorString( T status )
-{
-#ifdef __HIPCC__
-    return hipGetErrorString(status);
-#else
-    return cudaGetErrorString(status);
-#endif
-}
-
-template<>
-inline const char *
-chGetErrorString( CUresult status )
-{
-    switch ( status ) {
-#define ErrorValue(Define) case Define: return #Define;
-        ErrorValue(CUDA_SUCCESS)
-        ErrorValue(CUDA_ERROR_INVALID_VALUE)
-        ErrorValue(CUDA_ERROR_OUT_OF_MEMORY)
-        ErrorValue(CUDA_ERROR_NOT_INITIALIZED)
-        ErrorValue(CUDA_ERROR_DEINITIALIZED)
-        ErrorValue(CUDA_ERROR_PROFILER_DISABLED)
-        ErrorValue(CUDA_ERROR_PROFILER_NOT_INITIALIZED)
-        ErrorValue(CUDA_ERROR_PROFILER_ALREADY_STARTED)
-        ErrorValue(CUDA_ERROR_PROFILER_ALREADY_STOPPED)
-        ErrorValue(CUDA_ERROR_NO_DEVICE)
-        ErrorValue(CUDA_ERROR_INVALID_DEVICE)
-        ErrorValue(CUDA_ERROR_INVALID_IMAGE)
-        ErrorValue(CUDA_ERROR_INVALID_CONTEXT)
-        ErrorValue(CUDA_ERROR_CONTEXT_ALREADY_CURRENT)
-        ErrorValue(CUDA_ERROR_MAP_FAILED)
-        ErrorValue(CUDA_ERROR_UNMAP_FAILED)
-        ErrorValue(CUDA_ERROR_ARRAY_IS_MAPPED)
-        ErrorValue(CUDA_ERROR_ALREADY_MAPPED)
-        ErrorValue(CUDA_ERROR_NO_BINARY_FOR_GPU)
-        ErrorValue(CUDA_ERROR_ALREADY_ACQUIRED)
-        ErrorValue(CUDA_ERROR_NOT_MAPPED)
-        ErrorValue(CUDA_ERROR_NOT_MAPPED_AS_ARRAY)
-        ErrorValue(CUDA_ERROR_NOT_MAPPED_AS_POINTER)
-        ErrorValue(CUDA_ERROR_ECC_UNCORRECTABLE)
-        ErrorValue(CUDA_ERROR_UNSUPPORTED_LIMIT)
-        ErrorValue(CUDA_ERROR_CONTEXT_ALREADY_IN_USE)
-        ErrorValue(CUDA_ERROR_INVALID_SOURCE)
-        ErrorValue(CUDA_ERROR_FILE_NOT_FOUND)
-        ErrorValue(CUDA_ERROR_SHARED_OBJECT_SYMBOL_NOT_FOUND)
-        ErrorValue(CUDA_ERROR_SHARED_OBJECT_INIT_FAILED)
-        ErrorValue(CUDA_ERROR_OPERATING_SYSTEM)
-        ErrorValue(CUDA_ERROR_INVALID_HANDLE)
-        ErrorValue(CUDA_ERROR_NOT_FOUND)
-        ErrorValue(CUDA_ERROR_NOT_READY)
-        ErrorValue(CUDA_ERROR_LAUNCH_FAILED)
-        ErrorValue(CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES)
-        ErrorValue(CUDA_ERROR_LAUNCH_TIMEOUT)
-        ErrorValue(CUDA_ERROR_LAUNCH_INCOMPATIBLE_TEXTURING)
-        ErrorValue(CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED)
-        ErrorValue(CUDA_ERROR_PEER_ACCESS_NOT_ENABLED)
-        ErrorValue(CUDA_ERROR_PRIMARY_CONTEXT_ACTIVE)
-        ErrorValue(CUDA_ERROR_CONTEXT_IS_DESTROYED)
-#if CUDA_VERSION >= 4010
-        ErrorValue(CUDA_ERROR_ASSERT)
-        ErrorValue(CUDA_ERROR_TOO_MANY_PEERS)
-        ErrorValue(CUDA_ERROR_HOST_MEMORY_ALREADY_REGISTERED)
-        ErrorValue(CUDA_ERROR_HOST_MEMORY_NOT_REGISTERED)
-#endif
-        ErrorValue(CUDA_ERROR_STUB_LIBRARY)
-        ErrorValue(CUDA_ERROR_PEER_ACCESS_UNSUPPORTED)
-        ErrorValue(CUDA_ERROR_DEVICE_NOT_LICENSED)
-        ErrorValue(CUDA_ERROR_INVALID_PTX)
-        ErrorValue(CUDA_ERROR_INVALID_GRAPHICS_CONTEXT)
-        ErrorValue(CUDA_ERROR_NVLINK_UNCORRECTABLE)
-        ErrorValue(CUDA_ERROR_JIT_COMPILER_NOT_FOUND)
-        ErrorValue(CUDA_ERROR_JIT_COMPILATION_DISABLED)
-        ErrorValue(CUDA_ERROR_UNSUPPORTED_PTX_VERSION)
-        ErrorValue(CUDA_ERROR_ILLEGAL_STATE)
-        ErrorValue(CUDA_ERROR_ILLEGAL_ADDRESS)
-        ErrorValue(CUDA_ERROR_HARDWARE_STACK_ERROR)
-        ErrorValue(CUDA_ERROR_ILLEGAL_INSTRUCTION)
-        ErrorValue(CUDA_ERROR_MISALIGNED_ADDRESS)
-        ErrorValue(CUDA_ERROR_INVALID_ADDRESS_SPACE)
-        ErrorValue(CUDA_ERROR_INVALID_PC)
-        ErrorValue(CUDA_ERROR_COOPERATIVE_LAUNCH_TOO_LARGE)
-        ErrorValue(CUDA_ERROR_NOT_PERMITTED)
-        ErrorValue(CUDA_ERROR_NOT_SUPPORTED)
-        ErrorValue(CUDA_ERROR_SYSTEM_NOT_READY)
-        ErrorValue(CUDA_ERROR_SYSTEM_DRIVER_MISMATCH)
-        ErrorValue(CUDA_ERROR_COMPAT_NOT_SUPPORTED_ON_DEVICE)
-        ErrorValue(CUDA_ERROR_STREAM_CAPTURE_UNSUPPORTED)
-        ErrorValue(CUDA_ERROR_STREAM_CAPTURE_INVALIDATED)
-        ErrorValue(CUDA_ERROR_STREAM_CAPTURE_MERGE)
-        ErrorValue(CUDA_ERROR_STREAM_CAPTURE_UNMATCHED)
-        ErrorValue(CUDA_ERROR_STREAM_CAPTURE_UNJOINED)
-        ErrorValue(CUDA_ERROR_STREAM_CAPTURE_ISOLATION)
-        ErrorValue(CUDA_ERROR_STREAM_CAPTURE_IMPLICIT)
-        ErrorValue(CUDA_ERROR_STREAM_CAPTURE_WRONG_THREAD)
-        ErrorValue(CUDA_ERROR_TIMEOUT)
-        ErrorValue(CUDA_ERROR_GRAPH_EXEC_UPDATE_FAILURE)
-        ErrorValue(CUDA_ERROR_CAPTURED_EVENT)
-
-        ErrorValue(CUDA_ERROR_UNKNOWN)
-    }
-    return "chGetErrorString - unknown error value";
-}
-
-
-
-//
-// To use these macros, a local cudaError_t or CUresult called 'status' 
-// and a label Error: must be defined.  In the debug build, the code will 
-// emit an error to stderr.  In both debug and retail builds, the code will
-// goto Error if there is an error.
-//
-
-#ifdef DEBUG
-#define CUDART_CHECK( fn ) do { \
-        (status) =  (fn); \
-        if ( hipSuccess != (status) ) { \
-            fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t" \
-                "%s returned 0x%x (%s)\n", \
-                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
-            goto Error; \
-        } \
-    } while (0);
-
-#define cuda( fn ) do { \
-        (status) =  (hip##fn); \
-        if ( hipSuccess != (status) ) { \
-            fprintf( stderr, "HIP Runtime Failure (line %d of file %s):\n\t" \
-                "%s returned 0x%x (%s)\n", \
-                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
-            goto Error; \
-        } \
-    } while (0);
-
-#define cu( fn ) do { \
-        (status) =  (hip##fn); \
-        if ( CUDA_SUCCESS != (status) ) { \
-            fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t%s "\
-                "returned 0x%x (%s)\n", \
-                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
-            goto Error; \
-        } \
-    } while (0);
-
-#define CUDA_CHECK( fn ) do { \
-        (status) =  (fn); \
-        if ( CUDA_SUCCESS != (status) ) { \
-            fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t%s "\
-                "returned 0x%x (%s)\n", \
-                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
-            goto Error; \
-        } \
-    } while (0);
-
-#else
-
-#define CUDART_CHECK( fn ) do { \
-    status = (fn); \
-    if ( hipSuccess != (status) ) { \
-	    goto Error; \
-	} \
-    } while (0);
-
-#define cuda( fn ) do { \
-    status = (hip##fn); \
-    if ( hipSuccess != (status) ) { \
-	    goto Error; \
-	} \
-    } while (0);
-
-
-#define CUDA_CHECK( fn ) do { \
-        (status) =  (fn); \
-        if ( CUDA_SUCCESS != (status) ) { \
-            goto Error; \
-        } \
-    } while (0);
-
-#define cu( fn ) do { \
-        (status) =  (cu##fn); \
-        if ( CUDA_SUCCESS != (status) ) { \
-            goto Error; \
-        } \
-    } while (0);
-
-#endif
-
-#else
+#if 0
+//#else
 
 template<typename T>
 inline const char *
@@ -324,7 +83,5 @@ chGetErrorString( T status )
 
 #endif
 
-#endif
-
-#endif // __HIPCC__
+#endif // __CHERROR_H__
 

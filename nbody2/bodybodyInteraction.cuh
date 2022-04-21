@@ -37,6 +37,14 @@
 #ifndef __CUDAHANDBOOK_BODYBODYINTERACTION_CUH__
 #define __CUDAHANDBOOK_BODYBODYINTERACTION_CUH__
 
+#ifdef __HIPCC__
+__host__ float
+rsqrtf( float f )
+{
+    return 1.0f / sqrtf( f );
+}
+#endif
+
 template <typename T>
 __host__ __device__ void bodyBodyInteraction(
     T *fx, T *fy, T *fz, 

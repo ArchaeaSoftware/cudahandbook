@@ -39,7 +39,7 @@
 //#include "nbody_CPU_SIMD.h"
 
 #include <chThread.h>
-#include <thrust/host_vector.h>
+//#include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 
 extern bool g_bCUDAPresent;

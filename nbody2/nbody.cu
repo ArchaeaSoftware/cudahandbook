@@ -1059,7 +1059,7 @@ main( int argc, char *argv[] )
     }
 #endif
 
-    status = cudaGetDeviceCount( &g_numGPUs );
+    cuda(GetDeviceCount( &g_numGPUs ) );
     g_bCUDAPresent = (cudaSuccess == status) && (g_numGPUs > 0);
     if ( g_bCUDAPresent ) {
         cudaDeviceProp prop;
@@ -1236,29 +1236,13 @@ main( int argc, char *argv[] )
             g_maxAlgorithm = multiGPU_MultiCPUThread;
         }
 
-        gpuAlgo = new NBodyAlgorithm_FMA<float>;
+        //gpuAlgo = new NBodyAlgorithm_FMA<float>;
         //gpuAlgo = new NBodyAlgorithm_AVX<float>;
         //gpuAlgo = new NBodyAlgorithm_SSE<float>;
         //gpuAlgo = new NBodyAlgorithm_SOA<float>;
-        //gpuAlgo = new NBodyAlgorithm_GPU<float>;
+        gpuAlgo = new NBodyAlgorithm_GPU<float>;
         if ( ! gpuAlgo->Initialize( g_N, seed, g_softening ) )
             goto Error;
-
-#if 0
-        cuda(HostAlloc( (void **) &g_hostAOS_PosMass, 4*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
-        for ( int i = 0; i < 3; i++ ) {
-            cuda(HostAlloc( (void **) &g_hostSOA_Pos[i], g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
-            cuda(HostAlloc( (void **) &g_hostSOA_Force[i], g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
-        }
-        cuda(HostAlloc( (void **) &g_hostAOS_Force, 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
-        cuda(HostAlloc( (void **) &g_hostAOS_Force_Golden, 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
-        cuda(HostAlloc( (void **) &g_hostAOS_VelInvMass, 4*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
-        cuda(HostAlloc( (void **) &g_hostSOA_Mass, g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
-        cuda(HostAlloc( (void **) &g_hostSOA_InvMass, g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
-
-        cuda(Malloc( &g_dptrAOS_PosMass, 4*g_N*sizeof(float) ) );
-        cuda(Malloc( (void **) &g_dptrAOS_Force, 3*g_N*sizeof(float) ) );
-#endif
 
         if ( g_bGPUCrossCheck  ) {
             printf( "GPU cross check enabled (%d GPUs), disabling CPU\n", g_numGPUs );
@@ -1269,7 +1253,11 @@ main( int argc, char *argv[] )
                 goto Error;
             }
             for ( int i = 0; i < g_numGPUs; i++ ) {
+#ifdef __HIPCC__
+                cuda(HostMalloc( (void **) (&g_hostAOS_gpuCrossCheckForce[i]), 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+#else
                 cuda(HostAlloc( (void **) (&g_hostAOS_gpuCrossCheckForce[i]), 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
+#endif
             }
         }
     }
