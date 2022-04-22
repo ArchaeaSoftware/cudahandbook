@@ -715,9 +715,12 @@ NBodyAlgorithm_GPU<T>::computeTimeStep( )
         cuda(EventRecord( evStop_[i], NULL ) );
     }
     cuda(DeviceSynchronize() );
+    // report max time
     for ( size_t i = 0; i < gpuForce_.size(); i++ ) {
+        float et;
         cuda(Memcpy( NBodyAlgorithm<T>::force().data(), thrust::raw_pointer_cast(gpuForce_[0].data()), NBodyAlgorithm<T>::N()*sizeof(Force3D<float>), cudaMemcpyDeviceToHost ) );
-        cuda(EventElapsedTime( &ms, evStart_[i], evStop_[i] ) );
+        cuda(EventElapsedTime( &et, evStart_[i], evStop_[i] ) );
+        if ( et > ms ) ms = et;
     }
 Error:
     return ms;
