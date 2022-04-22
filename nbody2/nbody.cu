@@ -703,10 +703,12 @@ NBodyAlgorithm_GPU<T>::computeTimeStep( )
     float softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
 
     for ( size_t i = 0; i < gpuPosMass_.size(); i++ ) {
+        cuda(SetDevice(i));
         cuda(Memcpy( thrust::raw_pointer_cast(gpuPosMass_[i].data()), NBodyAlgorithm<T>::posMass().data(), NBodyAlgorithm<T>::N()*sizeof(PosMass<float>), cudaMemcpyHostToDevice ) );
         cuda(EventRecord( evStart_[i], NULL ) );
     }
     for ( size_t i = 0; i < gpuPosMass_.size(); i++ ) {
+        cuda(SetDevice(i));
         ComputeNBodyGravitation_GPU_AOS<<<1024,256>>>(
             thrust::raw_pointer_cast(gpuForce_[0].data()),
             thrust::raw_pointer_cast(gpuPosMass_[0].data()),
@@ -714,10 +716,14 @@ NBodyAlgorithm_GPU<T>::computeTimeStep( )
             NBodyAlgorithm<T>::N() );
         cuda(EventRecord( evStop_[i], NULL ) );
     }
-    cuda(DeviceSynchronize() );
+    for ( size_t i = 0; i < gpuPosMass_.size(); i++ ) {
+        cuda(SetDevice(i));
+        cuda(DeviceSynchronize() );
+    }
     // report max time
     for ( size_t i = 0; i < gpuForce_.size(); i++ ) {
         float et;
+        cuda(SetDevice(i));
         cuda(Memcpy( NBodyAlgorithm<T>::force().data(), thrust::raw_pointer_cast(gpuForce_[0].data()), NBodyAlgorithm<T>::N()*sizeof(Force3D<float>), cudaMemcpyDeviceToHost ) );
         cuda(EventElapsedTime( &et, evStart_[i], evStop_[i] ) );
         if ( et > ms ) ms = et;
