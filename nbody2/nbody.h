@@ -137,40 +137,24 @@ public:
     virtual bool Initialize( size_t N, int seed, T softening );
     virtual float computeTimeStep( );
 
-    // Processes i'th subarray for the timestep.
-    // This virtual function is used to explore different GPU
-    // implementations without duplicating the multi-GPU code.
-    //virtual float gpuComputeTimeSubstep( size_t i );
+    std::vector<thrust::device_vector<Force3D<float>>>& gpuForce() { return gpuForce_; }
+    std::vector<thrust::device_vector<PosMass<float>>>& gpuPosMass() { return gpuPosMass_; }
+
+    const std::vector<thrust::device_vector<Force3D<float>>>& gpuForce() const { return gpuForce_; }
+    const std::vector<thrust::device_vector<PosMass<float>>>& gpuPosMass() const { return gpuPosMass_; }
+
 private:
     std::vector<cudaEvent_t> evStart_, evStop_;
 
     std::vector<thrust::device_vector<Force3D<float>>> gpuForce_;
     std::vector<thrust::device_vector<PosMass<float>>> gpuPosMass_;
-    std::vector<thrust::device_vector<VelInvMass<float>>> gpuVelInvMass_;
 };
 
 template<typename T>
 class NBodyAlgorithm_MultiGPU : public NBodyAlgorithm_GPU<T> {
 public:
-    inline NBodyAlgorithm_MultiGPU<T>() { evStart_ = evStop_ = nullptr; }
-    virtual ~NBodyAlgorithm_MultiGPU<T>() { 
-        cudaEventDestroy( evStart_ );
-        cudaEventDestroy( evStop_ );
-    }
-    virtual const char *getAlgoName() const { return "GPU AOS"; }
-    virtual bool Initialize( size_t N, int seed, T softening );
+    virtual const char *getAlgoName() const { return "multiGPU AOS"; }
     virtual float computeTimeStep( );
-
-    // Processes i'th subarray for the timestep.
-    // This virtual function is used to explore different GPU
-    // implementations without duplicating the multi-GPU code.
-    virtual float gpuComputeTimeSubstep( size_t i );
-private:
-    cudaEvent_t evStart_, evStop_;
-
-    std::vector<thrust::device_vector<Force3D<float>>> gpuForce_;
-    std::vector<thrust::device_vector<PosMass<float>>> gpuPosMass_;
-    std::vector<thrust::device_vector<VelInvMass<float>>> gpuVelInvMass_;
 };
 
 

@@ -246,13 +246,12 @@ NBodyAlgorithm_GPU<T>::Initialize( size_t N, int seed, T softening )
     evStop_ = std::vector<cudaEvent_t>( g_numGPUs );
     gpuForce_ = std::vector< thrust::device_vector<Force3D<float>>>( g_numGPUs );
     gpuPosMass_ = std::vector< thrust::device_vector<PosMass<float>>>( g_numGPUs );
-    gpuVelInvMass_ = std::vector< thrust::device_vector<VelInvMass<float>>>( g_numGPUs );
     for ( size_t i = 0; i < g_numGPUs; i++ ) {
+        cuda(SetDevice(i));
         cuda(EventCreate( &evStart_[i] ) );
         cuda(EventCreate( &evStop_[i] ) );
         gpuForce_[i] = thrust::device_vector<Force3D<float>>( N );
         gpuPosMass_[i] = thrust::device_vector<PosMass<float>>( N );
-        gpuVelInvMass_[i] = thrust::device_vector<VelInvMass<float>>( N );
     }
     return true;
 Error:
@@ -543,16 +542,6 @@ NBodyAlgorithm_AVX<T>::computeTimeStep( )
         ddy[i] = horizontal_sum_ps( ay );
         ddz[i] = horizontal_sum_ps( az );
 
-#if 0
-        // Accumulate sum of four floats in the SSE register
-        ax = horizontal_sum_ps( ax );
-        ay = horizontal_sum_ps( ay );
-        az = horizontal_sum_ps( az );
-
-        _mm_store_ss( &pddx[i], _mm256_castps256_ps128( ax ) );
-        _mm_store_ss( &pddy[i], _mm256_castps256_ps128( ay ) );
-        _mm_store_ss( &pddz[i], _mm256_castps256_ps128( az ) );
-#endif
     }
     for ( size_t i = 0; i < N; i++ ) {
         force[i].ddx_ = ddx[i];
@@ -661,18 +650,20 @@ NBodyAlgorithm_FMA<T>::computeTimeStep( )
 
 template<typename T>
 __global__ void
-ComputeNBodyGravitation_GPU_AOS(
+ComputeNBodyGravitation_MultiGPU_AOS(
     Force3D<T> *force,
     PosMass<T> *posMass,
     T softeningSquared,
+    size_t base_i,
+    size_t n,
     size_t N )
 {
     for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
-              i < N;
+              i < n;
               i += blockDim.x*gridDim.x )
     {
         T acc[3] = {0};
-        float4 me = ((float4 *) posMass)[i];
+        float4 me = ((float4 *) posMass)[base_i+i];
         T myX = me.x;
         T myY = me.y;
         T myZ = me.z;
@@ -688,9 +679,9 @@ ComputeNBodyGravitation_GPU_AOS(
             acc[1] += fy;
             acc[2] += fz;
         }
-        force[i].ddx_ = acc[0];
-        force[i].ddy_ = acc[1];
-        force[i].ddz_ = acc[2];
+        force[base_i+i].ddx_ = acc[0];
+        force[base_i+i].ddy_ = acc[1];
+        force[base_i+i].ddz_ = acc[2];
     }
 }
 
@@ -701,30 +692,46 @@ NBodyAlgorithm_GPU<T>::computeTimeStep( )
     cudaError_t status;
     float ms = 0.0f;
     float softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
+    size_t N = NBodyAlgorithm<T>::N();
+    size_t nGPUs = gpuPosMass_.size();
+    std::vector<size_t> startIndices(nGPUs);
 
-    for ( size_t i = 0; i < gpuPosMass_.size(); i++ ) {
+    size_t NperGPU = NBodyAlgorithm<T>::N() / nGPUs;
+
+    auto N_i = [N,NperGPU] ( size_t i ) -> size_t {
+        size_t i_gpu = i*NperGPU;
+        size_t ret = NperGPU;
+        if ( i_gpu+NperGPU > N )
+            ret = N-i_gpu;
+        return ret;
+    };
+
+    // every GPU gets a copy of the bodies' positions
+    for ( size_t i = 0; i < nGPUs; i++ ) {
         cuda(SetDevice(i));
-        cuda(Memcpy( thrust::raw_pointer_cast(gpuPosMass_[i].data()), NBodyAlgorithm<T>::posMass().data(), NBodyAlgorithm<T>::N()*sizeof(PosMass<float>), cudaMemcpyHostToDevice ) );
+        cuda(Memcpy( thrust::raw_pointer_cast(gpuPosMass_[i].data()), NBodyAlgorithm<T>::posMass().data(), N*sizeof(PosMass<float>), cudaMemcpyHostToDevice ) );
         cuda(EventRecord( evStart_[i], NULL ) );
     }
-    for ( size_t i = 0; i < gpuPosMass_.size(); i++ ) {
+    for ( size_t i = 0; i < nGPUs; i++ ) {
         cuda(SetDevice(i));
-        ComputeNBodyGravitation_GPU_AOS<<<1024,256>>>(
-            thrust::raw_pointer_cast(gpuForce_[0].data()),
-            thrust::raw_pointer_cast(gpuPosMass_[0].data()),
+        ComputeNBodyGravitation_MultiGPU_AOS<<<1024,256>>>(
+            thrust::raw_pointer_cast(gpuForce_[i].data()),
+            thrust::raw_pointer_cast(gpuPosMass_[i].data()),
             softeningSquared,
-            NBodyAlgorithm<T>::N() );
+            i*NperGPU,
+            N_i(i),
+            N );
         cuda(EventRecord( evStop_[i], NULL ) );
     }
-    for ( size_t i = 0; i < gpuPosMass_.size(); i++ ) {
+    for ( size_t i = 0; i < nGPUs; i++ ) {
         cuda(SetDevice(i));
         cuda(DeviceSynchronize() );
     }
     // report max time
-    for ( size_t i = 0; i < gpuForce_.size(); i++ ) {
+    for ( size_t i = 0; i < nGPUs; i++ ) {
         float et;
         cuda(SetDevice(i));
-        cuda(Memcpy( NBodyAlgorithm<T>::force().data(), thrust::raw_pointer_cast(gpuForce_[0].data()), NBodyAlgorithm<T>::N()*sizeof(Force3D<float>), cudaMemcpyDeviceToHost ) );
+        cuda(Memcpy( NBodyAlgorithm<T>::force().data()+i*NperGPU, thrust::raw_pointer_cast(gpuForce_[i].data())+i*NperGPU, N_i(i)*sizeof(Force3D<float>), cudaMemcpyDeviceToHost ) );
         cuda(EventElapsedTime( &et, evStart_[i], evStop_[i] ) );
         if ( et > ms ) ms = et;
     }
@@ -1081,7 +1088,8 @@ main( int argc, char *argv[] )
 #endif
 
     status = cudaSuccess;
-    g_numGPUs = 1; //cuda(GetDeviceCount( &g_numGPUs ) );
+    cuda(GetDeviceCount( &g_numGPUs ) );
+    printf( "%d GPUs detected\n", g_numGPUs );
     g_bCUDAPresent = (cudaSuccess == status) && (g_numGPUs > 0);
     if ( g_bCUDAPresent ) {
         cudaDeviceProp prop;

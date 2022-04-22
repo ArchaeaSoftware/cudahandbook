@@ -43,6 +43,8 @@
 #define __CHERROR_HIP_H__
 
 #include <hip/hip_runtime.h>
+
+#ifndef DEBUG
 #define cuda( fn ) do { \
 	            status = (hip##fn); \
 	            if ( hipSuccess != (status) ) { \
@@ -55,6 +57,7 @@
 	    goto Error; \
 	} \
     } while (0);
+#endif
 
 typedef hipEvent_t cudaEvent_t;
 typedef hipError_t cudaError_t;
