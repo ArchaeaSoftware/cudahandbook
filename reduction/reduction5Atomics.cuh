@@ -54,6 +54,8 @@ Reduction5( int *answer, int *partial,
             const int *in, size_t N, 
             int numBlocks, int numThreads )
 {
-    cudaMemset( answer, 0, sizeof(int) );
+    cudaError_t status;
+    cuda(Memset( answer, 0, sizeof(int) ));
     Reduction5_kernel<<< numBlocks, numThreads>>>( answer, in, N );
+Error:;
 }

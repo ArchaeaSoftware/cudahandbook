@@ -59,10 +59,12 @@ typedef struct TimingResult_struct {
 double
 chEventBandwidth( cudaEvent_t start, cudaEvent_t stop, double cBytes )
 {
+    cudaError_t status;
     float ms;
-    if ( cudaSuccess != cudaEventElapsedTime( &ms, start, stop ) )
-        return 0.0;
+    cuda(EventElapsedTime( &ms, start, stop ) );
     return cBytes * 1000.0f / ms;
+Error:
+    return 0.0;
 }
 
 typedef void (*pfnReduction)(int *out, int *intermediateSums, const int *in, size_t N, int cBlocks, int cThreads);
@@ -120,12 +122,13 @@ Shmoo( TimingResult *timingResult,
        bool bPrint, bool bPrintMax,
        void (*pfnReduce)(int *out, int *intermediateSums, const int *in, size_t N, int cBlocks, int cThreads) )
 {
+    cudaError_t status;
     double maxBW = 0.0f;
     int maxThreads;
     int cBlocks = 1800;
     cudaDeviceProp props;
 
-    cudaGetDeviceProperties( &props, 0 );
+    cuda(GetDeviceProperties( &props, 0 ));
     for ( int cThreads = 128; cThreads <= props.maxThreadsPerBlock; cThreads*=2 ) {
         int sum = 0;
         double bw = TimedReduction( &sum, deviceData, cInts, cBlocks, cThreads, pfnReduce );
@@ -147,6 +150,7 @@ Shmoo( TimingResult *timingResult,
         printf( "Max bandwidth of %.2f G/s attained by %d blocks "
             "of %d threads\n", maxBW, cBlocks, maxThreads );
     }
+Error:;
 }
 
 double
@@ -254,7 +258,7 @@ main( int argc, char *argv[] )
             sum += hostData[i];
         }
 
-        printf( "Testing on %d integers\n", cInts );
+        printf( "Testing on %d integers\n", (int) cInts );
         printf( "\t\t" );
         for ( int i = 128; i <= props.maxThreadsPerBlock; i *= 2 ) {
             printf( "%d\t", i );
