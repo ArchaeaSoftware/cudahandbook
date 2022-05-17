@@ -99,8 +99,8 @@ GPUhistogramPerBlock(
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
 
-    cuda(EventCreate( &start, 0 ) );
-    cuda(EventCreate( &stop, 0 ) );
+    cuda(EventCreate( &start ) );
+    cuda(EventCreate( &stop ) );
 
     cuda(EventRecord( start, 0 ) );
     //histogramPerBlock<<<blocks,threads>>>( pHist, x, y, w, h );

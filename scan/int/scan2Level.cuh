@@ -168,11 +168,8 @@ scan2Level( T *out, const T *in, size_t N, int b )
 
     cudaError_t status;
     T *gPartials = 0;
-    status = cudaGetSymbolAddress( 
-                (void **) &gPartials, 
-                g_globalPartials );
+    cuda(GetSymbolAddress( (void **) &gPartials, g_globalPartials ));
 
-    if ( cudaSuccess ==  status )
     {
         //
         // ceil(N/b) = number of partial sums to compute
@@ -218,6 +215,7 @@ scan2Level( T *out, const T *in, size_t N, int b )
             N, 
             elementsPerPartial );
     }
+Error:;
 }
 
 template<class T>

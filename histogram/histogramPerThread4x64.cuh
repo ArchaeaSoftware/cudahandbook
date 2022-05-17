@@ -93,8 +93,8 @@ GPUhistogramPerThread4x64(
     int numthreads = threads.x*threads.y;
     int numblocks = bPeriodicMerge ? 256 : INTDIVIDE_CEILING( w*h, numthreads*(255/4) );
 
-    cuda(EventCreate( &start, 0 ) );
-    cuda(EventCreate( &stop, 0 ) );
+    cuda(EventCreate( &start ) );
+    cuda(EventCreate( &stop ) );
 
     cuda(Memset( pHist, 0, 256*sizeof(unsigned int) ) );
 

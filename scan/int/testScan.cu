@@ -163,7 +163,7 @@ main( int argc, char *argv[] )
 
     {
         cudaDeviceProp prop;
-        cudaGetDeviceProperties( &prop, 0 );
+        cuda(GetDeviceProperties( &prop, 0 ));
         maxThreads = prop.maxThreadsPerBlock;
     }
 

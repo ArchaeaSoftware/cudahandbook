@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <chError.h>
 #include "pgm.h"
 
 int
@@ -55,6 +56,7 @@ pgmLoad(
     unsigned char *idata = NULL;
     unsigned char *ddata = NULL;
     size_t dPitch;
+    cudaError_t status;
 
     fp = fopen( filename, "rb" );
     if ( fp == NULL) {
@@ -88,15 +90,14 @@ pgmLoad(
         if ( (size_t) w != fread( idata+row*padWidth, 1, w, fp ) )
             goto Error;
     }
-    if ( cudaSuccess != cudaMallocPitch( (void **) &ddata, &dPitch, padWidth, padHeight ) )
-        goto Error;
+    cuda(MallocPitch( (void **) &ddata, &dPitch, padWidth, padHeight ) );
     *pWidth = padWidth;
     *pHeight = padHeight;
     *pHostPitch = padWidth;
     *pHostData = idata;
     *pDeviceData = ddata;
     *pDevicePitch = (unsigned int) dPitch;
-    cudaMemcpy2D( ddata, dPitch, idata, padWidth, padWidth, padHeight, cudaMemcpyHostToDevice );
+    cuda(Memcpy2D( ddata, dPitch, idata, padWidth, padWidth, padHeight, cudaMemcpyHostToDevice ));
     fclose(fp);
     return 0;
 Error:

@@ -70,7 +70,9 @@ texture<unsigned char, 2> texImage;
 #include "histogramPerThread4x64.cuh"
 #include "histogramPerThread4x32.cuh"
 
+#ifndef __HIPCC__
 #include "histogramNPP.cuh"
+#endif
 
 using namespace cudahandbook::threading;
 
@@ -266,7 +268,7 @@ main(int argc, char *argv[])
     char *outputFilename = NULL;
 
     cudaArray *pArrayImage = NULL;
-    cudaChannelFormatDesc desc = cudaCreateChannelDesc<unsigned char>();
+    //cudaChannelFormatDesc desc = cudaCreateChannelDesc<unsigned char>();
 
     {
         g_numCPUCores = processorCount();
@@ -370,11 +372,12 @@ main(int argc, char *argv[])
         }
     }
 
-
+#ifndef __HIPCC__
     cuda(MallocArray( &pArrayImage, &desc, w, h ) );
     cuda(MemcpyToArray( pArrayImage, 0, 0, hidata, w*h, cudaMemcpyHostToDevice ) );
         
     cuda(BindTextureToArray( texImage, pArrayImage ) );
+#endif
 
     {
         cudaDeviceProp prop;
@@ -451,8 +454,9 @@ main(int argc, char *argv[])
         TEST_VECTOR( GPUhistogramPerThread4x32, false, 1, NULL );
         TEST_VECTOR( GPUhistogramPerThread4x32_PeriodicMerge, false, 1, NULL );
     }
-
+#ifndef __HIPCC__
     TEST_VECTOR( GPUhistogramNPP, false, 1, NULL );
+#endif
 
     ret = 0;
 Error:
