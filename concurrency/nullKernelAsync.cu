@@ -38,17 +38,8 @@
 
 #include <stdio.h>
 
-//#include "chError.h"
+#include "chError.h"
 #include "chTimer.h"
-
-#include <hip/hip_runtime.h>
-
-#define cuda( fn ) do { \
-	    status = (hip##fn); \
-	    if ( hipSuccess != (status) ) { \
-		                goto Error; \
-		            } \
-	    } while (0);
 
 __global__
 void
@@ -59,7 +50,7 @@ NullKernel()
 double
 usPerLaunch( int cIterations )
 {
-    hipError_t status;
+    cudaError_t status;
     double microseconds, ret;
     chTimerTimestamp start, stop;
 
