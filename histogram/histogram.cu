@@ -268,7 +268,9 @@ main(int argc, char *argv[])
     char *outputFilename = NULL;
 
     cudaArray *pArrayImage = NULL;
-    //cudaChannelFormatDesc desc = cudaCreateChannelDesc<unsigned char>();
+#ifndef __HIPCC__
+    cudaChannelFormatDesc desc = cudaCreateChannelDesc<unsigned char>();
+#endif
 
     {
         g_numCPUCores = processorCount();

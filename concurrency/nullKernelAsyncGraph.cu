@@ -37,10 +37,16 @@
  */
 
 #include <stdio.h>
-#include <cuda_runtime.h>
 
 #include "chError.h"
 #include "chTimer.h"
+
+#ifdef __HIPCC_
+#define cudaStreamCaptureModeGlobal hipStreamCaptureModeGlobal
+
+typedef hipGraph_t cudaGraph_t;
+typedef hipGraphExec_t cudaGraphExec_t;
+#endif
 
 constexpr int itersPerGraph = 100;
 
@@ -51,7 +57,11 @@ NullKernel()
 }
 
 cudaError_t
+#ifdef __HIPCC__
+hipCreateGraphNullKernelLaunches( cudaGraph_t *graph, cudaGraphExec_t *graphInstance, cudaStream_t stream, int cIterations )
+#else
 cudaCreateGraphNullKernelLaunches( cudaGraph_t *graph, cudaGraphExec_t *graphInstance, cudaStream_t stream, int cIterations )
+#endif
 {
     cudaError_t status;
 
