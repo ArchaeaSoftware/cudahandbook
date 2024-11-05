@@ -42,12 +42,6 @@
 #include "chError.h"
 #include "chTimer.h"
 
-<<<<<<< Updated upstream
-__global__
-void
-NullKernel()
-{
-=======
 #ifdef __HIPCC__
 #include <hip/hip_runtime.h>
 
@@ -66,7 +60,6 @@ NullKernel( volatile int *p, bool write, int a=0, int b=1, int c=2, int d=3, int
     if ( write && 0==threadIdx.x && 0==blockIdx.x ) {
         *p = a+b+c+d+e+f+g;
     }
->>>>>>> Stashed changes
 }
 
 double
@@ -83,16 +76,19 @@ usPerLaunch( int cIterations )
 
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
-        NullKernel<<<1,1>>>();
+        NullKernel<<<1,1>>>( NULL, false );
     }
     NullKernel<<<1,1>>>( NULL, true );
     cuda(EventRecord( ev ));
     status = cudaEventQuery( ev );
     std::cout << "cudaEventQuery returned " << status << std::endl;
     status = cudaGetLastError();
-    std::cout << "cudaGetLastError returned " << status << std::endl;
+    std::cout << "cudaGetLastError returned " << status << " (before cudaDeviceSynchronize())" << std::endl;
 
-    cuda(DeviceSynchronize());
+    // this returns error due to deliberate dereference of NULL on last kernel invocation
+    (void) cudaDeviceSynchronize();
+    status = cudaGetLastError();
+    std::cout << "cudaGetLastError returned " << status << " (after cudaDeviceSynchronize())" << std::endl;
     cuda(EventDestroy(ev));
     chTimerGetTime( &stop );
 
