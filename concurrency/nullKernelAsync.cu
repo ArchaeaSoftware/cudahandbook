@@ -42,23 +42,6 @@
 #include "chError.h"
 #include "chTimer.h"
 
-<<<<<<< Updated upstream
-__global__
-void
-NullKernel()
-{
-=======
-#ifdef __HIPCC__
-#include <hip/hip_runtime.h>
-
-#define cuda( fn ) do { \
-	    status = (hip##fn); \
-	    if ( hipSuccess != (status) ) { \
-		                goto Error; \
-		            } \
-	    } while (0);
-#endif
-
 __global__
 void
 NullKernel( volatile int *p, bool write, int a=0, int b=1, int c=2, int d=3, int e=4, int f=5, int g=6 )
@@ -66,7 +49,6 @@ NullKernel( volatile int *p, bool write, int a=0, int b=1, int c=2, int d=3, int
     if ( write && 0==threadIdx.x && 0==blockIdx.x ) {
         *p = a+b+c+d+e+f+g;
     }
->>>>>>> Stashed changes
 }
 
 double
@@ -75,25 +57,14 @@ usPerLaunch( int cIterations )
     cudaError_t status;
     double microseconds, ret;
     chTimerTimestamp start, stop;
-    cudaEvent_t ev=0;
-
-    cuda(EventCreate( &ev ) )
 
     cuda(Free(0));
 
     chTimerGetTime( &start );
     for ( int i = 0; i < cIterations; i++ ) {
-        NullKernel<<<1,1>>>();
+        NullKernel<<<1,1>>>( NULL, false );
     }
-    NullKernel<<<1,1>>>( NULL, true );
-    cuda(EventRecord( ev ));
-    status = cudaEventQuery( ev );
-    std::cout << "cudaEventQuery returned " << status << std::endl;
-    status = cudaGetLastError();
-    std::cout << "cudaGetLastError returned " << status << std::endl;
-
     cuda(DeviceSynchronize());
-    cuda(EventDestroy(ev));
     chTimerGetTime( &stop );
 
     microseconds = 1e6*chTimerElapsedTime( &start, &stop );
