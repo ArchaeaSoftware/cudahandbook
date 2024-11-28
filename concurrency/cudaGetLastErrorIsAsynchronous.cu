@@ -1,13 +1,13 @@
 /*
  *
- * nullKernelAsync.cu
+ * cudaGetLastErrorIsAsynchronous.cu
  *
  * Microbenchmark for throughput of asynchronous kernel launch.
  *
- * Build with: nvcc -I ../chLib <options> nullKernelAsync.cu
+ * Build with: nvcc -I ../chLib <options> cudaGetLastErrorIsAsynchronous.cu
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2011-2014, Archaea Software, LLC.
+ * Copyright (c) 2024, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
