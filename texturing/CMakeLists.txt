@@ -1,21 +1,40 @@
+#
+# Copyright (c) 2025, Archaea Software, LLC.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in
+#    the documentation and/or other materials provided with the
+#    distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+
 cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
 
-# Define the project and enable CUDA and C++ languages
 project(texturing LANGUAGES CUDA CXX)
 
-# Set the C++ standard for C++ files (optional, but good practice)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Set the CUDA standard for CUDA files (optional, but good practice)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-
-# Optional: Enable separable compilation for better performance and modularity
-# This allows kernels and device functions to be compiled separately and linked later.
-#set_target_properties(MyCUDALibrary PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
-
-# Add an executable target
 
 add_executable( surf1Dmemset surf1Dmemset.cu )
 add_executable( tex1d_addressing tex1d_addressing.cu )
@@ -35,7 +54,6 @@ add_executable( tex1dfetch_host tex1dfetch_host.cu )
 add_executable( tex1d_unnormalized tex1d_unnormalized.cu )
 add_executable( tex2d_opengl tex2d_opengl.cu )
 
-# Optional: Add an include directory if you have header files in a specific location
 include_directories( chLib )
 
 target_link_libraries( tex2d_shmoo cuda )
