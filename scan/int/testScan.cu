@@ -38,8 +38,8 @@
 
 #include <stdlib.h>
 
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
+//#include <thrust/host_vector.h>
+//#include <thrust/device_vector.h>
 
 #include <chTimer.h>
 #include <chAssert.h>
@@ -50,7 +50,7 @@
 
 #include "scanZeroPad.cuh"
 
-#define min(a,b) ((a)<(b)?(a):(b))
+//#define min(a,b) ((a)<(b)?(a):(b))
 
 enum ScanType {
     Inclusive, Exclusive
@@ -60,7 +60,7 @@ enum ScanType {
 #include "scanReduceThenScan.cuh"
 #include "scanReduceThenScan_0.cuh"
 #include "scan2Level.cuh"
-#include "scanThrust.cuh"
+//#include "scanThrust.cuh"
 
 void
 ScanExclusiveCPU( int *out, const int *in, size_t N )
@@ -180,18 +180,21 @@ main( int argc, char *argv[] )
         
         for ( int numInts = 256; numInts <= 2048; numInts += 128 ) {
 
-            SCAN_TEST_VECTOR( scan2Level<int>, numInts, numThreads );
 
+//            SCAN_TEST_VECTOR( scan2Level<int>, numInts, numThreads );
+#if 0
             SCAN_TEST_VECTOR( scanFan<int>, numInts, numThreads );
             SCAN_TEST_VECTOR( scanReduceThenScan<int>, numInts, numThreads );
             SCAN_TEST_VECTOR( scanReduceThenScan_0<int>, numInts, numThreads );
             SCAN_TEST_VECTOR( scan2Level<int>, numInts, numThreads );
             SCAN_TEST_VECTOR( scan2Level_0<int>, numInts, numThreads );
+#endif
         }
 
         for ( int numInts = 33*1048576-1; numInts < 33*1048576+1; numInts++ ) {
 
-            SCAN_TEST_VECTOR( scan2Level<int>, numInts, numThreads );
+//            SCAN_TEST_VECTOR( scan2Level<int>, numInts, numThreads );
+#if 0
             SCAN_TEST_VECTOR( scan2Level_0<int>, numInts, numThreads );
 
             SCAN_TEST_VECTOR( scanFan<int>, numInts, numThreads );
@@ -199,6 +202,7 @@ main( int argc, char *argv[] )
             SCAN_TEST_VECTOR( scanReduceThenScan_0<int>, numInts, numThreads );
 
             SCAN_TEST_VECTOR( ScanThrust<int>, numInts, numThreads );
+#endif
         }
 
     }

@@ -144,8 +144,8 @@ relError( T a, T b )
 #ifndef NO_CUDA
 #include "nbody_GPU_AOS.cuh"
 #include "nbody_GPU_AOS_const.cuh"
-#include "nbody_GPU_AOS_tiled.cuh"
-#include "nbody_GPU_AOS_tiled_const.cuh"
+//#include "nbody_GPU_AOS_tiled.cuh"
+//#include "nbody_GPU_AOS_tiled_const.cuh"
 //#include "nbody_GPU_SOA_tiled.cuh"
 #include "nbody_GPU_Shuffle.cuh"
 #include "nbody_GPU_Atomic.cuh"
@@ -340,6 +340,7 @@ ComputeGravitation(
                 g_N );
             cuda(Memcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
+#if 0
         case GPU_AOS_tiled:
             *ms = ComputeGravitation_GPU_AOS_tiled( 
                 g_dptrAOS_Force,
@@ -356,6 +357,8 @@ ComputeGravitation(
                 g_N );
             cuda(Memcpy( g_hostAOS_Force, g_dptrAOS_Force, 3*g_N*sizeof(float), cudaMemcpyDeviceToHost ) );
             break;
+#endif
+
 #if 0
 // commented out - too slow even on SM 3.0
         case GPU_Atomic:
@@ -709,7 +712,8 @@ main( int argc, char *argv[] )
 	g_Algorithm = multiGPU_SingleCPUThread;
     if ( g_bCUDAPresent || g_bNoCPU ) {
         // max algorithm is different depending on whether SM 3.0 is present
-        g_maxAlgorithm = g_bSM30Present ? GPU_AOS_tiled_const : multiGPU_MultiCPUThread;
+        //g_maxAlgorithm = g_bSM30Present ? GPU_AOS_tiled_const : multiGPU_MultiCPUThread;
+        g_maxAlgorithm = g_bSM30Present ? GPU_Shuffle : multiGPU_MultiCPUThread;
     }
 
     if ( g_bCUDAPresent ) {

@@ -118,15 +118,15 @@ MeasureTimes(
     int nBlocks, 
     int nThreads )
 {
-    hipError_t status;
+    cudaError_t status;
     chTimerTimestamp chStart, chStop;
     float *dptrOut = 0, *hptrOut = 0;
     float *dptrY = 0, *hptrY = 0;
     float *dptrX = 0, *hptrX = 0;
-    hipEvent_t evStart = 0;
-    hipEvent_t evHtoD = 0;
-    hipEvent_t evKernel = 0;
-    hipEvent_t evDtoH = 0;
+    cudaEvent_t evStart = 0;
+    cudaEvent_t evHtoD = 0;
+    cudaEvent_t evKernel = 0;
+    cudaEvent_t evDtoH = 0;
 
     hptrOut = new float[N];
     memset( hptrOut, 0, N*sizeof(float) );
@@ -157,12 +157,12 @@ MeasureTimes(
 
     chTimerGetTime( &chStart );
     cuda(EventRecord( evStart, 0 ) );
-    cuda(Memcpy( dptrX, hptrX, N*sizeof(float), hipMemcpyHostToDevice ) );
-    cuda(Memcpy( dptrY, hptrY, N*sizeof(float), hipMemcpyHostToDevice ) );
+    cuda(Memcpy( dptrX, hptrX, N*sizeof(float), cudaMemcpyHostToDevice ) );
+    cuda(Memcpy( dptrY, hptrY, N*sizeof(float), cudaMemcpyHostToDevice ) );
     cuda(EventRecord( evHtoD, 0 ) );
         saxpyGPU<<<nBlocks, nThreads>>>( dptrOut, dptrX, dptrY, N, alpha );
     cuda(EventRecord( evKernel, 0 ) );
-    cuda(Memcpy( hptrOut, dptrOut, N*sizeof(float), hipMemcpyDeviceToHost ) );
+    cuda(Memcpy( hptrOut, dptrOut, N*sizeof(float), cudaMemcpyDeviceToHost ) );
     cuda(EventRecord( evDtoH, 0 ) );
     cuda(DeviceSynchronize() );
 
@@ -237,11 +237,11 @@ main( int argc, char *argv[] )
     }
 
 Error:
-    if ( status == hipErrorMemoryAllocation ) {
+    if ( status == cudaErrorMemoryAllocation ) {
         printf( "Memory allocation failed\n" );
     }
     else if ( cudaSuccess != status ) {
         printf( "Failed\n" );
     }
-    return hipSuccess != status;
+    return cudaSuccess != status;
 }

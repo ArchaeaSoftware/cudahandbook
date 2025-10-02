@@ -96,8 +96,8 @@ enum nbodyAlgorithm_enum {
     multiGPU_MultiCPUThread,
 // SM 3.0 only
     GPU_Shuffle,
-    GPU_AOS_tiled,
-    GPU_AOS_tiled_const,
+//    GPU_AOS_tiled,
+//    GPU_AOS_tiled_const,
 //    GPU_Atomic
 };
 
@@ -122,8 +122,8 @@ static const char *rgszAlgorithmNames[] = {
     "multiGPU_MultiCPUThread",
 // SM 3.0 only
     "GPU_Shuffle",
-    "GPU_AOS_tiled",
-    "GPU_AOS_tiled_const",
+//    "GPU_AOS_tiled",
+//    "GPU_AOS_tiled_const",
 //    "GPU_Atomic"
 };
 

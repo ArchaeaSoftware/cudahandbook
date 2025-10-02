@@ -131,10 +131,10 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
     double elapsedTime;
     float ms;
     int cIterations;
-    hipError_t status;
+    cudaError_t status;
     T sumCPU;
-    hipEvent_t evStart = 0;
-    hipEvent_t evStop = 0;
+    cudaEvent_t evStart = 0;
+    cudaEvent_t evStop = 0;
 
     cuda(Malloc( &in, N*sizeof(T) ) );
     cuda(Malloc( &out, cBlocks*cThreads*sizeof(T) ) );
@@ -154,14 +154,14 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
         hostIn[i] = nextrand;
     }
 
-    cuda(Memcpy( in, hostIn, N*sizeof(T), hipMemcpyHostToDevice ) );
+    cuda(Memcpy( in, hostIn, N*sizeof(T), cudaMemcpyHostToDevice ) );
     cuda(EventCreate( &evStart ) );
     cuda(EventCreate( &evStop ) );
 
     {
         // confirm that kernel launch with this configuration writes correct result
         GlobalReads<T,n><<<cBlocks,cThreads>>>( out, in+bOffset, N-bOffset, true );
-        cuda(Memcpy( hostOut, out, cBlocks*cThreads*sizeof(T), hipMemcpyDeviceToHost ) );
+        cuda(Memcpy( hostOut, out, cBlocks*cThreads*sizeof(T), cudaMemcpyDeviceToHost ) );
         cuda(GetLastError() ); 
         T sumGPU = T(0);
         for ( size_t i = 0; i < cBlocks*cThreads; i++ ) {
@@ -193,10 +193,10 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
 Error:
     if ( hostIn ) delete[] hostIn;
     if ( hostOut ) delete[] hostOut;
-    hipEventDestroy( evStart );
-    hipEventDestroy( evStop );
-    hipFree( in );
-    hipFree( out );
+    cudaEventDestroy( evStart );
+    cudaEventDestroy( evStop );
+    cudaFree( in );
+    cudaFree( out );
     return ret;
 }
 
@@ -252,10 +252,10 @@ Shmoo( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
 int
 main( int argc, char *argv[] )
 {
-    hipError_t status;
+    cudaError_t status;
     int device = 0;
     int size = 16;
-    hipDeviceProp_t prop;
+    cudaDeviceProp prop;
     if ( chCommandLineGet( &device, "device", argc, argv ) ) {
         printf( "Using device %d...\n", device );
     }

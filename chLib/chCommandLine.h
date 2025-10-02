@@ -112,7 +112,7 @@ chCommandLineGetBool( const char *keyword, int argc, char *argv[] )
 // if one of those is missing, or if (max-min)%step!=0, return failure.
 //
 template<>
-static bool
+inline bool
 chCommandLineGet( chShmooRange *range, const char *keyword, int argc, char *argv[] )
 {
     // concatenate keyword onto the words min, max, step

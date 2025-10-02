@@ -97,11 +97,11 @@ main( int argc, char *argv[] )
 
     printf( "%8.2f us (0 pages)\n", usPerLaunch<false>(cIterations) );
     for ( size_t cPages = 1; cPages < 8192; cPages *= 2 ) {
-        printf( "%8.2f us (%d pages)\n", usPerLaunch<true>(cIterations, cPages), cPages );
+        printf( "%8.2f us (%d pages)\n", usPerLaunch<true>(cIterations, cPages), (int) cPages );
     }
     printf( "Without touching memory:\n" );
     for ( size_t cPages = 1; cPages < 8192; cPages *= 2 ) {
-        printf( "%8.2f us (%d pages)\n", usPerLaunch<false>(cIterations, cPages), cPages );
+        printf( "%8.2f us (%d pages)\n", usPerLaunch<false>(cIterations, cPages), (int) cPages );
     }
 
     return 0;

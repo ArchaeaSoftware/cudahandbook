@@ -94,7 +94,7 @@ main( int argc, char *argv[] )
             props.multiProcessorCount, numBlocks );
     }
 
-    printf( "%dM integers\n", numInts>>20 );
+    printf( "%dM integers\n", (int) (numInts>>20) );
 
     printf( "Timing sequential operations" );
     if ( ! TimeSequentialMemcpyKernel( timesSequentialHtoD, timesSequentialKernel, 

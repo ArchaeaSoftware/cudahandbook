@@ -70,7 +70,7 @@ exclusive_scan_warp_shfl(int mysum)
     const unsigned int lane   = threadIdx.x & 31;
     for(int i = 0; i < levels; ++i)
         mysum = scanWarpShuffle_step( mysum, 1 << i);
-    mysum = __shfl_up(mysum, 1);
+    mysum = __shfl_up_sync(0xffffffff, mysum, 1);
     return (lane) ? mysum : 0;
 }
 
@@ -147,7 +147,7 @@ exclusive_scan_block(int val, const unsigned int idx)
         sPartials[warpid] = val;
 
     __syncthreads();
-    val = __shfl_up(val, 1);
+    val = __shfl_up_sync(0xffffffff, val, 1);
     if ( lane ) {
         return val;
     }

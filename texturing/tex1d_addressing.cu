@@ -173,9 +173,7 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
 
     for ( int i = 0; i < outN; i++ ) {
         float x = base+(float)i*increment;
-        if ( fabsf(x - outHost[i].x) > 1e5f ) {
-            _asm int 3
-        }
+        assert( fabsf(x - outHost[i].x) < 1e5f );
         float emulated = PseudoReadTexture( x, texContents, (float) texN, filterMode, addressMode );
         if ( outHost[i].y != emulated ) {
             (void) PseudoReadTexture( x, texContents, (float) texN, filterMode, addressMode );

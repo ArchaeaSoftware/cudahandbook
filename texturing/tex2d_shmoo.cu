@@ -88,7 +88,7 @@ cudaError_t
 tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHeight, int iterations )
 {
     CUarray drvArray = (CUarray) array;
-    CUDA_ARRAY_DESCRIPTOR desc;
+    CUDA_ARRAY3D_DESCRIPTOR desc;
     cudaEvent_t start = 0;
     cudaEvent_t stop = 0;
 
@@ -97,7 +97,7 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
     cuda(EventCreate(&start));
     cuda(EventCreate(&stop));
     cuda(BindTextureToArray(tex, array));
-    if ( CUDA_SUCCESS != cuArrayGetDescriptor( &desc, drvArray ) ) {
+    if ( CUDA_SUCCESS != cuArray3DGetDescriptor( &desc, drvArray ) ) {
         status = cudaErrorInvalidValue;
         goto Error;
     }

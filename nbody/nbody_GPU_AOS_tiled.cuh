@@ -174,9 +174,9 @@ ComputeNBodyGravitation_GPU_tiled(
     }
 }
 
-template<int nTile>
+//template<int nTile>
 cudaError_t
-ComputeGravitation_GPU_AOS_tiled(
+ComputeGravitation_GPU_AOS_tiled_128(
     float *force, 
     float *posMass,
     float softeningSquared,
@@ -184,6 +184,7 @@ ComputeGravitation_GPU_AOS_tiled(
 )
 {
     cudaError_t status;
+constexpr int nTile = 128;
     dim3 blocks( N/nTile, N/32, 1 );
 
     cuda(Memset( force, 0, 3*N*sizeof(float) ) );
@@ -207,7 +208,7 @@ ComputeGravitation_GPU_AOS_tiled(
     cuda(EventCreate( &evStart ) );
     cuda(EventCreate( &evStop ) );
     cuda(EventRecord( evStart, NULL ) );
-    CUDART_CHECK( ComputeGravitation_GPU_AOS_tiled<128>(
+    CUDART_CHECK( ComputeGravitation_GPU_AOS_tiled_128( //<128>(
         force, 
         posMass,
         softeningSquared,
@@ -216,8 +217,8 @@ ComputeGravitation_GPU_AOS_tiled(
     cuda(DeviceSynchronize() );
     cuda(EventElapsedTime( &ms, evStart, evStop ) );
 Error:
-    cuda(EventDestroy( evStop ) );
-    cuda(EventDestroy( evStart ) );
+    cudaEventDestroy( evStop );
+    cudaEventDestroy( evStart );
     return ms;
 }
 #else

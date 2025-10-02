@@ -132,8 +132,8 @@ scanFan( T *out, const T *in, size_t N, int b )
     // blocking agnostic, so we can clamp to any number 
     // within CUDA's limits and the code will work.
     //
-    const unsigned int maxBlocks = 150;   // maximum blocks to launch
-    unsigned int numBlocks = min( numPartials, maxBlocks );
+    const size_t maxBlocks = 150;   // maximum blocks to launch
+    size_t numBlocks = std::min( numPartials, maxBlocks );
 
     cuda(Malloc( &gPartials, 
                               numPartials*sizeof(T) ) );

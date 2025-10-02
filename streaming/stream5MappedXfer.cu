@@ -107,9 +107,9 @@ Error:
     cudaEventDestroy( evStop );
     cudaEventDestroy( evStart );
     cudaFree( dptrOut );
-    cudaHostFree( hptrOut );
-    cudaHostFree( hptrX );
-    cudaHostFree( hptrY );
+    cudaFreeHost( hptrOut );
+    cudaFreeHost( hptrX );
+    cudaFreeHost( hptrY );
     return status;
 }
 

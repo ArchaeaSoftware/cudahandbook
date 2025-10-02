@@ -38,6 +38,7 @@
  */
 
 #include <stdio.h>
+#include <cuda_fp16.h>
 
 #include <chError.h>
 

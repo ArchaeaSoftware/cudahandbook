@@ -38,8 +38,8 @@
 
 #include <stdlib.h>
 
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
+//#include <thrust/host_vector.h>
+//#include <thrust/device_vector.h>
 
 #include <chTimer.h>
 #include <chAssert.h>
@@ -50,7 +50,7 @@
 
 #include "scanZeroPad.cuh"
 
-#define min(a,b) ((a)<(b)?(a):(b))
+//#define min(a,b) ((a)<(b)?(a):(b))
 
 int *g_hostIn, *g_hostOut;
 
@@ -59,7 +59,7 @@ int *g_hostIn, *g_hostOut;
 #include "scanReduceThenScan.cuh"
 #include "scanReduceThenScan_0.cuh"
 #include "scan2Level.cuh"
-#include "ScanThrust.cuh"
+//#include "scanThrust.cuh"
 
 void
 RandomArray( int *out, size_t N, int modulus )
@@ -125,7 +125,7 @@ main( int argc, char *argv[] )
         maxThreads = prop.maxThreadsPerBlock;
     }
 
-    printf( "ScanThrust (64M): %.2f Mints/s\n", TimeScan<int>(ScanThrust<int>, 64*1048576, 128, 10)/1048576 );
+//    printf( "ScanThrust (64M): %.2f Mints/s\n", TimeScan<int>(ScanThrust<int>, 64*1048576, 128, 10)/1048576 );
 
     printf( "scanFan (64M, 128 threads/block): %.2f Mints/s\n", TimeScan<int>(scanFan<int>, 64*1048576, 128, 10)/1048576 );
     printf( "scanFan (64M, 256 threads/block): %.2f Mints/s\n", TimeScan<int>(scanFan<int>, 64*1048576, 256, 10)/1048576 );

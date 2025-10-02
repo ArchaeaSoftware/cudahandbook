@@ -107,9 +107,9 @@ MeasureTimes(
 Error:
     cudaEventDestroy( evStop );
     cudaEventDestroy( evStart );
-    cudaHostFree( hptrOut );
-    cudaHostFree( hptrX );
-    cudaHostFree( hptrY );
+    cudaFreeHost( hptrOut );
+    cudaFreeHost( hptrX );
+    cudaFreeHost( hptrY );
     return status;
 }
 

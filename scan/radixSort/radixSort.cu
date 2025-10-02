@@ -43,6 +43,7 @@
 #include <algorithm>
 #include <vector>
 
+#include <assert.h>
 #include <chTimer.h>
 #include <chError.h>
 
@@ -122,8 +123,7 @@ cuda(Memcpy( cpuHistogram, gpuHistogram, (1<<b)*sizeof(int), cudaMemcpyDeviceToH
     }
 
 for ( int j = 0; j < (1<<b); j++ ) {
-    if ( counts[j] != cpuHistogram[j] )
-        __debugbreak();
+    assert ( counts[j] == cpuHistogram[j] );
 }
 
     //
