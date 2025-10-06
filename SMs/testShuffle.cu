@@ -40,8 +40,6 @@
 
 #include <stdio.h>
 
-#include <sm_30_intrinsics.h>
-
 __global__ void
 TestShuffle( int *out, const int *in, size_t N  )
 {

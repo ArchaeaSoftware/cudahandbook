@@ -214,7 +214,6 @@ main( int argc, char *argv[] )
     if ( ! hostData )
         goto Error;
     cuda(SetDevice( device ) );
-    cuda(SetDeviceFlags( cudaDeviceMapHost ) );
     cuda(Malloc( &deviceData, cInts*sizeof(int) ) );
     cuda(GetDeviceProperties( &props, 0 ) );
 

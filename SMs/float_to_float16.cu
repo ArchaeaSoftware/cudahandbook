@@ -57,7 +57,7 @@ ConvertFloatRange( unsigned short *out, int start, int N )
 }
 
 // Make mask out of bit count
-#define LG_MAKE_MASK(bits) ((1<<bits)-1)
+#define LG_MAKE_MASK(bits) ((1<<(bits))-1)
 
 /*
  * exponent shift and mantissa bit count are the same.

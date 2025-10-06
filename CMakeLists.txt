@@ -38,12 +38,14 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 add_custom_target( cudahandbook )
 
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-unused-result")
+
 include_directories( chLib )
 
 add_subdirectory( chLib )
-add_subdirectory( corr )
+#commenting out for MI300X (no texturing) add_subdirectory( corr )
 add_subdirectory( concurrency )
-add_subdirectory( histogram )
+#commenting out for SCALE (no NPP library) add_subdirectory( histogram )
 add_subdirectory( memory )
 add_subdirectory( microbench )
 add_subdirectory( nbody )
@@ -51,7 +53,7 @@ add_subdirectory( reduction )
 add_subdirectory( scan )
 add_subdirectory( SMs )
 add_subdirectory( streaming )
-add_subdirectory( texturing )
+#commenting out for MI300X (no texturing) add_subdirectory( texturing )
 
 # Set CUDA architecture for compilation (e.g., for specific GPU models)
 
@@ -87,7 +89,7 @@ set_target_properties(
     globalCopy
     globalCopy2
     globalRead
-    globalReadTex
+    # disable for SCALE/MI300X globalReadTex
     globalWrite
     peer2peerTestNUMA
     peer2peerMemcpy
@@ -96,10 +98,10 @@ set_target_properties(
     spinlockReduction
 
     # histogram
-    histogram
+    #histogram
 
     # corr
-    normalizedCrossCorrelation
+    #normalizedCrossCorrelation
 
     # microbench
     globalRead
@@ -121,23 +123,23 @@ set_target_properties(
     testScan timeScan
 
     # texturing
-    surf1Dmemset
-    surf2Dmemset
-    surf2Dmemset_shmoo
-    tex1d_addressing
-    tex1dfetch
-    tex1d_9bit
-    tex1dfetch_big
-    tex1dfetch_htod
-    tex1dfetch_host
-    tex1dfetch_int2float
-    tex1dfetch_offset
-    tex1d_unnormalized
-    tex2d_addressing
-    tex2d_shmoo
-    tex2d_addressing_device
-    tex2d_memset
-    tex2d_opengl
+    #surf1Dmemset
+    #surf2Dmemset
+    #surf2Dmemset_shmoo
+    #tex1d_addressing
+    #tex1dfetch
+    #tex1d_9bit
+    #tex1dfetch_big
+    #tex1dfetch_htod
+    #tex1dfetch_host
+    #tex1dfetch_int2float
+    #tex1dfetch_offset
+    #tex1d_unnormalized
+    #tex2d_addressing
+    #tex2d_shmoo
+    #tex2d_addressing_device
+    #tex2d_memset
+    #tex2d_opengl
 
     nbody
 

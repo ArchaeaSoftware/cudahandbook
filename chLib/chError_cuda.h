@@ -141,6 +141,34 @@ chGetErrorString( CUresult status )
         ErrorValue(CUDA_ERROR_GRAPH_EXEC_UPDATE_FAILURE)
         ErrorValue(CUDA_ERROR_CAPTURED_EVENT)
 
+
+        ErrorValue(CUDA_ERROR_DEVICE_UNAVAILABLE)
+        ErrorValue(CUDA_ERROR_UNSUPPORTED_EXEC_AFFINITY)
+        ErrorValue(CUDA_ERROR_UNSUPPORTED_DEVSIDE_SYNC)
+
+        ErrorValue(CUDA_ERROR_CONTAINED)
+        ErrorValue(CUDA_ERROR_LOSSY_QUERY)
+        ErrorValue(CUDA_ERROR_TENSOR_MEMORY_LEAK)
+
+        ErrorValue(CUDA_ERROR_MPS_CONNECTION_FAILED)
+        ErrorValue(CUDA_ERROR_MPS_RPC_FAILURE)
+        ErrorValue(CUDA_ERROR_MPS_SERVER_NOT_READY)
+
+        ErrorValue(CUDA_ERROR_MPS_MAX_CLIENTS_REACHED)
+        ErrorValue(CUDA_ERROR_MPS_MAX_CONNECTIONS_REACHED)
+        ErrorValue(CUDA_ERROR_MPS_CLIENT_TERMINATED)
+
+        ErrorValue(CUDA_ERROR_CDP_NOT_SUPPORTED)
+        ErrorValue(CUDA_ERROR_CDP_VERSION_MISMATCH)
+        ErrorValue(CUDA_ERROR_EXTERNAL_DEVICE)
+
+        ErrorValue(CUDA_ERROR_INVALID_CLUSTER_SIZE)
+        ErrorValue(CUDA_ERROR_FUNCTION_NOT_LOADED)
+        ErrorValue(CUDA_ERROR_INVALID_RESOURCE_TYPE)
+
+        ErrorValue(CUDA_ERROR_INVALID_RESOURCE_CONFIGURATION)
+        ErrorValue(CUDA_ERROR_KEY_ROTATION)
+
         ErrorValue(CUDA_ERROR_UNKNOWN)
     }
     return "chGetErrorString - unknown error value";
