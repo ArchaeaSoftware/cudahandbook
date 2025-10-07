@@ -155,11 +155,11 @@ BandwidthCopy( T *deviceOut, T *deviceIn0, T *deviceIn1,
     }
 
     cIterations = 10;
-    cudaEventRecord( evStart );
+    cuda(EventRecord( evStart ));
     for ( int i = 0; i < cIterations; i++ ) {
         GlobalCopy<T,n><<<cBlocks,cThreads>>>( deviceOut+bOffsetDst, deviceIn0+bOffsetSrc, deviceIn1+bOffsetSrc, N-bOffsetDst-bOffsetSrc );
     }
-    cudaEventRecord( evStop );
+    cuda(EventRecord( evStop ));
     cuda(DeviceSynchronize() );
     // make configurations that cannot launch error-out with 0 bandwidth
     cuda(GetLastError() ); 
@@ -268,12 +268,13 @@ Shmoo( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
 int
 main( int argc, char *argv[] )
 {
+    cudaError_t status;
     int device = 0;
     int size = 16;
     if ( chCommandLineGet( &device, "device", argc, argv ) ) {
         printf( "Using device %d...\n", device );
     }
-    cudaSetDevice(device);
+    cuda(SetDevice(device));
     if ( chCommandLineGet( &size, "size", argc, argv ) ) {
         printf( "Using %dM operands ...\n", size );
     }
@@ -314,4 +315,6 @@ main( int argc, char *argv[] )
         }
     }
     return 0;
+Error:
+    return 1;
 }

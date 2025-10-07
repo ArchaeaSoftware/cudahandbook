@@ -62,7 +62,7 @@
 typedef hipEvent_t cudaEvent_t;
 typedef hipError_t cudaError_t;
 
-#ifdef __cplusplus
+#if 0//def __cplusplus
 template<typename T> hipError_t hipHostAlloc( T **pp, size_t N, unsigned int Flags ) {
     return hipHostMalloc( (void **) pp, N, Flags );
 }
