@@ -53,7 +53,7 @@ add_executable( peer2peerMemcpyDrv peer2peerMemcpyDrv.cu )
 add_executable( spinlockReduction spinlockReduction.cu )
 
 target_link_libraries( linuxGPULoad numa )
-target_link_libraries( peer2peerTestNUMA numa )
+target_link_libraries( peer2peerTestNUMA cuda numa )
 target_link_libraries( peer2peerMemcpyDrv cuda )
 
 include_directories( chLib )

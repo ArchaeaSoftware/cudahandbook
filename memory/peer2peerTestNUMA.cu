@@ -417,17 +417,23 @@ CGPUTestP2PLatency::PerformMemcpys( )
 {
     bool bRet = false;
     cudaError_t status;
-    cudaDeviceProp prop;
+    int clockRate;
     double srcClockRate, dstClockRate;
     uint64_t *phostDst = (uint64_t *) malloc( (m_cIterations+1)*sizeof(uint64_t) );
     uint64_t *phostSrc = (uint64_t *) malloc( (m_cIterations+1)*sizeof(uint64_t) );
     cuda(SetDevice( m_srcDevice.getGPU() ) );
-    cuda(GetDeviceProperties( &prop, m_srcDevice.getGPU() ) );
-    srcClockRate = (double) prop.clockRate;
+
+    if ( CUDA_SUCCESS != cuDeviceGetAttribute( &clockRate, CU_DEVICE_ATTRIBUTE_CLOCK_RATE, m_srcDevice.getGPU() ) ) {
+        return false;
+    }
+    srcClockRate = clockRate;
     p2pPingPongLatencyTest<<<1,1>>>( m_dptrSrc, m_dptrDst, m_dptrSrcTimestamps, 1, m_cIterations );
     cuda(SetDevice( m_dstDevice.getGPU() ) );
-    cuda(GetDeviceProperties( &prop, m_dstDevice.getGPU() ) );
-    dstClockRate = (double) prop.clockRate;
+
+    if ( CUDA_SUCCESS != cuDeviceGetAttribute( &clockRate, CU_DEVICE_ATTRIBUTE_CLOCK_RATE, m_dstDevice.getGPU() ) ) {
+        return false;
+    }
+    dstClockRate = clockRate;
     p2pPingPongLatencyTest<<<1,1>>>( m_dptrDst, m_dptrSrc, m_dptrDstTimestamps, 0, m_cIterations );
     cuda(DeviceSynchronize() );
     cuda(Memcpy( phostDst, m_dptrDstTimestamps, (m_cIterations+1)*sizeof(uint64_t) , cudaMemcpyDeviceToHost ) );
