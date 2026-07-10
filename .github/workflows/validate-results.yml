@@ -1,0 +1,27 @@
+name: Validate benchmark submissions
+
+on:
+  pull_request:
+    paths:
+      - "results/**"
+      - "bench/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install jsonschema
+      - name: Parser unit tests
+        run: python3 -m unittest discover bench/tests
+      - name: Validate all submissions
+        run: |
+          shopt -s nullglob globstar
+          files=(results/**/*.json)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "no submissions to validate"; exit 0
+          fi
+          python3 bench/validate.py "${files[@]}"

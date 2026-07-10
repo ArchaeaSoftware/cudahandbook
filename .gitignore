@@ -1,2 +1,4 @@
 .cflags*
 *.o
+__pycache__/
+build/

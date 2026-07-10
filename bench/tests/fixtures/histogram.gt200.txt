@@ -1,0 +1,10 @@
+16777216 pixels, random, 256 values with stride 1
+Multithreaded (2 cores) is 1.61x faster (1.49 Mpix/s)
+GPUhistogramPerGrid: 57.97 Mpix/s
+GPUhistogramPerBlock: 6706.17 Mpix/s
+GPUhistogramPerBlock4x: 7165.44 Mpix/s
+GPUhistogramPerBlockOffset: 6546.64 Mpix/s
+GPUhistogramPerBlock4xOffset: 6860.34 Mpix/s
+GPUhistogramPerBlockReduce: 8670.50 Mpix/s
+GPUhistogramPerBlockReduceOffset: 8324.81 Mpix/s
+GPUhistogramNPP: 97.18 Mpix/s

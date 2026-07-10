@@ -1,0 +1,322 @@
+{
+  "histogram.per-grid": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.1,
+      10000000.0
+    ],
+    "description": "histogram/histogram.cu: one histogram in global memory, atomics fired per-pixel"
+  },
+  "histogram.per-block": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.1,
+      10000000.0
+    ],
+    "description": "histogram/histogram.cu: per-block privatized histograms in shared memory, atomics"
+  },
+  "histogram.per-block-4x": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.1,
+      10000000.0
+    ],
+    "description": "histogram/histogram.cu: per-block, 4 pixels per thread"
+  },
+  "histogram.per-block-offset": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.1,
+      10000000.0
+    ],
+    "description": "histogram/histogram.cu: per-block with per-warp offset to spread contention"
+  },
+  "histogram.per-block-4x-offset": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.1,
+      10000000.0
+    ],
+    "description": "histogram/histogram.cu: per-block, 4x unrolled, warp-offset"
+  },
+  "histogram.per-block-reduce": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.1,
+      10000000.0
+    ],
+    "description": "histogram/histogram.cu: per-block histograms merged by reduction"
+  },
+  "histogram.per-block-reduce-offset": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.1,
+      10000000.0
+    ],
+    "description": "histogram/histogram.cu: per-block reduction merge, warp-offset"
+  },
+  "histogram.per-thread-64": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.1,
+      10000000.0
+    ],
+    "description": "histogram/histogram.cu: per-thread histograms, 64-count cells"
+  },
+  "histogram.per-thread-4x64": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.1,
+      10000000.0
+    ],
+    "description": "histogram/histogram.cu: per-thread 64-count, 4x unrolled"
+  },
+  "histogram.per-thread-4x64-periodic-merge": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.1,
+      10000000.0
+    ],
+    "description": "histogram/histogram.cu: per-thread 4x64 with periodic merge"
+  },
+  "histogram.per-thread-4x32": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.1,
+      10000000.0
+    ],
+    "description": "histogram/histogram.cu: per-thread histograms, 32-count cells, 4x unrolled"
+  },
+  "histogram.per-thread-4x32-periodic-merge": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.1,
+      10000000.0
+    ],
+    "description": "histogram/histogram.cu: per-thread 4x32 with periodic merge"
+  },
+  "histogram.npp": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.1,
+      10000000.0
+    ],
+    "description": "histogram/histogram.cu: NVIDIA Performance Primitives nppiHistogramEven"
+  },
+  "histogram.cpu.single": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.01,
+      1000000.0
+    ],
+    "description": "histogram/histogram.cu: single-threaded CPU reference"
+  },
+  "histogram.cpu.multi": {
+    "unit": "Mpix/s",
+    "bounds": [
+      0.01,
+      1000000.0
+    ],
+    "description": "histogram/histogram.cu: multithreaded CPU reference"
+  },
+  "nbody.cpu-aos": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      1e-05,
+      1000
+    ],
+    "description": "nbody/nbody.cu: cpu aos implementation, 65536 bodies, median of 12 iterations"
+  },
+  "nbody.cpu-aos-tiled": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      1e-05,
+      1000
+    ],
+    "description": "nbody/nbody.cu: cpu aos tiled implementation, 65536 bodies, median of 12 iterations"
+  },
+  "nbody.cpu-soa": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      1e-05,
+      1000
+    ],
+    "description": "nbody/nbody.cu: cpu soa implementation, 65536 bodies, median of 12 iterations"
+  },
+  "nbody.cpu-simd": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      1e-05,
+      1000
+    ],
+    "description": "nbody/nbody.cu: cpu simd implementation, 65536 bodies, median of 12 iterations"
+  },
+  "nbody.cpu-simd-threaded": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      1e-05,
+      1000
+    ],
+    "description": "nbody/nbody.cu: cpu simd threaded implementation, 65536 bodies, median of 12 iterations"
+  },
+  "nbody.cpu-simd-openmp": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      1e-05,
+      1000
+    ],
+    "description": "nbody/nbody.cu: cpu simd openmp implementation, 65536 bodies, median of 12 iterations"
+  },
+  "nbody.gpu-aos": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      0.001,
+      1000000.0
+    ],
+    "description": "nbody/nbody.cu: gpu aos implementation, 65536 bodies, median of 12 iterations"
+  },
+  "nbody.gpu-shared": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      0.001,
+      1000000.0
+    ],
+    "description": "nbody/nbody.cu: gpu shared implementation, 65536 bodies, median of 12 iterations"
+  },
+  "nbody.gpu-const": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      0.001,
+      1000000.0
+    ],
+    "description": "nbody/nbody.cu: gpu const implementation, 65536 bodies, median of 12 iterations"
+  },
+  "nbody.multigpu-singlecputhread": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      0.001,
+      1000000.0
+    ],
+    "description": "nbody/nbody.cu: multigpu singlecputhread implementation, 65536 bodies, median of 12 iterations"
+  },
+  "nbody.multigpu-multicputhread": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      0.001,
+      1000000.0
+    ],
+    "description": "nbody/nbody.cu: multigpu multicputhread implementation, 65536 bodies, median of 12 iterations"
+  },
+  "nbody.gpu-shuffle": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      0.001,
+      1000000.0
+    ],
+    "description": "nbody/nbody.cu: gpu shuffle implementation, 65536 bodies, median of 12 iterations"
+  },
+  "memcpy.htod.null-latency": {
+    "unit": "us",
+    "bounds": [
+      0.05,
+      500
+    ],
+    "description": "concurrency/nullHtoDMemcpyAsync.cu: 0-byte host-to-device memcpy"
+  },
+  "memcpy.dtoh.null-latency-sync": {
+    "unit": "us",
+    "bounds": [
+      0.05,
+      500
+    ],
+    "description": "concurrency/nullDtoHMemcpySync.cu: 0-byte device-to-host memcpy + sync"
+  },
+  "memcpy.dtoh.null-latency": {
+    "unit": "us",
+    "bounds": [
+      0.05,
+      500
+    ],
+    "description": "concurrency/nullDtoHMemcpyAsync.cu: 0-byte device-to-host memcpy"
+  },
+  "memcpy.htod.breakeven": {
+    "unit": "us",
+    "bounds": [
+      0.1,
+      5000
+    ],
+    "description": "concurrency/breakevenHtoDMemcpy.cu: time by size, 4K-64K step 4K"
+  },
+  "memcpy.dtoh.breakeven": {
+    "unit": "us",
+    "bounds": [
+      0.1,
+      5000
+    ],
+    "description": "concurrency/breakevenDtoHMemcpy.cu: time by size, 4K-64K step 4K"
+  },
+  "memcpy.htod.pinned-bandwidth": {
+    "unit": "GB/s",
+    "bounds": [
+      0.1,
+      5000
+    ],
+    "description": "memory/pinnedBandwidth.cu: 64MB pinned host-to-device, 100 iterations"
+  },
+  "memcpy.dtoh.pinned-bandwidth": {
+    "unit": "GB/s",
+    "bounds": [
+      0.1,
+      5000
+    ],
+    "description": "memory/pinnedBandwidth.cu: 64MB pinned device-to-host, 100 iterations"
+  },
+  "concurrency.memcpy-kernel.htod": {
+    "unit": "ms",
+    "bounds": [
+      0.001,
+      100000
+    ],
+    "description": "concurrency/concurrencyMemcpyKernel.cu: htod time by cycles"
+  },
+  "concurrency.memcpy-kernel.kernel": {
+    "unit": "ms",
+    "bounds": [
+      0.001,
+      100000
+    ],
+    "description": "concurrency/concurrencyMemcpyKernel.cu: kernel time by cycles"
+  },
+  "concurrency.memcpy-kernel.dtoh": {
+    "unit": "ms",
+    "bounds": [
+      0.001,
+      100000
+    ],
+    "description": "concurrency/concurrencyMemcpyKernel.cu: dtoh time by cycles"
+  },
+  "concurrency.memcpy-kernel.total": {
+    "unit": "ms",
+    "bounds": [
+      0.001,
+      100000
+    ],
+    "description": "concurrency/concurrencyMemcpyKernel.cu: total time by cycles"
+  },
+  "concurrency.memcpy-kernel.concurrent": {
+    "unit": "ms",
+    "bounds": [
+      0.001,
+      100000
+    ],
+    "description": "concurrency/concurrencyMemcpyKernel.cu: concurrent time by cycles"
+  },
+  "concurrency.memcpy-kernel.speedup": {
+    "unit": "x",
+    "bounds": [
+      0.01,
+      100
+    ],
+    "description": "concurrency/concurrencyMemcpyKernel.cu: sequential/concurrent by cycles"
+  }
+}
