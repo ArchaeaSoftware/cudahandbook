@@ -60,8 +60,6 @@
 
 #include "pgm.h"
 
-texture<unsigned char, 2> texImage;
-
 #include "histogramPerGrid.cuh"
 #include "histogramPerBlock.cuh"
 #include "histogramPerBlockOffset.cuh"
@@ -267,10 +265,6 @@ main(int argc, char *argv[])
     char *inputFilename = defaultInputFilename;
     char *outputFilename = NULL;
 
-    cudaArray *pArrayImage = NULL;
-#ifndef __HIPCC__
-    cudaChannelFormatDesc desc = cudaCreateChannelDesc<unsigned char>();
-#endif
 
     {
         g_numCPUCores = processorCount();
@@ -374,12 +368,6 @@ main(int argc, char *argv[])
         }
     }
 
-#ifndef __HIPCC__
-    cuda(MallocArray( &pArrayImage, &desc, w, h ) );
-    cuda(MemcpyToArray( pArrayImage, 0, 0, hidata, w*h, cudaMemcpyHostToDevice ) );
-        
-    cuda(BindTextureToArray( texImage, pArrayImage ) );
-#endif
 
     {
         cudaDeviceProp prop;
@@ -465,7 +453,5 @@ Error:
     free( hidata );
     cudaFree(didata); 
 
-    cudaFreeArray(pArrayImage);
-   
     return ret;
 }
