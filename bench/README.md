@@ -23,7 +23,7 @@ suite, and writes two files:
 - `<name>.json` — the parsed results (see `bench/schema.json`)
 - `<name>.raw.txt` — the verbatim program output, kept for provenance
 
-Use `--suite histogram,nbody` to run a subset; `--platform "aws g6e.xlarge"`
+Use `--suite histogram,nbody` to run specific suites, or a group — `--suite microbench` (launch overhead, memcpy, copy/kernel overlap) or `--suite apps` (histograms, N-body); `--platform "aws g6e.xlarge"`
 if you're on a cloud instance. Pass `--device N` once per GPU on multi-GPU
 machines (one JSON per GPU).
 

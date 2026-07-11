@@ -318,5 +318,29 @@
       100
     ],
     "description": "concurrency/concurrencyMemcpyKernel.cu: sequential/concurrent by cycles"
+  },
+  "launch.async": {
+    "unit": "us",
+    "bounds": [
+      0.05,
+      500
+    ],
+    "description": "concurrency/nullKernelAsync.cu: asynchronous null-kernel launch time"
+  },
+  "launch.sync": {
+    "unit": "us",
+    "bounds": [
+      0.05,
+      2000
+    ],
+    "description": "concurrency/nullKernelSync.cu: synchronous null-kernel launch time"
+  },
+  "memcpy.htod.pageable-staged": {
+    "unit": "MB/s",
+    "bounds": [
+      10,
+      5000000
+    ],
+    "description": "concurrency/pageableMemcpyHtoD.cu: the book's staged pageable host-to-device memcpy (pinned double-buffer)"
   }
 }

@@ -98,12 +98,13 @@ def parse_nbody(out: str, param) -> dict:
     }
 
 
-# -------------------------------------------------------------------- memcpy
-# Small-transfer latency (the ch6 numbers), breakeven sweeps (Figs 6-4/6-5),
-# and pinned bandwidth (Table 5-1's pinned column; the pageable column needs
-# concurrency/pageableMemcpyHtoD*.cu — a follow-up suite).
+# -------------------------------------------------------------- launch/memcpy
+# Chapter 6 microbenchmarks: kernel launch overhead, small-transfer latency,
+# breakeven sweeps (Figs 6-4/6-5), pinned bandwidth (Table 5-1), and the
+# book's staged pageable memcpy. (eventRecord/managedOverhead: future work.)
 
 _US = re.compile(rf"{_NUM} us")
+_MBS = re.compile(rf"{_NUM} MB/s")
 _ROW2 = re.compile(rf"^(\d+)\t{_NUM}\s*$", re.M)
 
 
@@ -111,6 +112,13 @@ def parse_null(key: str) -> Callable:
     def parse(out: str, param) -> dict:
         m = _US.search(out)
         return {key: {"unit": "us", "value": float(m.group(1))}} if m else {}
+    return parse
+
+
+def parse_mbs(key: str) -> Callable:
+    def parse(out: str, param) -> dict:
+        m = _MBS.search(out)
+        return {key: {"unit": "MB/s", "value": float(m.group(1))}} if m else {}
     return parse
 
 
@@ -162,6 +170,23 @@ def parse_concurrency_memcpy_kernel(out: str, param) -> dict:
 
 
 # -------------------------------------------------------------------- suites
+#
+# Suites are organized into groups; run.py --suite accepts suite names,
+# group names, or 'all'. SUITE_META also drives the grouping on the
+# cudahandbook.com/benchmarks index.
+
+SUITE_META: dict[str, dict] = {
+    "launch":      {"title": "Kernel launch overhead",
+                    "group": "microbench", "chapter": 6},
+    "memcpy":      {"title": "Memcpy latency and bandwidth",
+                    "group": "microbench", "chapter": 6},
+    "concurrency": {"title": "Copy/kernel overlap",
+                    "group": "microbench", "chapter": 6},
+    "histogram":   {"title": "Histograms",
+                    "group": "apps", "chapter": 16},
+    "nbody":       {"title": "N-body",
+                    "group": "apps", "chapter": 14},
+}
 
 SUITES: dict[str, list[ProgramSpec]] = {
     "histogram": [
@@ -177,6 +202,12 @@ SUITES: dict[str, list[ProgramSpec]] = {
                              "--nocpu"])],
                     parse_nbody, timeout=900),
     ],
+    "launch": [
+        ProgramSpec("concurrency", "nullKernelAsync", [(None, [])],
+                    parse_null("launch.async"), timeout=300),
+        ProgramSpec("concurrency", "nullKernelSync", [(None, [])],
+                    parse_null("launch.sync"), timeout=300),
+    ],
     "memcpy": [
         ProgramSpec("concurrency", "nullHtoDMemcpyAsync", [(None, [])],
                     parse_null("memcpy.htod.null-latency"), timeout=300),
@@ -191,6 +222,8 @@ SUITES: dict[str, list[ProgramSpec]] = {
         ProgramSpec("memory", "pinnedBandwidth",
                     [(None, ["--MB", "64", "--iterations", "100"])],
                     parse_pinned_bandwidth, timeout=300),
+        ProgramSpec("concurrency", "pageableMemcpyHtoD", [(None, [])],
+                    parse_mbs("memcpy.htod.pageable-staged"), timeout=600),
     ],
     "concurrency": [
         ProgramSpec("concurrency", "concurrencyMemcpyKernel",

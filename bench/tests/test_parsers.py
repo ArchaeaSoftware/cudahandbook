@@ -15,7 +15,7 @@ sys.path.insert(0, str(BENCH))
 
 import suites  # noqa: E402
 from suites import (parse_histogram, parse_nbody, parse_null,          # noqa: E402
-                    parse_breakeven, parse_pinned_bandwidth,
+                    parse_mbs, parse_breakeven, parse_pinned_bandwidth,
                     parse_concurrency_memcpy_kernel)
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -90,6 +90,18 @@ class TestMemcpy(unittest.TestCase):
                     "7.90 us (65536 iterations)\n", None)
         self.assertEqual(res["memcpy.dtoh.null-latency-sync"]["value"], 7.90)
 
+    def test_launch_overhead(self):
+        # nullKernelAsync.cu:81,83 — prefix and value on one line
+        parse = parse_null("launch.async")
+        res = parse("Measuring asynchronous launch time... 2.87 us\n", None)
+        self.assertEqual(res["launch.async"]["value"], 2.87)
+
+    def test_pageable_staged(self):
+        # pageableMemcpyHtoD.cu:108,155
+        parse = parse_mbs("memcpy.htod.pageable-staged")
+        res = parse("Pageable memcpy... 11726.40 MB/s\n", None)
+        self.assertEqual(res["memcpy.htod.pageable-staged"]["value"], 11726.40)
+
     def test_breakeven_rows(self):
         # breakevenHtoDMemcpy.cu:54-55,67,79 (header says D->H in both files)
         out = ("D->H memcpy times...\nSize\tTime (us)\n"
@@ -150,7 +162,9 @@ class TestContracts(unittest.TestCase):
                      "memcpy.dtoh.null-latency-sync",
                      "memcpy.htod.breakeven", "memcpy.dtoh.breakeven",
                      "memcpy.htod.pinned-bandwidth",
-                     "memcpy.dtoh.pinned-bandwidth"])
+                     "memcpy.dtoh.pinned-bandwidth",
+                     "memcpy.htod.pageable-staged",
+                     "launch.async", "launch.sync"])
         for key in static:
             self.assertIn(key, self.METRICS, key)
             self.assertRegex(key, key_re)   # matches schema.json's pattern

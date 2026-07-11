@@ -28,7 +28,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 # Suite name -> list of ProgramSpec (binary, args, stdout parser).
-from suites import SUITES  # noqa: E402  (sibling module, see bench/suites.py)
+from suites import SUITES, SUITE_META  # noqa: E402  (see bench/suites.py)
 
 
 # ---------------------------------------------------------------- environment
@@ -166,9 +166,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--bin-dir", type=Path, required=True,
                     help="CMake build directory containing the benchmark binaries")
+    groups = sorted({m["group"] for m in SUITE_META.values()})
     ap.add_argument("--suite", default="all",
-                    help="comma-separated suites, or 'all' "
-                         f"(available: {', '.join(sorted(SUITES))})")
+                    help="comma-separated suite or group names, or 'all' "
+                         f"(suites: {', '.join(sorted(SUITES))}; "
+                         f"groups: {', '.join(groups)})")
     ap.add_argument("--device", type=int, default=0)
     ap.add_argument("--out", type=Path, required=True,
                     help="output JSON path; the raw log is written alongside "
@@ -182,10 +184,20 @@ def main() -> None:
                          "cudahandbook.com (requires an active membership)")
     args = ap.parse_args()
 
-    suites = sorted(SUITES) if args.suite == "all" else args.suite.split(",")
-    unknown = [s for s in suites if s not in SUITES]
-    if unknown:
-        sys.exit(f"unknown suite(s): {', '.join(unknown)}")
+    if args.suite == "all":
+        suites = sorted(SUITES)
+    else:
+        suites, unknown = [], []
+        for name in args.suite.split(","):
+            if name in SUITES:
+                suites.append(name)
+            elif name in {m["group"] for m in SUITE_META.values()}:
+                suites += sorted(s for s, m in SUITE_META.items()
+                                 if m["group"] == name)
+            else:
+                unknown.append(name)
+        if unknown:
+            sys.exit(f"unknown suite(s)/group(s): {', '.join(unknown)}")
 
     env = {"gpu": gpu_info(args.device), "cuda": cuda_version(),
            "cpu": cpu_model(), "platform": args.plat, "os": os_name()}
