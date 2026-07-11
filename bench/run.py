@@ -177,6 +177,9 @@ def main() -> None:
     ap.add_argument("--github", help="your GitHub handle, for credit")
     ap.add_argument("--platform", dest="plat", default="bare-metal",
                     help='e.g. "aws g6e.xlarge", "wsl2" (default: bare-metal)')
+    ap.add_argument("--submit", action="store_true",
+                    help="after the run, submit the results to "
+                         "cudahandbook.com (requires an active membership)")
     args = ap.parse_args()
 
     suites = sorted(SUITES) if args.suite == "all" else args.suite.split(",")
@@ -214,6 +217,10 @@ def main() -> None:
     args.out.write_text(json.dumps(doc, indent=2) + "\n")
     print(f"\n{len(results)} metrics -> {args.out}\n  raw log -> {raw_path}")
     print("Validate with: python3 bench/validate.py", args.out)
+
+    if args.submit:
+        from submit import submit
+        submit(args.out)
 
 
 if __name__ == "__main__":

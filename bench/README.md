@@ -38,11 +38,21 @@ plausible value ranges, and that every reported number appears in the raw log.
 
 ## Submit
 
-Open a pull request adding exactly your two files under
-`results/<gpu-slug>/` (e.g. `results/rtx-5090/`; the slug is the lowercased,
-hyphenated GPU name — `validate.py` will tell you if it's off). Once merged,
-your numbers — credited to you, if you passed `--name`/`--github` — appear on
-the website at its next deploy.
+Submission is a perk of [cudahandbook.com membership](https://cudahandbook.com/membership/):
+
+```sh
+python3 bench/submit.py results/<your-file>.json
+```
+
+(or add `--submit` to the `run.py` command). Enter your membership email,
+then the 6-digit code it receives — your results are queued for review and
+appear on the site, credited to you if you passed `--name`/`--github`, once
+approved. Your email is used only to verify membership; it is never
+published.
+
+Alternatively, open a pull request adding your two files under
+`results/<gpu-slug>/` (e.g. `results/rtx-3060/`; the slug is the lowercased,
+hyphenated GPU name — `validate.py` will tell you if it's off).
 
 Please benchmark on an otherwise-idle machine, and don't submit runs from a
 dirty working tree (`code.dirty` must be `false`).
@@ -50,6 +60,7 @@ dirty working tree (`code.dirty` must be `false`).
 ## Layout
 
 - `run.py` — orchestrator: environment capture, suite execution, raw-log tee
+- `submit.py` — member submission client (email + one-time code)
 - `suites.py` — per-program specs: binary, canonical arguments, stdout parser
 - `metrics.json` — metric key → unit + plausibility bounds (the contract with
   the website's rendering pipeline)
