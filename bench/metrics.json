@@ -342,5 +342,21 @@
       5000000
     ],
     "description": "concurrency/pageableMemcpyHtoD.cu: the book's staged pageable host-to-device memcpy (pinned double-buffer)"
+  },
+  "managed.launch-touched": {
+    "unit": "us",
+    "bounds": [
+      0.05,
+      1000000
+    ],
+    "description": "concurrency/managedOverhead.cu: sync null launch with N managed pages touched between launches (forces migration); series by pages"
+  },
+  "managed.launch-untouched": {
+    "unit": "us",
+    "bounds": [
+      0.05,
+      1000000
+    ],
+    "description": "concurrency/managedOverhead.cu: sync null launch with N managed pages allocated but untouched; series by pages"
   }
 }

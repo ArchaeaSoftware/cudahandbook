@@ -122,6 +122,24 @@ def parse_mbs(key: str) -> Callable:
     return parse
 
 
+# managedOverhead.cu: synchronous null-launch time with N pages of managed
+# memory allocated — first section touches every page between launches
+# (forcing migration), the section after "Without touching memory:" doesn't.
+_PAGES_ROW = re.compile(rf"^\s*{_NUM} us \((\d+) pages\)", re.M)
+
+
+def parse_managed_overhead(out: str, param) -> dict:
+    touched_part, _, untouched_part = out.partition("Without touching memory:")
+    res = {}
+    for key, part in (("managed.launch-touched", touched_part),
+                      ("managed.launch-untouched", untouched_part)):
+        series = {m.group(2): float(m.group(1))
+                  for m in _PAGES_ROW.finditer(part)}
+        if series:
+            res[key] = {"unit": "us", "series": series}
+    return res
+
+
 def parse_breakeven(direction: str) -> Callable:
     key = f"memcpy.{direction}.breakeven"
 
@@ -207,6 +225,8 @@ SUITES: dict[str, list[ProgramSpec]] = {
                     parse_null("launch.async"), timeout=300),
         ProgramSpec("concurrency", "nullKernelSync", [(None, [])],
                     parse_null("launch.sync"), timeout=300),
+        ProgramSpec("concurrency", "managedOverhead", [(None, [])],
+                    parse_managed_overhead, timeout=1800),
     ],
     "memcpy": [
         ProgramSpec("concurrency", "nullHtoDMemcpyAsync", [(None, [])],

@@ -96,6 +96,22 @@ class TestMemcpy(unittest.TestCase):
         res = parse("Measuring asynchronous launch time... 2.87 us\n", None)
         self.assertEqual(res["launch.async"]["value"], 2.87)
 
+    def test_managed_overhead(self):
+        # managedOverhead.cu:96-102 — %8.2f padding, two page-count sections
+        from suites import parse_managed_overhead
+        out = ("Measuring synchronous launch time...\n"
+               "    4.10 us (0 pages)\n"
+               "    9.75 us (1 pages)\n"
+               "   88.20 us (4096 pages)\n"
+               "Without touching memory:\n"
+               "    4.32 us (1 pages)\n"
+               "    4.40 us (4096 pages)\n")
+        res = parse_managed_overhead(out, None)
+        self.assertEqual(res["managed.launch-touched"]["series"],
+                         {"0": 4.10, "1": 9.75, "4096": 88.20})
+        self.assertEqual(res["managed.launch-untouched"]["series"],
+                         {"1": 4.32, "4096": 4.40})
+
     def test_pageable_staged(self):
         # pageableMemcpyHtoD.cu:108,155
         parse = parse_mbs("memcpy.htod.pageable-staged")
@@ -164,7 +180,8 @@ class TestContracts(unittest.TestCase):
                      "memcpy.htod.pinned-bandwidth",
                      "memcpy.dtoh.pinned-bandwidth",
                      "memcpy.htod.pageable-staged",
-                     "launch.async", "launch.sync"])
+                     "launch.async", "launch.sync",
+                     "managed.launch-touched", "managed.launch-untouched"])
         for key in static:
             self.assertIn(key, self.METRICS, key)
             self.assertRegex(key, key_re)   # matches schema.json's pattern
