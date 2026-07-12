@@ -100,6 +100,13 @@ TimeConcurrentKernelKernel(
 
     cuda(DeviceSynchronize() );
 
+    // Warm up: force the kernel module to be JIT-compiled/loaded so the
+    // first timed iteration doesn't report a one-time cold-start cost.
+    // Pass NULL for kernelData so the warm-up doesn't perturb the
+    // concurrency counters reported below.
+    AddKernel<<<numBlocks, 64, 0, streams[0]>>>( deviceOut, deviceIn, N, 0xcc, 1, 0, NULL, unrollFactor );
+    cuda(DeviceSynchronize() );
+
     intsLeft = N;
     for ( chShmooIterator streamsCount(streamsRange); streamsCount; streamsCount++ ) {
         int numStreams = *streamsCount;

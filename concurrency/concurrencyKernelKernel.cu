@@ -71,9 +71,9 @@ main( int argc, char *argv[] )
     }
     chShmooRange cyclesRange;
     {
-        const int minCycles = 8;
-        const int maxCycles = 512;
-        const int stepCycles = 8;
+        const int minCycles = 0;
+        const int maxCycles = 4096;
+        const int stepCycles = 64;
         cyclesRange.Initialize( minCycles, maxCycles, stepCycles );
         chCommandLineGet( &cyclesRange, "Cycles", argc, argv );
     }

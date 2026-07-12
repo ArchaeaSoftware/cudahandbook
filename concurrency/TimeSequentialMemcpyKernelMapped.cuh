@@ -74,6 +74,11 @@ TimeSequentialMemcpyKernelMapped(
 
     cuda(DeviceSynchronize() );
 
+    // Warm up: force the kernel module to be JIT-compiled/loaded so the
+    // first timed iteration doesn't report a one-time cold-start cost.
+    AddKernel<<<numBlocks, 256>>>( deviceOut, deviceIn, N, 0xcc, 1, 0, NULL, unrollFactor );
+    cuda(DeviceSynchronize() );
+
     for ( chShmooIterator cycles(cyclesRange); cycles; cycles++ ) {
 
         printf( "." ); fflush( stdout );

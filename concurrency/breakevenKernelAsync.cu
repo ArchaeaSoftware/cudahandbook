@@ -40,6 +40,7 @@
 #include <stdio.h>
 
 #include "chTimer.h"
+#include "chCommandLine.h"
 
 __device__ int deviceTime;
 
@@ -60,7 +61,18 @@ WaitKernel( int cycles, bool bWrite )
 int
 main( int argc, char *argv[] )
 {
-    const int cIterations = 100000;
+    int cIterations = 100000;
+    int minCycles = 0;
+    int maxCycles = 2500;
+    int stepCycles = 100;
+
+    chCommandLineGet( &cIterations, "iterations", argc, argv );
+    chCommandLineGet( &minCycles, "minCycles", argc, argv );
+    chCommandLineGet( &maxCycles, "maxCycles", argc, argv );
+    chCommandLineGet( &stepCycles, "stepCycles", argc, argv );
+    if ( stepCycles <= 0 ) {
+        stepCycles = 100;
+    }
 
 	// Take a warm-up lap
     chTimerTimestamp start, stop;
@@ -69,8 +81,10 @@ main( int argc, char *argv[] )
     }
     cudaDeviceSynchronize();
 
+    printf( "%d iterations per data point; cycles %d..%d step %d\n",
+        cIterations, minCycles, maxCycles, stepCycles );
     printf("Cycles\tus\n" );
-    for ( int cycles = 0; cycles < 2500; cycles += 100 ) {
+    for ( int cycles = minCycles; cycles < maxCycles; cycles += stepCycles ) {
         printf( "%d\t", cycles ); fflush( stdout );
         chTimerGetTime( &start );
         for ( int i = 0; i < cIterations; i++ ) {
