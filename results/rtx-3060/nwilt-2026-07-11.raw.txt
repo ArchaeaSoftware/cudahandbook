@@ -1,0 +1,315 @@
+$ concurrencyMemcpyKernel --minCycles 4 --maxCycles 64 --stepCycles 4
+Using 16 blocks per SM on GPU with 28 SMs = 448 blocks
+32M integers
+Timing sequential operations................
+Timing concurrent operations................
+Cycles	HtoD	Kernel	DtoH	Total	Concurrent	Speedup
+4	5.03	0.91	5.10	11.03	6.66	1.66
+8	5.01	0.88	5.10	10.99	6.64	1.66
+12	5.01	0.84	5.10	10.95	6.63	1.65
+16	5.01	0.88	5.10	10.99	6.63	1.66
+20	5.01	0.89	5.10	11.00	6.63	1.66
+24	5.01	0.87	5.10	10.98	6.65	1.65
+28	5.01	0.85	5.10	10.96	6.62	1.66
+32	5.01	0.87	5.10	10.97	6.64	1.65
+36	5.01	0.88	5.10	10.99	6.64	1.66
+40	5.02	0.86	5.10	10.98	6.63	1.65
+44	5.01	0.89	5.10	11.00	6.63	1.66
+48	5.01	0.87	5.10	10.98	6.63	1.66
+52	5.02	0.88	5.10	10.99	6.63	1.66
+56	5.01	0.90	5.10	11.01	6.63	1.66
+60	5.01	0.89	5.10	11.00	6.64	1.66
+64	5.02	0.89	5.10	11.01	6.63	1.66
+
+$ histogram --random 256 --padWidth 4096 --padHeight 4096
+Testing histogram on NVIDIA GeForce RTX 3060 (28 SMs)
+16777216 pixels, random, 256 values with stride 1
+Single-threaded: 4197.93 Mpix/s
+Multithreaded (8 cores) is 1.98x faster (8311.32 Mpix/s)
+GPUhistogramPerGrid: 3552.59 Mpix/s
+GPUhistogramPerBlock: 107922.60 Mpix/s
+GPUhistogramPerBlock4x: 278876.60 Mpix/s
+GPUhistogramPerBlockOffset: 106757.89 Mpix/s
+GPUhistogramPerBlock4xOffset: 279620.27 Mpix/s
+GPUhistogramPerBlockReduce: 161717.46 Mpix/s
+GPUhistogramPerBlockReduceOffset: 161967.26 Mpix/s
+GPUhistogramPerThread64: 25640.06 Mpix/s
+GPUhistogramPerThread4x64: 66331.99 Mpix/s
+GPUhistogramPerThread4x64_PeriodicMerge: 71196.09 Mpix/s
+GPUhistogramPerThread4x32: 45893.56 Mpix/s
+GPUhistogramPerThread4x32_PeriodicMerge: 64503.93 Mpix/s
+GPUhistogramNPP: 281270.39 Mpix/s
+
+$ histogram --random 128 --padWidth 4096 --padHeight 4096
+Testing histogram on NVIDIA GeForce RTX 3060 (28 SMs)
+16777216 pixels, random, 128 values with stride 1
+Single-threaded: 4157.16 Mpix/s
+Multithreaded (8 cores) is 1.80x faster (7466.43 Mpix/s)
+GPUhistogramPerGrid: 4857.53 Mpix/s
+GPUhistogramPerBlock: 107900.39 Mpix/s
+GPUhistogramPerBlock4x: 280218.06 Mpix/s
+GPUhistogramPerBlockOffset: 107019.40 Mpix/s
+GPUhistogramPerBlock4xOffset: 277254.37 Mpix/s
+GPUhistogramPerBlockReduce: 162771.81 Mpix/s
+GPUhistogramPerBlockReduceOffset: 161220.17 Mpix/s
+GPUhistogramPerThread64: 25680.25 Mpix/s
+GPUhistogramPerThread4x64: 65799.20 Mpix/s
+GPUhistogramPerThread4x64_PeriodicMerge: 71761.29 Mpix/s
+GPUhistogramPerThread4x32: 46022.47 Mpix/s
+GPUhistogramPerThread4x32_PeriodicMerge: 64758.89 Mpix/s
+GPUhistogramNPP: 282940.09 Mpix/s
+
+$ histogram --random 64 --padWidth 4096 --padHeight 4096
+Testing histogram on NVIDIA GeForce RTX 3060 (28 SMs)
+16777216 pixels, random, 64 values with stride 1
+Single-threaded: 4087.18 Mpix/s
+Multithreaded (8 cores) is 2.01x faster (8205.72 Mpix/s)
+GPUhistogramPerGrid: 3231.74 Mpix/s
+GPUhistogramPerBlock: 107745.18 Mpix/s
+GPUhistogramPerBlock4x: 281421.37 Mpix/s
+GPUhistogramPerBlockOffset: 107480.12 Mpix/s
+GPUhistogramPerBlock4xOffset: 277989.39 Mpix/s
+GPUhistogramPerBlockReduce: 161867.24 Mpix/s
+GPUhistogramPerBlockReduceOffset: 160430.85 Mpix/s
+GPUhistogramPerThread64: 25673.96 Mpix/s
+GPUhistogramPerThread4x64: 65799.20 Mpix/s
+GPUhistogramPerThread4x64_PeriodicMerge: 70620.69 Mpix/s
+GPUhistogramPerThread4x32: 46022.47 Mpix/s
+GPUhistogramPerThread4x32_PeriodicMerge: 64718.92 Mpix/s
+GPUhistogramNPP: 286027.28 Mpix/s
+
+$ histogram --random 32 --padWidth 4096 --padHeight 4096
+Testing histogram on NVIDIA GeForce RTX 3060 (28 SMs)
+16777216 pixels, random, 32 values with stride 1
+Single-threaded: 4075.81 Mpix/s
+Multithreaded (8 cores) is 2.03x faster (8283.16 Mpix/s)
+GPUhistogramPerGrid: 4199.14 Mpix/s
+GPUhistogramPerBlock: 108346.36 Mpix/s
+GPUhistogramPerBlock4x: 280818.42 Mpix/s
+GPUhistogramPerBlockOffset: 106714.43 Mpix/s
+GPUhistogramPerBlock4xOffset: 281572.51 Mpix/s
+GPUhistogramPerBlockReduce: 162067.39 Mpix/s
+GPUhistogramPerBlockReduceOffset: 161567.95 Mpix/s
+GPUhistogramPerThread64: 25720.56 Mpix/s
+GPUhistogramPerThread4x64: 66031.23 Mpix/s
+GPUhistogramPerThread4x64_PeriodicMerge: 71215.43 Mpix/s
+GPUhistogramPerThread4x32: 45893.56 Mpix/s
+GPUhistogramPerThread4x32_PeriodicMerge: 64503.93 Mpix/s
+GPUhistogramNPP: 285094.07 Mpix/s
+
+$ histogram --random 16 --padWidth 4096 --padHeight 4096
+Testing histogram on NVIDIA GeForce RTX 3060 (28 SMs)
+16777216 pixels, random, 16 values with stride 1
+Single-threaded: 4149.05 Mpix/s
+Multithreaded (8 cores) is 2.01x faster (8332.17 Mpix/s)
+GPUhistogramPerGrid: 4512.41 Mpix/s
+GPUhistogramPerBlock: 107833.82 Mpix/s
+GPUhistogramPerBlock4x: 284013.01 Mpix/s
+GPUhistogramPerBlockOffset: 107502.15 Mpix/s
+GPUhistogramPerBlock4xOffset: 280367.91 Mpix/s
+GPUhistogramPerBlockReduce: 162017.31 Mpix/s
+GPUhistogramPerBlockReduceOffset: 163177.09 Mpix/s
+GPUhistogramPerThread64: 25680.25 Mpix/s
+GPUhistogramPerThread4x64: 66331.99 Mpix/s
+GPUhistogramPerThread4x64_PeriodicMerge: 71234.78 Mpix/s
+GPUhistogramPerThread4x32: 45893.56 Mpix/s
+GPUhistogramPerThread4x32_PeriodicMerge: 64503.93 Mpix/s
+GPUhistogramNPP: 246144.61 Mpix/s
+
+$ histogram --random 8 --padWidth 4096 --padHeight 4096
+Testing histogram on NVIDIA GeForce RTX 3060 (28 SMs)
+16777216 pixels, random, 8 values with stride 1
+Single-threaded: 3919.56 Mpix/s
+Multithreaded (8 cores) is 1.97x faster (7715.50 Mpix/s)
+GPUhistogramPerGrid: 4364.99 Mpix/s
+GPUhistogramPerBlock: 107612.48 Mpix/s
+GPUhistogramPerBlock4x: 282787.48 Mpix/s
+GPUhistogramPerBlockOffset: 107392.05 Mpix/s
+GPUhistogramPerBlock4xOffset: 279769.48 Mpix/s
+GPUhistogramPerBlockReduce: 163533.38 Mpix/s
+GPUhistogramPerBlockReduceOffset: 163075.58 Mpix/s
+GPUhistogramPerThread64: 25680.25 Mpix/s
+GPUhistogramPerThread4x64: 66331.99 Mpix/s
+GPUhistogramPerThread4x64_PeriodicMerge: 72176.21 Mpix/s
+GPUhistogramPerThread4x32: 46022.47 Mpix/s
+GPUhistogramPerThread4x32_PeriodicMerge: 65015.87 Mpix/s
+GPUhistogramNPP: 197769.90 Mpix/s
+
+$ histogram --random 4 --padWidth 4096 --padHeight 4096
+Testing histogram on NVIDIA GeForce RTX 3060 (28 SMs)
+16777216 pixels, random, 4 values with stride 1
+Single-threaded: 2913.96 Mpix/s
+Multithreaded (8 cores) is 3.32x faster (9675.68 Mpix/s)
+GPUhistogramPerGrid: 2817.24 Mpix/s
+GPUhistogramPerBlock: 108212.18 Mpix/s
+GPUhistogramPerBlock4x: 284013.01 Mpix/s
+GPUhistogramPerBlockOffset: 106823.14 Mpix/s
+GPUhistogramPerBlock4xOffset: 280668.09 Mpix/s
+GPUhistogramPerBlockReduce: 162167.65 Mpix/s
+GPUhistogramPerBlockReduceOffset: 161121.08 Mpix/s
+GPUhistogramPerThread64: 25720.56 Mpix/s
+GPUhistogramPerThread4x64: 66064.52 Mpix/s
+GPUhistogramPerThread4x64_PeriodicMerge: 71138.13 Mpix/s
+GPUhistogramPerThread4x32: 46022.47 Mpix/s
+GPUhistogramPerThread4x32_PeriodicMerge: 64250.98 Mpix/s
+GPUhistogramNPP: 155621.25 Mpix/s
+
+$ histogram --random 2 --padWidth 4096 --padHeight 4096
+Testing histogram on NVIDIA GeForce RTX 3060 (28 SMs)
+16777216 pixels, random, 2 values with stride 1
+Single-threaded: 1671.64 Mpix/s
+Multithreaded (8 cores) is 3.61x faster (6033.97 Mpix/s)
+GPUhistogramPerGrid: 1738.45 Mpix/s
+GPUhistogramPerBlock: 108033.80 Mpix/s
+GPUhistogramPerBlock4x: 275795.89 Mpix/s
+GPUhistogramPerBlockOffset: 107414.05 Mpix/s
+GPUhistogramPerBlock4xOffset: 280068.37 Mpix/s
+GPUhistogramPerBlockReduce: 162167.65 Mpix/s
+GPUhistogramPerBlockReduceOffset: 162117.50 Mpix/s
+GPUhistogramPerThread64: 25713.00 Mpix/s
+GPUhistogramPerThread4x64: 66331.99 Mpix/s
+GPUhistogramPerThread4x64_PeriodicMerge: 71234.78 Mpix/s
+GPUhistogramPerThread4x32: 46152.11 Mpix/s
+GPUhistogramPerThread4x32_PeriodicMerge: 64000.00 Mpix/s
+GPUhistogramNPP: 139105.33 Mpix/s
+
+$ histogram --random 1 --padWidth 4096 --padHeight 4096
+Testing histogram on NVIDIA GeForce RTX 3060 (28 SMs)
+16777216 pixels, random, 1 values with stride 1
+Single-threaded: 4883.24 Mpix/s
+Multithreaded (8 cores) is 1.94x faster (9463.83 Mpix/s)
+GPUhistogramPerGrid: 1737.81 Mpix/s
+GPUhistogramPerBlock: 107634.57 Mpix/s
+GPUhistogramPerBlock4x: 283859.23 Mpix/s
+GPUhistogramPerBlockOffset: 106497.66 Mpix/s
+GPUhistogramPerBlock4xOffset: 283552.19 Mpix/s
+GPUhistogramPerBlockReduce: 161717.46 Mpix/s
+GPUhistogramPerBlockReduceOffset: 161917.23 Mpix/s
+GPUhistogramPerThread64: 25665.17 Mpix/s
+GPUhistogramPerThread4x64: 65799.20 Mpix/s
+GPUhistogramPerThread4x64_PeriodicMerge: 70926.41 Mpix/s
+GPUhistogramPerThread4x32: 46022.47 Mpix/s
+GPUhistogramPerThread4x32_PeriodicMerge: 64250.98 Mpix/s
+GPUhistogramNPP: 291109.39 Mpix/s
+
+$ nullKernelAsync
+Measuring asynchronous launch time... 1.27 us
+
+$ nullKernelSync
+Measuring synchronous launch time... 3.95 us
+
+$ managedOverhead
+Measuring synchronous launch time...
+    3.99 us (0 pages)
+    3.98 us (1 pages)
+    3.94 us (2 pages)
+    3.91 us (4 pages)
+    3.92 us (8 pages)
+    3.93 us (16 pages)
+    3.99 us (32 pages)
+    4.46 us (64 pages)
+    5.44 us (128 pages)
+    7.53 us (256 pages)
+   11.44 us (512 pages)
+   19.46 us (1024 pages)
+   35.39 us (2048 pages)
+   66.88 us (4096 pages)
+Without touching memory:
+    3.90 us (1 pages)
+    3.90 us (2 pages)
+    3.90 us (4 pages)
+    3.88 us (8 pages)
+    3.90 us (16 pages)
+    3.90 us (32 pages)
+    3.90 us (64 pages)
+    3.90 us (128 pages)
+    3.88 us (256 pages)
+    3.90 us (512 pages)
+    3.90 us (1024 pages)
+    3.90 us (2048 pages)
+    3.90 us (4096 pages)
+
+$ nullHtoDMemcpyAsync
+NULL host->device memcpy's... 1.49 us
+
+$ nullDtoHMemcpySync
+Measuring NULL device->host memcpy's (with sync)... 3.56 us (256000 iterations)
+
+$ nullDtoHMemcpyAsync
+Measuring asynchronous device->host memcpy time... 1.04 us
+
+$ breakevenHtoDMemcpy
+D->H memcpy times...
+Size	Time (us)
+4096	1.30
+8192	1.46
+12288	1.56
+16384	1.72
+20480	1.95
+24576	2.01
+28672	2.19
+32768	2.32
+36864	2.46
+40960	2.61
+45056	2.78
+49152	2.92
+53248	3.06
+57344	3.25
+61440	3.38
+65536	3.55
+
+$ breakevenDtoHMemcpy
+D->H memcpy times...
+Size	Time (us)
+4096	1.02
+8192	1.04
+12288	1.13
+16384	1.28
+20480	1.45
+24576	1.61
+28672	1.76
+32768	1.91
+36864	2.08
+40960	2.23
+45056	2.38
+49152	2.54
+53248	2.69
+57344	2.84
+61440	3.01
+65536	3.17
+
+$ pinnedBandwidth --MB 64 --iterations 100
+Transferring 64 MB 100 times... (all bandwidths in GB/s)
+Device	HtoD	DtoH
+0	26.80	26.80
+
+$ pageableMemcpyHtoD
+Pageable memcpy... 15084.10 MB/s
+
+$ nbody --numbodies 64 --iterations 12 --nocpu
+Running simulation with 65536 particles, crosscheck disabled, CPU disabled
+
+multiGPU_SingleCPUThread:    16.80 ms =  255.695x10^9 interactions/s (Rel. error: 3.642906E+01)
+
+multiGPU_SingleCPUThread:    16.43 ms =  261.331x10^9 interactions/s (Rel. error: 3.084808E-01)
+
+multiGPU_SingleCPUThread:    16.44 ms =  261.312x10^9 interactions/s (Rel. error: 3.110426E-02)
+
+multiGPU_SingleCPUThread:    16.43 ms =  261.345x10^9 interactions/s (Rel. error: 9.947157E-03)
+
+multiGPU_SingleCPUThread:    16.44 ms =  261.222x10^9 interactions/s (Rel. error: 1.289500E-02)
+
+multiGPU_SingleCPUThread:    16.50 ms =  260.346x10^9 interactions/s (Rel. error: 7.419335E-03)
+
+multiGPU_SingleCPUThread:    16.44 ms =  261.319x10^9 interactions/s (Rel. error: 4.614218E-03)
+
+multiGPU_SingleCPUThread:    16.43 ms =  261.351x10^9 interactions/s (Rel. error: 7.088282E-03)
+
+multiGPU_SingleCPUThread:    16.43 ms =  261.369x10^9 interactions/s (Rel. error: 3.097398E-03)
+
+multiGPU_SingleCPUThread:    16.44 ms =  261.229x10^9 interactions/s (Rel. error: 5.305475E-03)
+
+multiGPU_SingleCPUThread:    16.45 ms =  261.090x10^9 interactions/s (Rel. error: 1.006754E-02)
+
+multiGPU_SingleCPUThread:    16.45 ms =  261.119x10^9 interactions/s (Rel. error: 1.432424E-02)
+
