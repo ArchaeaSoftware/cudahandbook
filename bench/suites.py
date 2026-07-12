@@ -166,8 +166,10 @@ def parse_pinned_bandwidth(out: str, param) -> dict:
 
 
 # --------------------------------------------------------------- concurrency
-# The ch6 memcpy/kernel-overlap shmoo. The cycles range 4..64 step 4 matches
-# the book's published table; times are ms, speedup = sequential/concurrent.
+# The ch6 memcpy/kernel-overlap shmoo. Canonical range widened for modern
+# GPUs (Nick, 2026-07-12) to match the modernized program defaults: the
+# book's 4..64 sweep sits in the flat region on current hardware; times are
+# ms, speedup = sequential/concurrent.
 
 _CONC_COLS = ("htod", "kernel", "dtoh", "total", "concurrent", "speedup")
 _CONC_ROW = re.compile(
@@ -281,8 +283,8 @@ SUITES: dict[str, list[ProgramSpec]] = {
     ],
     "concurrency": [
         ProgramSpec("concurrency", "concurrencyMemcpyKernel",
-                    [(None, ["--minCycles", "4", "--maxCycles", "64",
-                             "--stepCycles", "4"])],
+                    [(None, ["--minCycles", "0", "--maxCycles", "4096",
+                             "--stepCycles", "64"])],
                     parse_concurrency_memcpy_kernel, timeout=1800),
     ],
 }
