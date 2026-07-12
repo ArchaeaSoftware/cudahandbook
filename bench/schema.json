@@ -3,10 +3,19 @@
   "$id": "https://cudahandbook.com/benchmarks/schema-v1.json",
   "title": "CUDA Handbook benchmark submission",
   "type": "object",
-  "required": ["schema", "date", "environment", "code", "results", "raw"],
+  "required": [
+    "schema",
+    "date",
+    "environment",
+    "code",
+    "results",
+    "raw"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schema": { "const": 1 },
+    "schema": {
+      "const": 1
+    },
     "date": {
       "type": "string",
       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
@@ -16,44 +25,114 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "name":   { "type": "string", "maxLength": 80 },
-        "github": { "type": "string", "pattern": "^[A-Za-z0-9-]{1,39}$" }
+        "name": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "github": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9-]{1,39}$"
+        }
       },
       "description": "Optional credit; shown on cudahandbook.com if present"
     },
     "environment": {
       "type": "object",
-      "required": ["gpu", "cuda", "os"],
+      "required": [
+        "gpu",
+        "cuda",
+        "os"
+      ],
       "additionalProperties": false,
       "properties": {
         "gpu": {
           "type": "object",
-          "required": ["name", "sm", "driver"],
+          "required": [
+            "name",
+            "sm",
+            "driver"
+          ],
           "additionalProperties": false,
           "properties": {
-            "name":     { "type": "string", "maxLength": 80 },
-            "sm":       { "type": "string", "pattern": "^\\d{1,2}\\.\\d$",
-                          "description": "Compute capability, e.g. \"12.0\"" },
-            "vram_mib": { "type": "integer", "minimum": 128 },
-            "driver":   { "type": "string", "maxLength": 20 }
+            "name": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "sm": {
+              "type": "string",
+              "pattern": "^\\d{1,2}\\.\\d$",
+              "description": "Compute capability, e.g. \"12.0\""
+            },
+            "vram_mib": {
+              "type": "integer",
+              "minimum": 128
+            },
+            "driver": {
+              "type": "string",
+              "maxLength": 20
+            }
           }
         },
-        "cuda":     { "type": "string", "maxLength": 20,
-                      "description": "CUDA toolkit version used to build" },
-        "cpu":      { "type": "string", "maxLength": 120 },
-        "ram_gib":  { "type": "integer", "minimum": 1 },
-        "platform": { "type": "string", "maxLength": 80,
-                      "description": "\"bare-metal\", \"aws g6e.xlarge\", \"wsl2\", ..." },
-        "os":       { "type": "string", "maxLength": 80 }
+        "cuda": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "CUDA toolkit version used to build"
+        },
+        "cpu": {
+          "type": "object",
+          "required": [
+            "model"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "model": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "cores": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "max_mhz": {
+              "type": "integer",
+              "minimum": 100
+            }
+          }
+        },
+        "ram_gib": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "platform": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "\"bare-metal\", \"aws g6e.xlarge\", \"wsl2\", ..."
+        },
+        "os": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "gpu_count": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
     "code": {
       "type": "object",
-      "required": ["commit", "dirty"],
+      "required": [
+        "commit",
+        "dirty"
+      ],
       "additionalProperties": false,
       "properties": {
-        "commit": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
-        "dirty":  { "type": "boolean" }
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$"
+        },
+        "dirty": {
+          "type": "boolean"
+        }
       }
     },
     "results": {
@@ -63,20 +142,42 @@
       "patternProperties": {
         "^[a-z0-9]+(?:[.-][a-z0-9]+)*$": {
           "type": "object",
-          "required": ["unit"],
+          "required": [
+            "unit"
+          ],
           "additionalProperties": false,
           "properties": {
-            "unit":   { "type": "string", "maxLength": 20 },
-            "value":  { "type": "number" },
+            "unit": {
+              "type": "string",
+              "maxLength": 20
+            },
+            "value": {
+              "type": "number"
+            },
             "series": {
               "type": "object",
               "minProperties": 1,
-              "patternProperties": { "^-?\\d+(?:\\.\\d+)?$": { "type": "number" } },
+              "patternProperties": {
+                "^-?\\d+(?:\\.\\d+)?$": {
+                  "type": "number"
+                }
+              },
               "additionalProperties": false,
               "description": "Sweep results keyed by the swept parameter value"
             }
           },
-          "oneOf": [ { "required": ["value"] }, { "required": ["series"] } ]
+          "oneOf": [
+            {
+              "required": [
+                "value"
+              ]
+            },
+            {
+              "required": [
+                "series"
+              ]
+            }
+          ]
         }
       },
       "additionalProperties": false

@@ -8,8 +8,14 @@
       "vram_mib": 12288,
       "driver": "580.95.05"
     },
+    "gpu_count": 1,
     "cuda": "12.9",
-    "cpu": "AMD Ryzen 7 7700X 8-Core Processor",
+    "cpu": {
+      "model": "AMD Ryzen 7 7700X 8-Core Processor",
+      "cores": 8,
+      "max_mhz": 5572
+    },
+    "ram_gib": 46,
     "platform": "bare-metal",
     "os": "Ubuntu 20.04.6 LTS"
   },

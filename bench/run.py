@@ -61,14 +61,40 @@ def cuda_version() -> str:
     return m.group(1) if m else "unknown"
 
 
-def cpu_model() -> str:
+def cpu_info() -> dict:
+    model = platform.processor() or platform.machine()
     try:
         for line in Path("/proc/cpuinfo").read_text().splitlines():
             if line.startswith("model name"):
-                return line.split(":", 1)[1].strip()
+                model = line.split(":", 1)[1].strip()
+                break
     except OSError:
         pass
-    return platform.processor() or platform.machine()
+    info = {"model": model, "cores": os.cpu_count()}
+    try:  # kHz -> MHz; absent on some platforms, then omitted
+        khz = int(Path("/sys/devices/system/cpu/cpu0/cpufreq"
+                       "/cpuinfo_max_freq").read_text())
+        info["max_mhz"] = round(khz / 1000)
+    except (OSError, ValueError):
+        pass
+    return info
+
+
+def ram_gib() -> int | None:
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if line.startswith("MemTotal:"):
+                return round(int(line.split()[1]) / 1048576)
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def gpu_count() -> int:
+    try:
+        return len(_run(["nvidia-smi", "-L"]).splitlines())
+    except (OSError, subprocess.CalledProcessError):
+        return 1
 
 
 def os_name() -> str:
@@ -199,8 +225,12 @@ def main() -> None:
         if unknown:
             sys.exit(f"unknown suite(s)/group(s): {', '.join(unknown)}")
 
-    env = {"gpu": gpu_info(args.device), "cuda": cuda_version(),
-           "cpu": cpu_model(), "platform": args.plat, "os": os_name()}
+    env = {"gpu": gpu_info(args.device), "gpu_count": gpu_count(),
+           "cuda": cuda_version(), "cpu": cpu_info(),
+           "platform": args.plat, "os": os_name()}
+    mem = ram_gib()
+    if mem:
+        env["ram_gib"] = mem
     print(f"GPU {args.device}: {env['gpu']['name']} (SM {env['gpu']['sm']}, "
           f"driver {env['gpu']['driver']}), CUDA {env['cuda']}")
 
