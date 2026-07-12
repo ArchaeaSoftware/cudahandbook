@@ -24,7 +24,11 @@ API = "https://cudahandbook.com"
 def _post(path: str, payload: dict) -> dict:
     req = urllib.request.Request(
         API + path, data=json.dumps(payload).encode(),
-        headers={"content-type": "application/json"}, method="POST")
+        headers={"content-type": "application/json",
+                 # urllib's default UA trips Cloudflare's browser check (1010)
+                 "user-agent": "cudahandbook-bench/1.0 "
+                               "(+https://cudahandbook.com/benchmarks/)"},
+        method="POST")
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             return json.loads(resp.read().decode())
