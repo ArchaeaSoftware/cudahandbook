@@ -55,7 +55,7 @@ double
 usPerLaunch( int cIterations )
 {
     cudaError_t status;
-    double microseconds, ret;
+    double us, ret;
     chTimerTimestamp start, stop;
 
     cuda(Free(0));
@@ -67,8 +67,8 @@ usPerLaunch( int cIterations )
     cuda(DeviceSynchronize());
     chTimerGetTime( &stop );
 
-    microseconds = 1e6*chTimerElapsedTime( &start, &stop );
-    ret = microseconds / (float) cIterations;
+    us = 1e6*chTimerElapsedTime( &start, &stop );
+    ret = us / (float) cIterations;
 
 Error:
     return (status) ? 0.0 : ret;
