@@ -109,8 +109,10 @@ def os_name() -> str:
 
 def code_state() -> dict:
     commit = _run(["git", "-C", str(REPO), "rev-parse", "HEAD"])
+    # results/ is data, not the code being measured — a fresh output file
+    # overwriting a committed submission must not mark the run dirty.
     dirty = bool(_run(["git", "-C", str(REPO), "status",
-                       "--porcelain", "-uno"]))
+                       "--porcelain", "-uno", "--", ".", ":!results"]))
     return {"commit": commit[:12], "dirty": dirty}
 
 
