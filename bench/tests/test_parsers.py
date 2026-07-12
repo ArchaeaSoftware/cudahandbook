@@ -135,6 +135,18 @@ class TestMemcpy(unittest.TestCase):
         self.assertEqual(res["memcpy.dtoh.pinned-bandwidth"]["value"], 55.21)
 
 
+class TestGlobal(unittest.TestCase):
+    def test_gk104_capture(self):
+        # real GK104 output from the ch5 manuscript (Listing 5-7)
+        from suites import parse_global_peak
+        out = (FIXTURES / "globalRead.gk104.txt").read_text()
+        res = parse_global_peak("global.read.peak")(out, None)
+        s = res["global.read.peak"]["series"]
+        self.assertEqual(len(s), 5)              # 1,2,4,8,16-byte operands
+        self.assertEqual(s["1"], 61.56)          # peak of the 1-byte matrix
+        self.assertEqual(res["global.read.peak"]["unit"], "GB/s")
+
+
 class TestConcurrency(unittest.TestCase):
     def test_shmoo_table(self):
         # concurrencyMemcpyKernel.cu:93-122 — dots, then 7-column rows
@@ -181,7 +193,9 @@ class TestContracts(unittest.TestCase):
                      "memcpy.dtoh.pinned-bandwidth",
                      "memcpy.htod.pageable-staged",
                      "launch.async", "launch.sync",
-                     "managed.launch-touched", "managed.launch-untouched"])
+                     "managed.launch-touched", "managed.launch-untouched",
+                     "global.read.peak", "global.write.peak",
+                     "global.copy.peak"])
         for key in static:
             self.assertIn(key, self.METRICS, key)
             self.assertRegex(key, key_re)   # matches schema.json's pattern

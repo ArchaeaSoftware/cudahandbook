@@ -358,5 +358,29 @@
       1000000
     ],
     "description": "concurrency/managedOverhead.cu: sync null launch with N managed pages allocated but untouched; series by pages"
+  },
+  "global.read.peak": {
+    "unit": "GB/s",
+    "bounds": [
+      0.5,
+      100000
+    ],
+    "description": "memory/globalRead.cu: peak device-memory read bandwidth per operand size (max over unroll x block-size shmoo); series keyed by operand bytes"
+  },
+  "global.write.peak": {
+    "unit": "GB/s",
+    "bounds": [
+      0.5,
+      100000
+    ],
+    "description": "memory/globalWrite.cu: peak device-memory write bandwidth per operand size (max over unroll x block-size shmoo); series keyed by operand bytes"
+  },
+  "global.copy.peak": {
+    "unit": "GB/s",
+    "bounds": [
+      0.5,
+      100000
+    ],
+    "description": "memory/globalCopy.cu: peak device-memory copy bandwidth per operand size (max over unroll x block-size shmoo); series keyed by operand bytes"
   }
 }

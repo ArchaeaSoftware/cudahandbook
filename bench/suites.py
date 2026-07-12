@@ -187,6 +187,30 @@ def parse_concurrency_memcpy_kernel(out: str, param) -> dict:
     return res
 
 
+# ------------------------------------------------------------- global memory
+# memory/global{Read,Write,Copy}.cu print, per operand size, an unroll x
+# block-size bandwidth matrix whose rows end with maxBW and maxThreads.
+# We report the peak bandwidth per operand size (the ch5 headline numbers).
+
+_OPERAND_RE = re.compile(r"^Operand size: (\d+) byte", re.M)
+_MATRIX_ROW = re.compile(rf"^\d+\t(?:{_NUM}\t)+(\d+)\s*$", re.M)
+
+
+def parse_global_peak(key: str) -> Callable:
+    def parse(out: str, param) -> dict:
+        series = {}
+        sections = _OPERAND_RE.split(out)
+        # split() yields [preamble, size1, body1, size2, body2, ...]
+        for size, body in zip(sections[1::2], sections[2::2]):
+            peaks = [float(row.split("\t")[-2])
+                     for row in body.splitlines()
+                     if _MATRIX_ROW.match(row)]
+            if peaks:
+                series[size] = max(peaks)
+        return {key: {"unit": "GB/s", "series": series}} if series else {}
+    return parse
+
+
 # -------------------------------------------------------------------- suites
 #
 # Suites are organized into groups; run.py --suite accepts suite names,
@@ -198,6 +222,8 @@ SUITE_META: dict[str, dict] = {
                     "group": "microbench", "chapter": 6},
     "memcpy":      {"title": "Memcpy latency and bandwidth",
                     "group": "microbench", "chapter": 6},
+    "global":      {"title": "Global memory bandwidth",
+                    "group": "microbench", "chapter": 5},
     "concurrency": {"title": "Copy/kernel overlap",
                     "group": "microbench", "chapter": 6},
     "histogram":   {"title": "Histograms",
@@ -244,6 +270,14 @@ SUITES: dict[str, list[ProgramSpec]] = {
                     parse_pinned_bandwidth, timeout=300),
         ProgramSpec("concurrency", "pageableMemcpyHtoD", [(None, [])],
                     parse_mbs("memcpy.htod.pageable-staged"), timeout=600),
+    ],
+    "global": [
+        ProgramSpec("memory", "globalRead", [(None, [])],
+                    parse_global_peak("global.read.peak"), timeout=1800),
+        ProgramSpec("memory", "globalWrite", [(None, [])],
+                    parse_global_peak("global.write.peak"), timeout=1800),
+        ProgramSpec("memory", "globalCopy", [(None, [])],
+                    parse_global_peak("global.copy.peak"), timeout=1800),
     ],
     "concurrency": [
         ProgramSpec("concurrency", "concurrencyMemcpyKernel",
