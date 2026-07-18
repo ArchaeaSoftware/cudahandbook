@@ -51,7 +51,7 @@ ConvertFloatRange( unsigned short *out, int start, int N )
               i < N;
               i += blockDim.x*gridDim.x ) {
         float f = __int_as_float( start+i );
-        unsigned short f16 = __float2half_rn( f );
+        unsigned short f16 = __half_as_ushort( __float2half_rn( f ) );
         out[ i ] = f16;
     }
 }
@@ -67,6 +67,7 @@ ConvertFloatRange( unsigned short *out, int start, int N )
  */
 const int f16ExpShift = 10;
 const int f16MantissaBits = 10;
+const int f16ExpBits = 5;
 
 const int f16ExpBias = 15;
 const int f16MinExp = -14;
@@ -75,14 +76,36 @@ const int f16SignMask = 0x8000;
 
 const int f32ExpShift = 23;
 const int f32MantissaBits = 23;
+const int f32ExpBits = 8;
 const int f32ExpBias = 127;
 const int f32SignMask = 0x80000000;
 
-unsigned short 
-ConvertFloatToHalf( float f ) 
+// All bits of the exponent field set.  For float16, this is
+// also the encoding of infinity.
+const int f16ExpMask = LG_MAKE_MASK(f16ExpBits) << f16ExpShift;
+const int f32ExpMask = LG_MAKE_MASK(f32ExpBits) << f32ExpShift;
+
+// Smallest float32 exponent field whose values may round to a
+// nonzero float16 (halfway between 0 and the smallest denormal)
+const int f32MinRNonzero = (f16MinExp-f16MantissaBits-1+f32ExpBias) <<
+    f32ExpShift;
+
+/*
+ * Adapted from code posted to the NVIDIA Developer Forums by
+ * Norbert Juffa, with hard-coded constants replaced by the
+ * symbolic constants defined above:
+ *
+ * https://forums.developer.nvidia.com/t/error-when-trying-to-use-half-fp16/39786/10
+ *
+ * Copyright (c) 2015, Norbert Juffa
+ * All rights reserved.
+ * (distributed under the same 2-clause BSD license as this file)
+ */
+unsigned short
+ConvertFloatToHalf( float f )
 {
     /*
-     * Use a volatile union to portably coerce 
+     * Use a volatile union to portably coerce
      * 32-bit float into 32-bit integer
      */
     volatile union {
@@ -91,100 +114,65 @@ ConvertFloatToHalf( float f )
     } uf;
     uf.f = f;
 
-    // return value: start by propagating the sign bit.
-    unsigned short w = (uf.u >> 16) & f16SignMask;
-    
-    // Extract input magnitude and exponent
-    unsigned int mag = uf.u & ~f32SignMask;
-    int exp = (int) (mag >> f32ExpShift) - f32ExpBias;
+    unsigned int ia = uf.u;
+    unsigned short ir;
 
-    // Handle float32 Inf or NaN
-    if ( exp == f32ExpBias+1 ) {    // INF or NaN
+    // start by propagating the sign bit
+    ir = (ia >> 16) & f16SignMask;
 
-        if ( mag & LG_MAKE_MASK(f32MantissaBits) )
-            return 0x7fff; // NaN
-
-        // INF - propagate sign
-        return w|0x7c00;
+    if ( (ia & f32ExpMask) == f32ExpMask ) {    // INF or NaN
+        if ( (ia & ~f32SignMask) == f32ExpMask ) {
+            // INF - propagate sign
+            ir |= f16ExpMask;
+        }
+        else {
+            // canonical NaN
+            ir = f16ExpMask | LG_MAKE_MASK(f16MantissaBits);
+        }
     }
-
-    /*
-     * clamp float32 values that are not representable by float16
-     */
-    {
-        // min float32 magnitude that rounds to float16 infinity
-
-        unsigned int f32MinRInfin = (f16MaxExp+f32ExpBias) << 
-            f32ExpShift;
-        f32MinRInfin |= LG_MAKE_MASK( f16MantissaBits+1 ) << 
-            (f32MantissaBits-f16MantissaBits-1);
-
-        if (mag > f32MinRInfin)
-            mag = f32MinRInfin;
+    else if ( (ia & f32ExpMask) >= (unsigned int) f32MinRNonzero ) {
+        int shift = (int) ((ia >> f32ExpShift) &
+            LG_MAKE_MASK(f32ExpBits)) - f32ExpBias;
+        if ( shift > f16MaxExp ) {
+            // overflow - round to infinity
+            ir |= f16ExpMask;
+        }
+        else {
+            // extract mantissa and make implicit 1 explicit
+            ia = (ia & LG_MAKE_MASK(f32MantissaBits)) |
+                (1<<f32ExpShift);
+            if ( shift < f16MinExp ) {
+                /*
+                 * Case 1: float16 denormal
+                 */
+                int RelativeShift = f32ExpShift-f16ExpShift+
+                    f16MinExp-shift;
+                ir |= ia >> RelativeShift;
+                ia = ia << (32 - RelativeShift);
+            }
+            else {
+                /*
+                 * Case 2: float16 normal
+                 */
+                int RelativeShift = f32ExpShift-f16ExpShift;
+                ir |= ia >> RelativeShift;
+                ia = ia << (32 - RelativeShift);
+                // f16ExpBias-1, since the explicit 1 shifted
+                // into the exponent field adds 1 to the exponent
+                ir = ir + ((f16ExpBias-1+shift) << f16ExpShift);
+            }
+            /*
+             * Round to nearest even: ia holds the shifted-out
+             * bits, MSB-aligned; 0x80000000 is exactly half an
+             * ULP of the result.
+             */
+            if ( (ia > 0x80000000) ||
+                 ((ia == 0x80000000) && (ir & 1)) ) {
+                ir++;
+            }
+        }
     }
-
-    {
-        // max float32 magnitude that rounds to float16 0.0
-
-        unsigned int f32MaxRf16_zero = f16MinExp+f32ExpBias-
-            (f32MantissaBits-f16MantissaBits-1);
-        f32MaxRf16_zero <<= f32ExpShift;
-        f32MaxRf16_zero |= LG_MAKE_MASK( f32MantissaBits );
-
-        if (mag < f32MaxRf16_zero) 
-            mag = f32MaxRf16_zero;
-    }
-    
-    /*
-     * compute exp again, in case mag was clamped above
-     */
-    exp = (mag >> f32ExpShift) - f32ExpBias;
-
-    // min float32 magnitude that converts to float16 normal
-    unsigned int f32Minf16Normal = ((f16MinExp+f32ExpBias)<<
-        f32ExpShift);
-    f32Minf16Normal |= LG_MAKE_MASK( f32MantissaBits );
-    if ( mag >= f32Minf16Normal ) { 
-        //
-        // Case 1: float16 normal
-        //
-
-        // Modify exponent to be biased for float16, not float32
-        mag += (unsigned int) ((f16ExpBias-f32ExpBias)<<
-            f32ExpShift);
-
-        int RelativeShift = f32ExpShift-f16ExpShift;
-
-        // add rounding bias
-        mag += LG_MAKE_MASK(RelativeShift-1);
-
-        // round-to-nearest even
-        mag += (mag >> RelativeShift) & 1;
-
-        w |= mag >> RelativeShift; 
-    } 
-    else { 
-        /*
-         * Case 2: float16 denormal
-         */
-
-        // mask off exponent bits - now fraction only
-        mag &= LG_MAKE_MASK(f32MantissaBits);
-
-        // make implicit 1 explicit
-        mag |= (1<<f32ExpShift);
-
-        int RelativeShift = f32ExpShift-f16ExpShift+f16MinExp-exp; 
-
-        // add rounding bias
-        mag += LG_MAKE_MASK(RelativeShift-1);
-        
-        // round-to-nearest even
-        mag += (mag >> RelativeShift) & 1;
-
-        w |= mag >> RelativeShift;
-    } 
-    return w; 
+    return ir;
 }
 
 int
@@ -194,6 +182,7 @@ main()
     unsigned short *convertedFloats = 0;
     unsigned short *deviceFloats = 0;
     int cDifferent = 0;
+    long long cTotalDifferent = 0;
 
     int numRounds = (int) (4294967296LL / sizeComparisonArray);
 
@@ -232,6 +221,11 @@ main()
             }
         }
         printf( "i = %d: cDifferent = %d\n", i, cDifferent );
+        cTotalDifferent += cDifferent;
+    }
+    if ( cTotalDifferent ) {
+        printf( "Done: FAILED (%lld mismatches)\n", cTotalDifferent );
+        return 1;
     }
     printf( "Done: success\n" );
     return 0;
