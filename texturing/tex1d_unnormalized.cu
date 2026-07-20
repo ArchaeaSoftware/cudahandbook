@@ -41,10 +41,8 @@
 
 #include <chError.h>
 
-texture<float, 1> tex;
-
 extern "C" __global__ void
-TexReadout( float2 *out, size_t N, float base, float increment )
+TexReadout( cudaTextureObject_t tex, float2 *out, size_t N, float base, float increment )
 {
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x; 
           i < N; 
@@ -52,7 +50,7 @@ TexReadout( float2 *out, size_t N, float base, float increment )
     {
         float x = base + (float) i * increment;
         out[i].x = x;
-        out[i].y = tex1D( tex, x );
+        out[i].y = tex1D<float>( tex, x );
     }
 }
 
@@ -76,6 +74,8 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
 
     float2 *outHost = 0, *outDevice = 0;
     cudaError_t status;
+    cudaTextureObject_t tex = 0;
+    int minGridSize, blockSize;
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<T>();
 
     // use caller-provided array, if any, to initialize texture
@@ -101,17 +101,23 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
                                            &outDevice, 
                                            outHost, 0 ));
 
-    cuda(MemcpyToArray( texArray, 
+    cuda(Memcpy2DToArray( texArray,
                                     0, 0, 
                                     texContents, 
                                     texN*sizeof(T), 
+                                    texN*sizeof(T), 1,
                                     cudaMemcpyHostToDevice));
-    cuda(BindTextureToArray(tex, texArray));
 
-    tex.filterMode = filterMode;
-    tex.addressMode[0] = addressMode;
-    cuda(HostGetDevicePointer(&outDevice, outHost, 0));
-    TexReadout<<<2,384>>>( outDevice, outN, base, increment );
+    {
+        cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
+        cudaTextureDesc  texDesc = {};
+        resDesc.res.array.array = texArray;
+        texDesc.filterMode = filterMode;
+        texDesc.addressMode[0] = addressMode;
+        cuda(CreateTextureObject( &tex, &resDesc, &texDesc, NULL ));
+    }
+    cuda(OccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, TexReadout ));
+    TexReadout<<<minGridSize, blockSize>>>( tex, outDevice, outN, base, increment );
     cuda(DeviceSynchronize());
 
     for ( int i = 0; i < outN; i++ ) {
@@ -120,6 +126,7 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
     printf( "\n" );
 
 Error:
+    cudaDestroyTextureObject( tex );
     if ( ! initTex ) free( texContents );
     if ( texArray ) cudaFreeArray( texArray );
     if ( outHost ) cudaFreeHost( outHost );

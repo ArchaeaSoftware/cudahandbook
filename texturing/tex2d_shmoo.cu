@@ -45,10 +45,8 @@
 
 #include <cuda.h>
 
-texture<float, 2, cudaReadModeElementType> tex;
-
 extern "C" __global__ void
-TexSums( float *out, size_t Width, size_t Height )
+TexSums( cudaTextureObject_t tex, float *out, size_t Width, size_t Height )
 {
     float sum = 0.0f;
     for ( int row = blockIdx.y*blockDim.y + threadIdx.y;
@@ -59,7 +57,7 @@ TexSums( float *out, size_t Width, size_t Height )
                   col < Width;
                   col += blockDim.x*gridDim.x )
         {
-            sum += tex2D( tex, (float) col, (float) row );
+            sum += tex2D<float>( tex, (float) col, (float) row );
         }
     }
     if ( out ) {
@@ -91,12 +89,18 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
     CUDA_ARRAY3D_DESCRIPTOR desc;
     cudaEvent_t start = 0;
     cudaEvent_t stop = 0;
+    cudaTextureObject_t tex = 0;
 
     cudaError_t status;
     
     cuda(EventCreate(&start));
     cuda(EventCreate(&stop));
-    cuda(BindTextureToArray(tex, array));
+    {
+        cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
+        cudaTextureDesc  texDesc = {};
+        resDesc.res.array.array = array;
+        cuda(CreateTextureObject( &tex, &resDesc, &texDesc, NULL ));
+    }
     if ( CUDA_SUCCESS != cuArray3DGetDescriptor( &desc, drvArray ) ) {
         status = cudaErrorInvalidValue;
         goto Error;
@@ -117,7 +121,7 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
                            INTDIVIDE_CEILING(desc.Height, threadHeight));
 
         for ( int i = 0; i < iterations; i++ ) {
-            TexSums<<<blocks,threads>>>( NULL, desc.Width, desc.Height );
+            TexSums<<<blocks,threads>>>( tex, NULL, desc.Width, desc.Height );
         }
 
     }
@@ -125,6 +129,7 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
     cuda(DeviceSynchronize());
     cuda(EventElapsedTime(ms, start, stop));
 Error:
+    cudaDestroyTextureObject(tex);
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
     return status;

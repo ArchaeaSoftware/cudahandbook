@@ -42,10 +42,8 @@
 
 #include <chError.h>
 
-texture<float, 1> tex;
-
 extern "C" __global__ void
-TexReadout( float2 *out, size_t N, float base, float increment )
+TexReadout( cudaTextureObject_t tex, float2 *out, size_t N, float base, float increment )
 {
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x; 
           i < N; 
@@ -53,7 +51,7 @@ TexReadout( float2 *out, size_t N, float base, float increment )
     {
         float x = base + (float) i * increment;
         out[i].x = x;
-        out[i].y = tex1D( tex, x );
+        out[i].y = tex1D<float>( tex, x );
     }
 }
 
@@ -140,6 +138,8 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
     cudaArray *texArray = 0;
     float2 *outHost = 0, *outDevice = 0;
     cudaError_t status;
+    cudaTextureObject_t tex = 0;
+    int minGridSize, blockSize;
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<T>();
 
     // use caller-provided array, if any, to initialize texture
@@ -158,17 +158,24 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
 
     cuda(MallocArray(&texArray, &channelDesc, texN/**sizeof(T)*/));
 
-    cuda(MemcpyToArray( texArray, 0, 0, texContents, 
-                                  texN*sizeof(T), cudaMemcpyHostToDevice));
-    cuda(BindTextureToArray(tex, texArray));
+    cuda(Memcpy2DToArray( texArray, 0, 0, texContents,
+                                    texN*sizeof(T), texN*sizeof(T), 1,
+                                    cudaMemcpyHostToDevice));
 
     cuda(HostAlloc( (void **) &outHost, outN*sizeof(float2), cudaHostAllocMapped));
     cuda(HostGetDevicePointer( (void **) &outDevice, outHost, 0 ));
 
-    tex.normalized = true;
-    tex.filterMode = filterMode;
-    tex.addressMode[0] = addressMode;
-    TexReadout<<<2,384>>>( outDevice, outN, base, increment );
+    {
+        cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
+        cudaTextureDesc  texDesc = {};
+        resDesc.res.array.array = texArray;
+        texDesc.normalizedCoords = 1;
+        texDesc.filterMode = filterMode;
+        texDesc.addressMode[0] = addressMode;
+        cuda(CreateTextureObject( &tex, &resDesc, &texDesc, NULL ));
+    }
+    cuda(OccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, TexReadout ));
+    TexReadout<<<minGridSize, blockSize>>>( tex, outDevice, outN, base, increment );
     cuda(DeviceSynchronize());
 
     for ( int i = 0; i < outN; i++ ) {
@@ -185,6 +192,7 @@ g_errors++;
     printf( "\n" );
 
 Error:
+    cudaDestroyTextureObject( tex );
     if ( ! initTex ) free( texContents );
     cudaFreeArray( texArray );
     cudaFreeHost( outHost );
@@ -195,28 +203,29 @@ main( int argc, char *argv[] )
 {
     int ret = 1;
     cudaError_t status;
+    cudaTextureFilterMode filterMode = cudaFilterModePoint;
+    cudaTextureAddressMode addressMode = cudaAddressModeClamp;
 
     cuda(SetDeviceFlags(cudaDeviceMapHost));
     cuda(Free(0));
 
     // go through once each with linear and point filtering
     do {
-        tex.normalized = true;
-        tex.filterMode = tex.filterMode==cudaFilterModePoint ? cudaFilterModeLinear : cudaFilterModePoint;
-        tex.addressMode[0] = cudaAddressModeClamp;
-        CreateAndPrintTex<float>( NULL, 16, 16, 0.0f, 1.0f, tex.filterMode, tex.addressMode[0] );
-        CreateAndPrintTex<float>( NULL, 16, 16, -0.5f, 0.15f, tex.filterMode, tex.addressMode[0] );
-        CreateAndPrintTex<float>( NULL, 16, 16, -0.5f, 0.16f, tex.filterMode, tex.addressMode[0] );
-        CreateAndPrintTex<float>( NULL, 16, 16, -0.5f, 0.17f, tex.filterMode, tex.addressMode[0] );
+        filterMode = filterMode==cudaFilterModePoint ? cudaFilterModeLinear : cudaFilterModePoint;
+        addressMode = cudaAddressModeClamp;
+        CreateAndPrintTex<float>( NULL, 16, 16, 0.0f, 1.0f, filterMode, addressMode );
+        CreateAndPrintTex<float>( NULL, 16, 16, -0.5f, 0.15f, filterMode, addressMode );
+        CreateAndPrintTex<float>( NULL, 16, 16, -0.5f, 0.16f, filterMode, addressMode );
+        CreateAndPrintTex<float>( NULL, 16, 16, -0.5f, 0.17f, filterMode, addressMode );
 
-        tex.addressMode[0] = cudaAddressModeWrap;
-        CreateAndPrintTex<float>( NULL, 16, 16, 0.75f, 0.15f, tex.filterMode, tex.addressMode[0] );
-        CreateAndPrintTex<float>( NULL, 16, 80, -4.0, 0.1f, tex.filterMode, tex.addressMode[0] );
+        addressMode = cudaAddressModeWrap;
+        CreateAndPrintTex<float>( NULL, 16, 16, 0.75f, 0.15f, filterMode, addressMode );
+        CreateAndPrintTex<float>( NULL, 16, 80, -4.0, 0.1f, filterMode, addressMode );
 
-        tex.addressMode[0] = cudaAddressModeMirror;
-        CreateAndPrintTex<float>( NULL, 16, 16, 0.75f, 0.15f, tex.filterMode, tex.addressMode[0] );
+        addressMode = cudaAddressModeMirror;
+        CreateAndPrintTex<float>( NULL, 16, 16, 0.75f, 0.15f, filterMode, addressMode );
 
-    } while ( tex.filterMode == cudaFilterModeLinear );
+    } while ( filterMode == cudaFilterModeLinear );
 
 #if 0
         {
