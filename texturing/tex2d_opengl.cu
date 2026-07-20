@@ -54,6 +54,12 @@ uchar4 *g_hostFrameBuffer;
 uchar4 *g_deviceFrameBuffer;
 bool g_displayText = true;
 
+// Texture-object descriptors are immutable, so the interactively
+// selectable texturing modes live here and a fresh texture object is
+// built from them each time the scene is redrawn (see displayCB).
+bool g_normalized = false;
+cudaTextureAddressMode g_addressMode[2] = { cudaAddressModeClamp, cudaAddressModeClamp };
+
 char *
 LoadTexturePPM( const char * filename )
 {
@@ -105,8 +111,6 @@ Error:
     return NULL;
 }
 
-texture<uchar4, 2, cudaReadModeElementType> tex2d;
-
 cudaError_t
 CreateAndPopulateArray( cudaArray **ret, char *base, int width, int height )
 {
@@ -132,18 +136,19 @@ CreateAndPopulateArray( cudaArray **ret, char *base, int width, int height )
 }
 
 __global__ void
-RenderTextureUnnormalized( uchar4 *out, int width, int height )
+RenderTextureUnnormalized( cudaTextureObject_t tex2d, uchar4 *out, int width, int height )
 {
     for ( int j = blockIdx.x; j < height; j += gridDim.x ) {
         int row = height-j-1;
         for ( int col = threadIdx.x; col < width; col += blockDim.x ) {
-            out[row*width+col] = tex2D( tex2d, (float) col, (float) row );
+            out[row*width+col] = tex2D<uchar4>( tex2d, (float) col, (float) row );
         }
     }
 }
 
 __global__ void
-RenderTextureNormalized( uchar4 *out, 
+RenderTextureNormalized( cudaTextureObject_t tex2d,
+                         uchar4 *out,
                          int width, 
                          int height, 
                          int scale )
@@ -155,7 +160,7 @@ RenderTextureNormalized( uchar4 *out,
         float invWidth = scale / (float) width;
         for ( int col = threadIdx.x; col < width; col += blockDim.x ) {
             float texCol = col * invWidth;
-            out[col] = tex2D( tex2d, texCol, texRow );
+            out[col] = tex2D<uchar4>( tex2d, texCol, texRow );
         }
     }
 }
@@ -177,20 +182,28 @@ void displayCB(void)		/* function called whenever redisplay needed */
 {
     glClear(GL_COLOR_BUFFER_BIT);
 
-    if ( cudaSuccess != cudaBindTextureToArray( tex2d, 
-                                                g_arrayTexture, 
-                                                cudaCreateChannelDesc<uchar4>() ) )
+    cudaTextureObject_t tex2d = 0;
     {
-        return;
+        cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
+        cudaTextureDesc  texDesc = {};
+        resDesc.res.array.array = g_arrayTexture;
+        texDesc.normalizedCoords = g_normalized;
+        texDesc.addressMode[0] = g_addressMode[0];
+        texDesc.addressMode[1] = g_addressMode[1];
+        if ( cudaSuccess != cudaCreateTextureObject( &tex2d, &resDesc, &texDesc, NULL ) )
+            return;
     }
-    if ( tex2d.normalized ) {
-        RenderTextureNormalized<<<g_height, 384>>>( g_deviceFrameBuffer, g_width, g_height, g_scale );
+    if ( g_normalized ) {
+        RenderTextureNormalized<<<g_height, 384>>>( tex2d, g_deviceFrameBuffer, g_width, g_height, g_scale );
     }
     else {
-        RenderTextureUnnormalized<<<g_height, 384>>>( g_deviceFrameBuffer, g_width, g_height );
+        RenderTextureUnnormalized<<<g_height, 384>>>( tex2d, g_deviceFrameBuffer, g_width, g_height );
     }
-    if ( cudaSuccess != cudaDeviceSynchronize() )
+    if ( cudaSuccess != cudaDeviceSynchronize() ) {
+        cudaDestroyTextureObject( tex2d );
         return;
+    }
+    cudaDestroyTextureObject( tex2d );
     glRasterPos2f( 0.0f, 0.0f );
     glDrawPixels( g_width, g_height, GL_RGBA, GL_UNSIGNED_BYTE, g_hostFrameBuffer );
     if ( g_displayText ) {
@@ -200,14 +213,14 @@ void displayCB(void)		/* function called whenever redisplay needed */
         int fontHeight = 15;
 
         int y = g_height - fontHeight;
-        if ( tex2d.normalized ) {
+        if ( g_normalized ) {
             glPrint( x, y, "Normalized (hit N for unnormalized)", GLUT_BITMAP_9_BY_15 );
         }
         else {
             glPrint( x, y, "Unnormalized (hit N for normalized)", GLUT_BITMAP_9_BY_15 );
         }
         y -= fontHeight;
-        switch ( tex2d.addressMode[0] ) {
+        switch ( g_addressMode[0] ) {
             case cudaAddressModeClamp:
                 sprintf( s, "X address mode: Clamp %s", g_idxAddressMode ? "\0" :
                     "(W=wrap, M=mirror, B=border)" );
@@ -228,7 +241,7 @@ void displayCB(void)		/* function called whenever redisplay needed */
         glPrint( x, y, s, GLUT_BITMAP_9_BY_15 );
         y -= fontHeight;
 
-        switch ( tex2d.addressMode[1] ) {
+        switch ( g_addressMode[1] ) {
             case cudaAddressModeClamp:
                 sprintf( s, "Y address mode: Clamp %s", !g_idxAddressMode ? "\0" :
                     "(W=wrap, M=mirror, B=border)" );
@@ -275,19 +288,19 @@ void keyCB(unsigned char key, int x, int y)	/* called on key press */
             g_idxAddressMode = 1;
             break;
         case 'n':
-            tex2d.normalized = ! tex2d.normalized;
+            g_normalized = ! g_normalized;
             break;
         case 'w':
-            tex2d.addressMode[g_idxAddressMode] = cudaAddressModeWrap;
+            g_addressMode[g_idxAddressMode] = cudaAddressModeWrap;
             break;
         case 'c':
-            tex2d.addressMode[g_idxAddressMode] = cudaAddressModeClamp;
+            g_addressMode[g_idxAddressMode] = cudaAddressModeClamp;
             break;
         case 'm':
-            tex2d.addressMode[g_idxAddressMode] = cudaAddressModeMirror;
+            g_addressMode[g_idxAddressMode] = cudaAddressModeMirror;
             break;
         case 'b':
-            tex2d.addressMode[g_idxAddressMode] = cudaAddressModeBorder;
+            g_addressMode[g_idxAddressMode] = cudaAddressModeBorder;
             break;
         case 't':
             g_displayText = ! g_displayText;
