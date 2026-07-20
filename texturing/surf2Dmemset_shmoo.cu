@@ -46,11 +46,9 @@
 
 #include <cuda.h>
 
-surface<void, 2> surf2D;
-
 template<typename T>
 __global__ void
-surf2Dmemset_kernel( T value, 
+surf2Dmemset_kernel( cudaSurfaceObject_t surf2D, T value,
                      int xOffset, int yOffset, 
                      int Width, int Height )
 {
@@ -91,12 +89,15 @@ surf2DmemsetArray_time( float *ms, cudaArray *array, T value, int threadWidth, i
     CUDA_ARRAY_DESCRIPTOR desc;
     cudaEvent_t start = 0;
     cudaEvent_t stop = 0;
+    cudaSurfaceObject_t surfObj = 0;
+    cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
 
     cudaError_t status;
     
+    resDesc.res.array.array = array;
     cuda(EventCreate(&start));
     cuda(EventCreate(&stop));
-    cuda(BindSurfaceToArray(surf2D, array));
+    cuda(CreateSurfaceObject( &surfObj, &resDesc ));
     if ( CUDA_SUCCESS != cuArrayGetDescriptor( &desc, drvArray ) ) {
         status = cudaErrorInvalidValue;
         goto Error;
@@ -116,7 +117,7 @@ surf2DmemsetArray_time( float *ms, cudaArray *array, T value, int threadWidth, i
         dim3 blocks = dim3(INTDIVIDE_CEILING(desc.Width, threadWidth), 
                            INTDIVIDE_CEILING(desc.Height, threadHeight));
         
-        surf2Dmemset_kernel<<<blocks,threads>>>( value, 
+        surf2Dmemset_kernel<<<blocks,threads>>>( surfObj, value,
                                                  0, 0, // X and Y offset
                                                  desc.Width, 
                                                  desc.Height );
@@ -125,6 +126,7 @@ surf2DmemsetArray_time( float *ms, cudaArray *array, T value, int threadWidth, i
     cuda(DeviceSynchronize());
     cuda(EventElapsedTime(ms, start, stop));
 Error:
+    cudaDestroySurfaceObject(surfObj);
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
     return status;

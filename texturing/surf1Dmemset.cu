@@ -42,11 +42,9 @@
 
 #define NUM_VALUES 16
 
-surface<void, 1> surf1D;
-
 template <typename T>
 __global__ void
-surf1Dmemset_kernel( T value, int offset, size_t N )
+surf1Dmemset_kernel( cudaSurfaceObject_t surf1D, T value, int offset, size_t N )
 {
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x;
                  i < N;
@@ -61,9 +59,16 @@ cudaError_t
 surf1Dmemset( cudaArray *array, T value, int offset, size_t N )
 {
     cudaError_t status;
-    cuda(BindSurfaceToArray(surf1D, array));
-    surf1Dmemset_kernel<<<2,384>>>( value, offset, N*sizeof(T) );
+    cudaSurfaceObject_t surfObj = 0;
+    int minGridSize, blockSize;
+    cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
+    resDesc.res.array.array = array;
+    cuda(CreateSurfaceObject( &surfObj, &resDesc ));
+    cuda(OccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, surf1Dmemset_kernel<T> ));
+    surf1Dmemset_kernel<<<minGridSize, blockSize>>>( surfObj, value, offset, N*sizeof(T) );
+    cuda(DeviceSynchronize());
 Error:
+    cudaDestroySurfaceObject( surfObj );
     return status;
 }
 
@@ -92,17 +97,19 @@ main( int argc, char *argv[] )
         &array, 
         &channelDesc, 
         NUM_VALUES*sizeof(float), 
-        1, 
+        0,    // height 0 => a true 1D array, required by surf1Dwrite/surf1Dread
         cudaArraySurfaceLoadStore ) );
 
     CUDART_CHECK(surf1Dmemset( array, 3.141592654f, 0, NUM_VALUES ));
 
-    cuda(MemcpyFromArray( 
+    cuda(Memcpy2DFromArray(
         foutHost, 
+        NUM_VALUES*sizeof(float),
         array, 
         0, 
         0, 
         NUM_VALUES*sizeof(float), 
+        1,
         cudaMemcpyDeviceToHost ));
 
     printf( "Surface contents (int form):\n" );

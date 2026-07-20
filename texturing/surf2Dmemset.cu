@@ -45,10 +45,8 @@
 
 #include <cuda.h>
 
-texture<float, 2, cudaReadModeElementType> tex;
-
 extern "C" __global__ void
-TexReadout( float4 *out, size_t Width, size_t Pitch, size_t Height, float2 base, float2 increment )
+TexReadout( cudaTextureObject_t tex, float4 *out, size_t Width, size_t Pitch, size_t Height, float2 base, float2 increment )
 {
     for ( int row = blockIdx.y*blockDim.y + threadIdx.y;
               row < Height;
@@ -64,7 +62,7 @@ TexReadout( float4 *out, size_t Width, size_t Pitch, size_t Height, float2 base,
             value.x = base.x+(float)col*increment.x;
             value.y = base.y+(float)row*increment.y;
 
-            texvalue = tex2D( tex, value.x, value.y);
+            texvalue = tex2D<float>( tex, value.x, value.y);
             value.z = texvalue;
             value.w = texvalue;
             outrow[col] = value;
@@ -72,11 +70,9 @@ TexReadout( float4 *out, size_t Width, size_t Pitch, size_t Height, float2 base,
     }
 }
 
-surface<void, 2> surf2D;
-
 template<typename T>
 __global__ void
-surf2Dmemset_kernel( T value, 
+surf2Dmemset_kernel( cudaSurfaceObject_t surf2D, T value,
                      int xOffset, int yOffset, 
                      int Width, int Height )
 {
@@ -120,8 +116,11 @@ surf2DmemsetArray( cudaArray *array, T value )
     CUDA_ARRAY_DESCRIPTOR desc;
 
     cudaError_t status;
-    
-    cuda(BindSurfaceToArray(surf2D, array));
+    cudaSurfaceObject_t surfObj = 0;
+    int minGridSize, blockSize;
+    cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
+    resDesc.res.array.array = array;
+    cuda(CreateSurfaceObject( &surfObj, &resDesc ));
     if ( CUDA_SUCCESS != cuArrayGetDescriptor( &desc, drvArray ) ) {
         status = cudaErrorInvalidValue;
         goto Error;
@@ -135,13 +134,16 @@ surf2DmemsetArray( cudaArray *array, T value )
         status = cudaErrorInvalidValue;
         goto Error;
     }
-    surf2Dmemset_kernel<<<2,384>>>( 
+    cuda(OccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, surf2Dmemset_kernel<T> ));
+    surf2Dmemset_kernel<<<minGridSize, blockSize>>>(
+        surfObj,
         value, 
         0, 0, // X and Y offset
         desc.Width, 
         desc.Height );
-status = cudaDeviceSynchronize();
+    status = cudaDeviceSynchronize();
 Error:
+    cudaDestroySurfaceObject( surfObj );
     return status;
 }
 
@@ -159,6 +161,7 @@ CreateAndPrintTex(
     cudaArray *texArray = 0;
     float4 *outHost = 0, *outDevice = 0;
     cudaError_t status;
+    cudaTextureObject_t tex = 0;
     size_t outPitch;
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<T>();
     dim3 blocks, threads;
@@ -169,21 +172,25 @@ CreateAndPrintTex(
 
     CUDART_CHECK(surf2DmemsetArray( texArray, 3.141592654f ) );
 
-    cuda(BindTextureToArray(tex, texArray));
-
     outPitch = outWidth*sizeof(float4);
     outPitch = (outPitch+0x3f)&~0x3f;
 
     cuda(HostAlloc( (void **) &outHost, outWidth*outPitch, cudaHostAllocMapped));
     cuda(HostGetDevicePointer( (void **) &outDevice, outHost, 0 ));
 
-    tex.filterMode = filterMode;
-    tex.addressMode[0] = addressModeX;
-    tex.addressMode[1] = addressModeY;
+    {
+        cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
+        cudaTextureDesc  texDesc = {};
+        resDesc.res.array.array = texArray;
+        texDesc.filterMode = filterMode;
+        texDesc.addressMode[0] = addressModeX;
+        texDesc.addressMode[1] = addressModeY;
+        cuda(CreateTextureObject( &tex, &resDesc, &texDesc, NULL ));
+    }
     blocks.x = 2;
     blocks.y = 1;
     threads.x = 64; threads.y = 4;
-    TexReadout<<<blocks,threads>>>( outDevice, outWidth, outPitch, outHeight, base, increment );
+    TexReadout<<<blocks,threads>>>( tex, outDevice, outWidth, outPitch, outHeight, base, increment );
     cuda(DeviceSynchronize());
 
     for ( int row = 0; row < outHeight; row++ ) {
@@ -196,6 +203,7 @@ CreateAndPrintTex(
     printf( "\n" );
 
 Error:
+    cudaDestroyTextureObject( tex );
     cudaFreeArray( texArray );
     cudaFreeHost( outHost );
 }
@@ -206,6 +214,8 @@ main( int argc, char *argv[] )
     int ret = 1;
     cudaError_t status;
     cudaDeviceProp prop;
+    cudaTextureFilterMode filterMode = cudaFilterModePoint;
+    cudaTextureAddressMode addressMode = cudaAddressModeClamp;
 
     cuda(GetDeviceProperties(&prop, 0));
     if ( prop.major < 2 ) {
@@ -217,23 +227,18 @@ main( int argc, char *argv[] )
 
     // go through once each with linear and point filtering
     do {
-        tex.normalized = false;
-        tex.filterMode = cudaFilterModePoint;
-        tex.addressMode[0] = cudaAddressModeClamp;
-        tex.addressMode[1] = cudaAddressModeClamp;
-
         float2 base, increment;
         base.x = 0.0f;//-1.0f;
         base.y = 0.0f;//-1.0f;
         increment.x = 1.0f;
         increment.y = 1.0f;
-//        CreateAndPrintTex<float2>( NULL, 8, 8, 8, 8, base, increment, tex.filterMode, tex.addressMode[0], tex.addressMode[1] );
-        CreateAndPrintTex<float>( NULL, 8, 8, 8, 8, base, increment, tex.filterMode, tex.addressMode[0], tex.addressMode[1] );
+//        CreateAndPrintTex<float2>( NULL, 8, 8, 8, 8, base, increment, filterMode, addressMode, addressMode );
+        CreateAndPrintTex<float>( NULL, 8, 8, 8, 8, base, increment, filterMode, addressMode, addressMode );
 
-//        CreateAndPrintTex<float>( NULL, 256, 256, 256, 256, base, increment, tex.filterMode, tex.addressMode[0], tex.addressMode[1] );
+//        CreateAndPrintTex<float>( NULL, 256, 256, 256, 256, base, increment, filterMode, addressMode, addressMode );
 
 
-    } while ( tex.filterMode == cudaFilterModeLinear );
+    } while ( filterMode == cudaFilterModeLinear );
     ret = 0;
 
 Error:

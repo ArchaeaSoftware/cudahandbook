@@ -74,7 +74,7 @@ if( CUDAHANDBOOK_BUILD_TEXTURING )
         surf1Dmemset surf2Dmemset surf2Dmemset_shmoo
         tex1d_9bit tex1d_addressing tex1d_unnormalized
         tex1dfetch tex1dfetch_big tex1dfetch_host tex1dfetch_htod tex1dfetch_int2float
-        tex2d_addressing tex2d_addressing_device tex2d_memset tex2d_opengl tex2d_shmoo
+        tex2d_addressing tex2d_addressing_device tex2d_opengl tex2d_shmoo
         PROPERTIES CUDA_ARCHITECTURES 80-virtual )
 endif()
 
