@@ -42,9 +42,10 @@ extern __shared__ unsigned char LocalBlock[];
 
 template<bool bSM1>
 __global__ void 
-corrSharedSMSums_kernel( 
-    float *pCorr, size_t CorrPitch, 
+corrSharedSMSums_kernel(
+    float *pCorr, size_t CorrPitch,
     int *pI, int *pISq, int *pIT,
+    cudaTextureObject_t texImage,
     int wTile,
     int wTemplate, int hTemplate,
     float xOffset, float yOffset,
@@ -69,9 +70,9 @@ corrSharedSMSums_kernel(
                   col < wTile+wTemplate; 
                   col += blockDim.x ) {
 
-            LocalBlock[SharedIdx+col] = 
-                tex2D( texImage, 
-                      (float) (uTile+col+xUL+xOffset), 
+            LocalBlock[SharedIdx+col] =
+                tex2D<unsigned char>( texImage,
+                      (float) (uTile+col+xUL+xOffset),
                       (float) (vTile+row+yUL+yOffset) );
 
         }
@@ -116,9 +117,10 @@ corrSharedSMSums_kernel(
 
 
 void
-corrSharedSMSums( 
+corrSharedSMSums(
     float *dCorr, int CorrPitch,
     int *dSumI, int *dSumISq, int *dSumIT,
+    cudaTextureObject_t texImage, cudaTextureObject_t texTemplate,
     int wTile,
     int wTemplate, int hTemplate,
     float cPixels,
@@ -142,9 +144,10 @@ corrSharedSMSums(
         tcBlocks.x = INTCEIL(w,threads.x); 
         tcBlocks.y = INTCEIL(h,threads.y); 
         tcBlocks.z = 1;
-        return corrTexTexSums( 
+        return corrTexTexSums(
             dCorr, CorrPitch,
             dSumI, dSumISq, dSumIT,
+            texImage, texTemplate,
             wTile,
             wTemplate, hTemplate,
             cPixels,
@@ -160,6 +163,7 @@ corrSharedSMSums(
         corrSharedSMSums_kernel<true><<<blocks, threads, sharedMem>>>(
             dCorr, CorrPitch,
             dSumI, dSumISq, dSumIT,
+            texImage,
             wTile,
             wTemplate, hTemplate,
             (float) xOffset, (float) yOffset,
@@ -171,6 +175,7 @@ corrSharedSMSums(
         corrSharedSMSums_kernel<false><<<blocks, threads, sharedMem>>>(
             dCorr, CorrPitch,
             dSumI, dSumISq, dSumIT,
+            texImage,
             wTile,
             wTemplate, hTemplate,
             (float) xOffset, (float) yOffset,

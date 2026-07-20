@@ -59,9 +59,10 @@ corrSharedAccumulate(
 
 template<bool bSM1>
 __global__ void 
-corrShared4Sums_kernel( 
-    float *pCorr, size_t CorrPitch, 
+corrShared4Sums_kernel(
+    float *pCorr, size_t CorrPitch,
     int *pI, int *pISq, int *pIT,
+    cudaTextureObject_t texImage,
     int wTile,
     int wTemplate, int hTemplate,
     float xOffset, float yOffset,
@@ -86,9 +87,9 @@ corrShared4Sums_kernel(
                   col < wTile+wTemplate; 
                   col += blockDim.x ) {
 
-            LocalBlock[SharedIdx+col] = 
-                tex2D( texImage, 
-                       (float) (uTile+col+xUL+xOffset), 
+            LocalBlock[SharedIdx+col] =
+                tex2D<unsigned char>( texImage,
+                       (float) (uTile+col+xUL+xOffset),
                        (float) (vTile+row+yUL+yOffset) );
 
         }
@@ -126,9 +127,10 @@ corrShared4Sums_kernel(
 
 
 void
-corrShared4Sums( 
+corrShared4Sums(
     float *dCorr, int CorrPitch,
     int *dSumI, int *dSumISq, int *dSumIT,
+    cudaTextureObject_t texImage, cudaTextureObject_t texTemplate,
     int wTile,
     int wTemplate, int hTemplate,
     float cPixels,
@@ -152,9 +154,10 @@ corrShared4Sums(
         tcBlocks.x = INTCEIL(w,threads.x); 
         tcBlocks.y = INTCEIL(h,threads.y); 
         tcBlocks.z = 1;
-        return corrTexConstantSums( 
+        return corrTexConstantSums(
             dCorr, CorrPitch,
             dSumI, dSumISq, dSumIT,
+            texImage, texTemplate,
             wTile,
             wTemplate, hTemplate,
             cPixels,
@@ -171,6 +174,7 @@ corrShared4Sums(
             corrSharedSMSums_kernel<true><<<blocks, threads, sharedMem>>>(
                 dCorr, CorrPitch,
                 dSumI, dSumISq, dSumIT,
+                texImage,
                 wTile,
                 wTemplate, hTemplate,
                 (float) xOffset, (float) yOffset,
@@ -182,6 +186,7 @@ corrShared4Sums(
             corrSharedSMSums_kernel<false><<<blocks, threads, sharedMem>>>(
                 dCorr, CorrPitch,
                 dSumI, dSumISq, dSumIT,
+                texImage,
                 wTile,
                 wTemplate, hTemplate,
                 (float) xOffset, (float) yOffset,
@@ -194,6 +199,7 @@ corrShared4Sums(
         corrShared4Sums_kernel<true><<<blocks, threads, sharedMem>>>(
             dCorr, CorrPitch,
             dSumI, dSumISq, dSumIT,
+            texImage,
             wTile,
             wTemplate, hTemplate,
             (float) xOffset, (float) yOffset,
@@ -205,6 +211,7 @@ corrShared4Sums(
         corrShared4Sums_kernel<false><<<blocks, threads, sharedMem>>>(
             dCorr, CorrPitch,
             dSumI, dSumISq, dSumIT,
+            texImage,
             wTile,
             wTemplate, hTemplate,
             (float) xOffset, (float) yOffset,

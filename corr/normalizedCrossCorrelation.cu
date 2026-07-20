@@ -57,9 +57,6 @@
 
 #include "pgm.h"
 
-texture<unsigned char, 2> texImage;
-texture<unsigned char, 2> texTemplate;
-
 const int maxTemplatePixels = 3072;
 __constant__ int g_xOffset[maxTemplatePixels];
 __constant__ int g_yOffset[maxTemplatePixels];
@@ -257,7 +254,8 @@ corrCPU( float *pCorr,
 bool
 TestCorrelation( 
     double *pixelsPerSecond,         // passbacks to report performance
-    double *templatePixelsPerSecond, // 
+    double *templatePixelsPerSecond, //
+    cudaTextureObject_t texImage, cudaTextureObject_t texTemplate,
     int xOffset, int yOffset,  // offset into image
     int w, int h,              // width and height of output
     const float *hrefCorr,     // host reference data
@@ -269,9 +267,10 @@ TestCorrelation(
     int wTile,                 // width of image tile
     int sharedPitch, int sharedMem,
     dim3 threads, dim3 blocks,
-    void (*pfnCorrelationSums)( 
+    void (*pfnCorrelationSums)(
         float *dCorr, int CorrPitch,
         int *dSumI, int *dSumISq, int *dSumIT,
+        cudaTextureObject_t texImage, cudaTextureObject_t texTemplate,
         int wTile,
         int wTemplate, int hTemplate,
         float cPixels,
@@ -282,8 +281,9 @@ TestCorrelation(
         int xUL, int yUL, int w, int h,
         dim3 threads, dim3 blocks,
         int sharedMem ),
-    void (*pfnCorrelation)( 
+    void (*pfnCorrelation)(
         float *dCorr, int CorrPitch,
+        cudaTextureObject_t texImage, cudaTextureObject_t texTemplate,
         int wTile,
         int wTemplate, int hTemplate,
         float cPixels,
@@ -336,6 +336,7 @@ TestCorrelation(
     pfnCorrelationSums(
         dCorr, CorrPitch,
         dSumI, dSumISq, dSumIT,
+        texImage, texTemplate,
         wTile,
         wTemplate, hTemplate, 
         cPixels, fDenomExp, 
@@ -370,9 +371,10 @@ TestCorrelation(
     cuda(EventRecord( start, 0 ) );
 
     for ( int i = 0; i < cIterations; i++ ) {
-        pfnCorrelation( 
-            dCorr, CorrPitch, 
-            wTile, 
+        pfnCorrelation(
+            dCorr, CorrPitch,
+            texImage, texTemplate,
+            wTile,
             wTemplate, hTemplate, 
             cPixels, fDenomExp, 
             sharedPitch, 
@@ -483,6 +485,7 @@ main(int argc, char *argv[])
     cudaArray *pArrayImage = NULL;
     cudaArray *pArrayTemplate = NULL;
     cudaChannelFormatDesc desc = cudaCreateChannelDesc<unsigned char>();
+    cudaTextureObject_t texImage = 0, texTemplate = 0;
 
     if ( chCommandLineGetBool( "help", argc, argv ) ) {
         printf( "Usage:\n" );
@@ -545,12 +548,18 @@ main(int argc, char *argv[])
 
     cuda(MallocArray( &pArrayImage, &desc, w, h ) );
     cuda(MallocArray( &pArrayTemplate, &desc, w, h ) );
-    cuda(MemcpyToArray( pArrayImage, 0, 0, hidata, w*h, cudaMemcpyHostToDevice ) );
-        
+    cuda(Memcpy2DToArray( pArrayImage, 0, 0, hidata, w, w, h, cudaMemcpyHostToDevice ) );
+
     cuda(Memcpy2DArrayToArray( pArrayTemplate, 0, 0, pArrayImage, 0, 0, w, h, cudaMemcpyDeviceToDevice ) );
-    
-    cuda(BindTextureToArray( texImage, pArrayImage ) );
-    cuda(BindTextureToArray( texTemplate, pArrayTemplate ) );
+
+    {
+        cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
+        cudaTextureDesc  texDesc = {};
+        resDesc.res.array.array = pArrayImage;
+        cuda(CreateTextureObject( &texImage, &resDesc, &texDesc, NULL ));
+        resDesc.res.array.array = pArrayTemplate;
+        cuda(CreateTextureObject( &texTemplate, &resDesc, &texDesc, NULL ));
+    }
 
     CopyToTemplate( didata, DevicePitch, 
                     xTemplate, yTemplate, 
@@ -575,6 +584,7 @@ main(int argc, char *argv[])
         double templatePixelsPerSecond; \
         if ( ! TestCorrelation( &pixelsPerSecond, \
             &templatePixelsPerSecond, \
+            texImage, texTemplate, \
             xOffset, yOffset, \
             w, h,  \
             hoCorrCPU, \
@@ -631,7 +641,10 @@ Error:
 
     free( hidata );
 
-    cudaFree(didata); 
+    cudaFree(didata);
+
+    cudaDestroyTextureObject( texImage );
+    cudaDestroyTextureObject( texTemplate );
 
     cudaFreeArray(pArrayImage);
     cudaFreeArray(pArrayTemplate);
