@@ -35,8 +35,9 @@
  */
 
 __global__ void 
-corrTexTex_kernel( 
-    float *pCorr, size_t CorrPitch, 
+corrTexTex_kernel(
+    float *pCorr, size_t CorrPitch,
+    cudaTextureObject_t texImage, cudaTextureObject_t texTemplate,
     float cPixels,
     int xOffset, int yOffset,
     int xTemplate, int yTemplate,
@@ -61,9 +62,9 @@ corrTexTex_kernel(
     int SumIT = 0;
     for ( int y = 0; y < hTemplate; y++ ) {
         for ( int x = 0; x < wTemplate; x++ ) {
-            unsigned char I = tex2D( texImage, 
+            unsigned char I = tex2D<unsigned char>( texImage,
                 (float) col+xUL+xOffset+x, (float) row+yUL+yOffset+y );
-            unsigned char T = tex2D( texTemplate, 
+            unsigned char T = tex2D<unsigned char>( texTemplate,
                 (float) xTemplate+x, (float) yTemplate+y);
             SumI += I;
             SumT += T;
@@ -77,8 +78,9 @@ corrTexTex_kernel(
 }
 
 void
-corrTexTex( 
+corrTexTex(
     float *dCorr, int CorrPitch,
+    cudaTextureObject_t texImage, cudaTextureObject_t texTemplate,
     int wTile,
     int wTemplate, int hTemplate,
     float cPixels,
@@ -90,8 +92,9 @@ corrTexTex(
     dim3 threads, dim3 blocks,
     int sharedMem )
 {
-    corrTexTex_kernel<<<blocks, threads>>>( 
+    corrTexTex_kernel<<<blocks, threads>>>(
         dCorr, CorrPitch,
+        texImage, texTemplate,
         cPixels,
         xOffset, yOffset,
         xTemplate+xOffset, yTemplate+yOffset,

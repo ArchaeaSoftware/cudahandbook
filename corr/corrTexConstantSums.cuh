@@ -36,9 +36,10 @@
  */
 
 __global__ void 
-corrTexConstantSums_kernel( 
-    float *pCorr, size_t CorrPitch, 
+corrTexConstantSums_kernel(
+    float *pCorr, size_t CorrPitch,
     int *pI, int *pISq, int *pIT,
+    cudaTextureObject_t texImage,
     float cPixels, float fDenomExp,
     float xUL, float yUL, int w, int h,
     int xOffset, int yOffset, 
@@ -66,8 +67,8 @@ corrTexConstantSums_kernel(
 
     for ( int j = 0; j < hTemplate; j++ ) {
         for ( int i = 0; i < wTemplate; i++ ) {
-            unsigned char I = tex2D( texImage, 
-                                     (float) col+xUL+xOffset+i, 
+            unsigned char I = tex2D<unsigned char>( texImage,
+                                     (float) col+xUL+xOffset+i,
                                      (float) row+yUL+yOffset+j );
             unsigned char T = g_Tpix[inx++];
             SumI += I;
@@ -82,9 +83,10 @@ corrTexConstantSums_kernel(
 }
 
 void
-corrTexConstantSums( 
+corrTexConstantSums(
     float *dCorr, int CorrPitch,
     int *dSumI, int *dSumISq, int *dSumIT,
+    cudaTextureObject_t texImage, cudaTextureObject_t texTemplate,
     int wTile,
     int wTemplate, int hTemplate,
     float cPixels,
@@ -99,7 +101,8 @@ corrTexConstantSums(
     corrTexConstantSums_kernel<<<blocks, threads>>>(
         dCorr, CorrPitch,
         dSumI, dSumISq, dSumIT,
-        cPixels, fDenomExp, 
+        texImage,
+        cPixels, fDenomExp,
         (float) xUL, (float) yUL, w, h,
         xOffset, yOffset, wTemplate, hTemplate );
 }

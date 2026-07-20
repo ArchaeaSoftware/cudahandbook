@@ -43,7 +43,6 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-unused-result")
 include_directories( chLib )
 
 add_subdirectory( chLib )
-#commenting out for MI300X (no texturing) add_subdirectory( corr )
 add_subdirectory( concurrency )
 #commenting out for SCALE (no NPP library) add_subdirectory( histogram )
 add_subdirectory( memory )
@@ -67,7 +66,7 @@ option( CUDAHANDBOOK_BUILD_TEXTURING
         ${_CUDAHANDBOOK_TEXTURING_DEFAULT} )
 if( CUDAHANDBOOK_BUILD_TEXTURING )
     add_subdirectory( texturing )
-    # add_subdirectory( corr )   # re-enable once corr is migrated to texture objects
+    add_subdirectory( corr )
     # Set the CUDA architecture here (not in the block below), since these
     # targets only exist when the option is ON.
     set_target_properties(
@@ -75,6 +74,7 @@ if( CUDAHANDBOOK_BUILD_TEXTURING )
         tex1d_9bit tex1d_addressing tex1d_unnormalized
         tex1dfetch tex1dfetch_big tex1dfetch_host tex1dfetch_htod tex1dfetch_int2float
         tex2d_addressing tex2d_addressing_device tex2d_opengl tex2d_shmoo
+        normalizedCrossCorrelation
         PROPERTIES CUDA_ARCHITECTURES 80-virtual )
 endif()
 
@@ -123,8 +123,8 @@ set_target_properties(
     # histogram
     #histogram
 
-    # corr
-    #normalizedCrossCorrelation
+    # corr targets get CUDA_ARCHITECTURES in the
+    # CUDAHANDBOOK_BUILD_TEXTURING block above (corr uses texturing).
 
     # microbench
     globalRead

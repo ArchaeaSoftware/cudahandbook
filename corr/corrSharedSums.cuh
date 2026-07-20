@@ -39,9 +39,10 @@
 extern __shared__ unsigned char LocalBlock[];
 
 __global__ void 
-corrSharedSums_kernel( 
-    float *pCorr, size_t CorrPitch, 
+corrSharedSums_kernel(
+    float *pCorr, size_t CorrPitch,
     int *pI, int *pISq, int *pIT,
+    cudaTextureObject_t texImage,
     int wTile,
     int wTemplate, int hTemplate,
     float xOffset, float yOffset,
@@ -66,9 +67,9 @@ corrSharedSums_kernel(
                   col < wTile+wTemplate; 
                   col += blockDim.x ) {
 
-            LocalBlock[SharedIdx+col] = 
-                tex2D( texImage, 
-                      (float) (uTile+col+xUL+xOffset), 
+            LocalBlock[SharedIdx+col] =
+                tex2D<unsigned char>( texImage,
+                      (float) (uTile+col+xUL+xOffset),
                       (float) (vTile+row+yUL+yOffset) );
 
         }
@@ -107,9 +108,10 @@ corrSharedSums_kernel(
 
 
 void
-corrSharedSums( 
+corrSharedSums(
     float *dCorr, int CorrPitch,
     int *dSumI, int *dSumISq, int *dSumIT,
+    cudaTextureObject_t texImage, cudaTextureObject_t texTemplate,
     int wTile,
     int wTemplate, int hTemplate,
     float cPixels,
@@ -133,9 +135,10 @@ corrSharedSums(
         tcBlocks.x = INTCEIL(w,threads.x); 
         tcBlocks.y = INTCEIL(h,threads.y); 
         tcBlocks.z = 1;
-        return corrTexConstantSums( 
+        return corrTexConstantSums(
             dCorr, CorrPitch,
             dSumI, dSumISq, dSumIT,
+            texImage, texTemplate,
             wTile,
             wTemplate, hTemplate,
             cPixels,
@@ -150,6 +153,7 @@ corrSharedSums(
     corrSharedSums_kernel<<<blocks, threads, sharedMem>>>(
         dCorr, CorrPitch,
         dSumI, dSumISq, dSumIT,
+        texImage,
         wTile,
         wTemplate, hTemplate,
         (float) xOffset, (float) yOffset,
