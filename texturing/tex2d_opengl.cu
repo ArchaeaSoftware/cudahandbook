@@ -136,7 +136,7 @@ CreateAndPopulateArray( cudaArray **ret, char *base, int width, int height )
 }
 
 __global__ void
-RenderTextureUnnormalized( cudaTextureObject_t tex2d, uchar4 *out, int width, int height )
+RenderTextureUnnormalized( uchar4 *out, cudaTextureObject_t tex2d, int width, int height )
 {
     for ( int j = blockIdx.x; j < height; j += gridDim.x ) {
         int row = height-j-1;
@@ -147,8 +147,8 @@ RenderTextureUnnormalized( cudaTextureObject_t tex2d, uchar4 *out, int width, in
 }
 
 __global__ void
-RenderTextureNormalized( cudaTextureObject_t tex2d,
-                         uchar4 *out,
+RenderTextureNormalized( uchar4 *out, 
+                         cudaTextureObject_t tex2d,
                          int width, 
                          int height, 
                          int scale )
@@ -194,10 +194,10 @@ void displayCB(void)		/* function called whenever redisplay needed */
             return;
     }
     if ( g_normalized ) {
-        RenderTextureNormalized<<<g_height, 384>>>( tex2d, g_deviceFrameBuffer, g_width, g_height, g_scale );
+        RenderTextureNormalized<<<g_height, 384>>>( g_deviceFrameBuffer, tex2d, g_width, g_height, g_scale );
     }
     else {
-        RenderTextureUnnormalized<<<g_height, 384>>>( tex2d, g_deviceFrameBuffer, g_width, g_height );
+        RenderTextureUnnormalized<<<g_height, 384>>>( g_deviceFrameBuffer, tex2d, g_width, g_height );
     }
     if ( cudaSuccess != cudaDeviceSynchronize() ) {
         cudaDestroyTextureObject( tex2d );

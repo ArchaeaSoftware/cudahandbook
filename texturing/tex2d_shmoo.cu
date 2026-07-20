@@ -46,7 +46,7 @@
 #include <cuda.h>
 
 extern "C" __global__ void
-TexSums( cudaTextureObject_t tex, float *out, size_t Width, size_t Height )
+TexSums( float *out, cudaTextureObject_t tex, size_t Width, size_t Height )
 {
     float sum = 0.0f;
     for ( int row = blockIdx.y*blockDim.y + threadIdx.y;
@@ -121,7 +121,7 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
                            INTDIVIDE_CEILING(desc.Height, threadHeight));
 
         for ( int i = 0; i < iterations; i++ ) {
-            TexSums<<<blocks,threads>>>( tex, NULL, desc.Width, desc.Height );
+            TexSums<<<blocks,threads>>>( NULL, tex, desc.Width, desc.Height );
         }
 
     }

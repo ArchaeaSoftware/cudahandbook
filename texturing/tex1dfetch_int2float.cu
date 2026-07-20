@@ -43,7 +43,7 @@
 #include <chError.h>
 
 extern "C" __global__ void
-TexReadout( cudaTextureObject_t tex, float *out, size_t N )
+TexReadout( float *out, cudaTextureObject_t tex, size_t N )
 {
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x; 
           i < N; 
@@ -123,7 +123,7 @@ CheckTexPromoteToFloat( size_t N )
         cuda(CreateTextureObject( &tex, &resDesc, &texDesc, NULL ));
     }
     cuda(OccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, TexReadout ));
-    TexReadout<<<minGridSize, blockSize>>>( tex, foutDevice, N );
+    TexReadout<<<minGridSize, blockSize>>>( foutDevice, tex, N );
     cuda(DeviceSynchronize());
 
     for ( int i = 0; i < N; i++ ) {

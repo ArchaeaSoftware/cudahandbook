@@ -99,44 +99,44 @@ plus( const myInt4& a, const myInt4& b )
 
 template<typename T>
 __device__ void
-ReadViaTex( cudaTextureObject_t, T& passback, size_t i )
+ReadViaTex( T& passback, cudaTextureObject_t, size_t i )
 {
     passback = T(0xbeefcafe);
 }
 
 __device__ void
-ReadViaTex( cudaTextureObject_t tex, char& passback, size_t i )
+ReadViaTex( char& passback, cudaTextureObject_t tex, size_t i )
 {
     passback = tex1Dfetch<char>( tex, i );
 }
 
 __device__ void
-ReadViaTex( cudaTextureObject_t tex, short& passback, size_t i )
+ReadViaTex( short& passback, cudaTextureObject_t tex, size_t i )
 {
     passback = tex1Dfetch<short>( tex, i );
 }
 
 __device__ void
-ReadViaTex( cudaTextureObject_t tex, int& passback, size_t i )
+ReadViaTex( int& passback, cudaTextureObject_t tex, size_t i )
 {
     passback = tex1Dfetch<int>( tex, i );
 }
 
 __device__ void
-ReadViaTex( cudaTextureObject_t tex, myInt2& passback, size_t i )
+ReadViaTex( myInt2& passback, cudaTextureObject_t tex, size_t i )
 {
     passback = tex1Dfetch<int2>( tex, i );
 }
 
 __device__ void
-ReadViaTex( cudaTextureObject_t tex, myInt4& passback, size_t i )
+ReadViaTex( myInt4& passback, cudaTextureObject_t tex, size_t i )
 {
     passback = tex1Dfetch<int4>( tex, i );
 }
 
 template<class T, const int n> 
 __global__ void
-GlobalReads( cudaTextureObject_t tex, T *out, bool bOffset, size_t N, bool bWriteResults )
+GlobalReads( T *out, cudaTextureObject_t tex, bool bOffset, size_t N, bool bWriteResults )
 {
     T sums[n];
     size_t i;
@@ -149,7 +149,7 @@ GlobalReads( cudaTextureObject_t tex, T *out, bool bOffset, size_t N, bool bWrit
         for ( int j = 0; j < n; j++ ) {
             size_t index = i+j*blockDim.x;
             T value;
-            ReadViaTex( tex, value, index+bOffset );
+            ReadViaTex( value, tex, index+bOffset );
             sums[j] = plus( sums[j], value );
         }
     }
@@ -158,7 +158,7 @@ GlobalReads( cudaTextureObject_t tex, T *out, bool bOffset, size_t N, bool bWrit
     for ( int j = 0; j < n; j++ ) {
         size_t index = i+j*blockDim.x;
         T value;
-        ReadViaTex( tex, value, index+bOffset );
+        ReadViaTex( value, tex, index+bOffset );
         if ( index<N ) sums[j] = plus( sums[j], value );
     }
     
@@ -228,7 +228,7 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
 
     {
         // confirm that kernel launch with this configuration writes correct result
-        GlobalReads<T,n><<<cBlocks,cThreads>>>( tex, out, bOffset, N-bOffset, true );
+        GlobalReads<T,n><<<cBlocks,cThreads>>>( out, tex, bOffset, N-bOffset, true );
         cuda(Memcpy( hostOut, out, cBlocks*cThreads*sizeof(T), cudaMemcpyDeviceToHost ) );
         cuda(GetLastError() ); 
         T sumGPU = T(0);
@@ -244,7 +244,7 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
     cIterations = 10;
     cudaEventRecord( evStart );
     for ( int i = 0; i < cIterations; i++ ) {
-        GlobalReads<T,n><<<cBlocks,cThreads>>>( tex, out, bOffset, N-bOffset, false );
+        GlobalReads<T,n><<<cBlocks,cThreads>>>( out, tex, bOffset, N-bOffset, false );
     }
     cudaEventRecord( evStop );
     cuda(DeviceSynchronize() );

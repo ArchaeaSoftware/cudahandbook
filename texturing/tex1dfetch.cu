@@ -44,7 +44,7 @@
 #define NUM_FLOATS 16
 
 __global__ void
-TexReadout( cudaTextureObject_t tex, float *out, size_t N )
+TexReadout( float *out, cudaTextureObject_t tex, size_t N )
 {
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x; 
           i < N; 
@@ -55,7 +55,7 @@ TexReadout( cudaTextureObject_t tex, float *out, size_t N )
 }
 
 void
-PrintTex( cudaTextureObject_t tex, float *host, size_t N )
+PrintTex( float *host, cudaTextureObject_t tex, size_t N )
 {
     float *device;
     cudaError_t status;
@@ -66,7 +66,7 @@ PrintTex( cudaTextureObject_t tex, float *host, size_t N )
     // Let the driver pick a block size for this kernel and a grid big
     // enough to fill the device; the grid-stride loop covers any N.
     cuda(OccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, TexReadout ));
-    TexReadout<<<minGridSize, blockSize>>>( tex, device, N );
+    TexReadout<<<minGridSize, blockSize>>>( device, tex, N );
     cuda(DeviceSynchronize());
     for ( int i = 0; i < N; i++ ) {
         printf( "%.2f ", host[i] );
@@ -109,7 +109,7 @@ main( int argc, char *argv[] )
         cuda(CreateTextureObject( &tex, &resDesc, &texDesc, NULL ));
     }
 
-    PrintTex( tex, foutHost, NUM_FLOATS );
+    PrintTex( foutHost, tex, NUM_FLOATS );
 
     ret = 0;
 Error:

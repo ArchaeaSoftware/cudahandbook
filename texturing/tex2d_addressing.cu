@@ -44,8 +44,8 @@
 
 extern "C" __global__ void
 TexReadout( 
-    cudaTextureObject_t tex,
     float4 *out, 
+    cudaTextureObject_t tex,
     size_t Width, 
     size_t Pitch, 
     size_t Height, 
@@ -143,7 +143,7 @@ CreateAndPrintTex(
     blocks.x = 2;
     blocks.y = 1;
     threads.x = 64; threads.y = 4;
-    TexReadout<<<blocks,threads>>>( tex, outDevice, outWidth, outPitch, outHeight, base, increment );
+    TexReadout<<<blocks,threads>>>( outDevice, tex, outWidth, outPitch, outHeight, base, increment );
     cuda(DeviceSynchronize());
 
     for ( int row = 0; row < outHeight; row++ ) {
