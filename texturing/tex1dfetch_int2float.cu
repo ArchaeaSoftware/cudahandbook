@@ -42,16 +42,14 @@
 
 #include <chError.h>
 
-texture<signed char, 1, cudaReadModeNormalizedFloat> tex;
-
 extern "C" __global__ void
-TexReadout( float *out, size_t N )
+TexReadout( cudaTextureObject_t tex, float *out, size_t N )
 {
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x; 
           i < N; 
           i += gridDim.x*blockDim.x )
     {
-        out[i] = tex1Dfetch( tex, i );
+        out[i] = tex1Dfetch<float>( tex, i );
     }
 }
 
@@ -94,6 +92,8 @@ CheckTexPromoteToFloat( size_t N )
     T *inHost, *inDevice;
     float *foutHost, *foutDevice;
     cudaError_t status;
+    cudaTextureObject_t tex = 0;
+    int minGridSize, blockSize;
 
     cuda(HostAlloc( (void **) &inHost, 
                                 N*sizeof(T), 
@@ -113,12 +113,17 @@ CheckTexPromoteToFloat( size_t N )
     }
     memset( foutHost, 0, N*sizeof(float) );
 
-    cuda(BindTexture( NULL, 
-                      tex, 
-                      inDevice, 
-                      cudaCreateChannelDesc<T>(), 
-                      N*sizeof(T)));
-    TexReadout<<<2,384>>>( foutDevice, N );
+    {
+        cudaResourceDesc resDesc = { .resType = cudaResourceTypeLinear };
+        cudaTextureDesc texDesc = {};
+        resDesc.res.linear.devPtr = inDevice;
+        resDesc.res.linear.desc = cudaCreateChannelDesc<T>();
+        resDesc.res.linear.sizeInBytes = N*sizeof(T);
+        texDesc.readMode = cudaReadModeNormalizedFloat;
+        cuda(CreateTextureObject( &tex, &resDesc, &texDesc, NULL ));
+    }
+    cuda(OccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, TexReadout ));
+    TexReadout<<<minGridSize, blockSize>>>( tex, foutDevice, N );
     cuda(DeviceSynchronize());
 
     for ( int i = 0; i < N; i++ ) {
@@ -127,6 +132,7 @@ CheckTexPromoteToFloat( size_t N )
     }
     printf( "\n" );
 Error:
+    cudaDestroyTextureObject( tex );
     cudaFreeHost( inHost );
     cudaFreeHost( foutHost );
 }

@@ -44,22 +44,20 @@
 
 #include <chError.h>
 
-texture<float, 1> tex;
-
 extern "C" __global__ void
-TexReadout( float *out, size_t N )
+TexReadout( cudaTextureObject_t tex, float *out, size_t N )
 {
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x; 
           i < N; 
           i += gridDim.x*blockDim.x )
     {
-        out[i] = tex1Dfetch( tex, i );
+        out[i] = tex1Dfetch<float>( tex, i );
     }
 }
 
 template<class T>
 float
-MeasureBandwidth( void *out, size_t N, int blocks, int threads )
+MeasureBandwidth( cudaTextureObject_t tex, void *out, size_t N, int blocks, int threads )
 {
     cudaError_t status;
     chTimerTimestamp start, stop;
@@ -67,7 +65,7 @@ MeasureBandwidth( void *out, size_t N, int blocks, int threads )
 
     chTimerGetTime( &start );
 
-    TexReadout<<<2,384>>>( (float *) out, N );
+    TexReadout<<<2,384>>>( tex, (float *) out, N );
     cuda(DeviceSynchronize());
 
     chTimerGetTime( &stop );
@@ -90,6 +88,7 @@ ComputeMaximumBandwidth( size_t N )
     float fMaxBandwidth = 0.0f;
     int cMaxBlocks = 0;
     int cMaxThreads = 0;
+    cudaTextureObject_t tex = 0;
 
     cuda(HostAlloc( (void **) &inHost, N*sizeof(T), cudaHostAllocMapped));
     cuda(HostGetDevicePointer( (void **) &inDevice, inHost, 0 ));
@@ -101,13 +100,20 @@ ComputeMaximumBandwidth( size_t N )
         inHost[i] = (T) i;
     }
 
-    cuda(BindTexture(NULL, tex, inDevice, cudaCreateChannelDesc<T>(), N*sizeof(T)));
+    {
+        cudaResourceDesc resDesc = { .resType = cudaResourceTypeLinear };
+        cudaTextureDesc texDesc = {};
+        resDesc.res.linear.devPtr = inDevice;
+        resDesc.res.linear.desc = cudaCreateChannelDesc<T>();
+        resDesc.res.linear.sizeInBytes = N*sizeof(T);
+        cuda(CreateTextureObject( &tex, &resDesc, &texDesc, NULL ));
+    }
 
     {
         for ( int cBlocks = 8; cBlocks <= 512; cBlocks += 8 ) {
             for ( int cThreads = 16; cThreads <= 512; cThreads += 16 ) {
                 memset( outHost, 0, N*sizeof(float) );
-                float bw = MeasureBandwidth<T>( outDevice, N, cBlocks, cThreads );
+                float bw = MeasureBandwidth<T>( tex, outDevice, N, cBlocks, cThreads );
                 if ( bw > fMaxBandwidth ) {
                     fMaxBandwidth = bw;
                     cMaxBlocks = cBlocks;
@@ -129,6 +135,7 @@ ComputeMaximumBandwidth( size_t N )
 
     ret = true;
 Error:
+    cudaDestroyTextureObject( tex );
     cudaFreeHost( inHost );
     cudaFree( outDevice );
     cudaFreeHost( outHost );

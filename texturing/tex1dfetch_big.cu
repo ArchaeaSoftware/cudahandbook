@@ -82,81 +82,76 @@ Error:
     return 0;
 }
 
-texture<int4, 1, cudaReadModeElementType> tex4_0;
-texture<int4, 1, cudaReadModeElementType> tex4_1;
-texture<int4, 1, cudaReadModeElementType> tex4_2;
-texture<int4, 1, cudaReadModeElementType> tex4_3;
-
 __device__ int4
-tex4Fetch( size_t index )
+tex4Fetch( cudaTextureObject_t t0, cudaTextureObject_t t1,
+           cudaTextureObject_t t2, cudaTextureObject_t t3, size_t index )
 {
     int texID = (int) (index>>CUDA_LG_MAX_TEX1DFETCH_INDEX);
     int i = (int) (index & (CUDA_MAX_TEX1DFETCH_INDEX_SIZE_T-1));
     int4 i4;
     
     if ( texID == 0 ) {
-        i4 = tex1Dfetch( tex4_0, i );
+        i4 = tex1Dfetch<int4>( t0, i );
     }
     else if ( texID == 1 ) {
-        i4 = tex1Dfetch( tex4_1, i );
+        i4 = tex1Dfetch<int4>( t1, i );
     }
     else if ( texID == 2 ) {
-        i4 = tex1Dfetch( tex4_2, i );
+        i4 = tex1Dfetch<int4>( t2, i );
     }
     else if ( texID == 3 ) {
-        i4 = tex1Dfetch( tex4_3, i );
+        i4 = tex1Dfetch<int4>( t3, i );
     }
     return i4;
 }
 
 __global__ void
-TexChecksum4( size_t N )
+TexChecksum4( cudaTextureObject_t t0, cudaTextureObject_t t1,
+              cudaTextureObject_t t2, cudaTextureObject_t t3, size_t N )
 {
     int sum = 0;
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x; 
           i < N; 
           i += gridDim.x*blockDim.x )
     {
-        int4 i4 = tex4Fetch( i );
+        int4 i4 = tex4Fetch( t0, t1, t2, t3, i );
         sum += i4.x + i4.y + i4.z + i4.w;
     }
     checksumGPU_array[blockIdx.x*blockDim.x + threadIdx.x] = sum;
 }
 
-texture<int2, 1, cudaReadModeElementType> tex2;
-
 __global__ void
-TexChecksum2( size_t N )
+TexChecksum2( cudaTextureObject_t tex2, size_t N )
 {
     int sum = 0;
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x; 
           i < N; 
           i += gridDim.x*blockDim.x )
     {
-        int2 i2 = tex1Dfetch( tex2, i );
+        int2 i2 = tex1Dfetch<int2>( tex2, i );
         sum += i2.x + i2.y;
     }
     checksumGPU_array[blockIdx.x*blockDim.x + threadIdx.x] = sum;
 }
 
-texture<int1, 1, cudaReadModeElementType> tex1;
-
 __global__ void
-TexChecksum1( size_t N )
+TexChecksum1( cudaTextureObject_t tex1, size_t N )
 {
     int sum = 0;
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x; 
           i < N; 
           i += gridDim.x*blockDim.x )
     {
-        int1 i1 = tex1Dfetch( tex1, i );
+        int1 i1 = tex1Dfetch<int1>( tex1, i );
         sum += i1.x;
     }
     checksumGPU_array[blockIdx.x*blockDim.x + threadIdx.x] = sum;
 }
 
 bool
-TexChecksum( int *out, int c, size_t N )
+TexChecksum( int *out, int c, size_t N,
+             cudaTextureObject_t tex1, cudaTextureObject_t tex2,
+             const cudaTextureObject_t *tex4 )
 {
     cudaError_t status;
     bool ret = false;
@@ -166,13 +161,13 @@ TexChecksum( int *out, int c, size_t N )
     cuda(MemcpyToSymbol( checksumGPU_array, zero, TOTAL_THREADS*sizeof(int) ));
     switch ( c ) {
         case 1:
-            TexChecksum1<<<NUM_BLOCKS,NUM_THREADS>>>( N / sizeof(int) );
+            TexChecksum1<<<NUM_BLOCKS,NUM_THREADS>>>( tex1, N / sizeof(int) );
             break;
         case 2:
-            TexChecksum2<<<NUM_BLOCKS,NUM_THREADS>>>( N / sizeof(int2) );
+            TexChecksum2<<<NUM_BLOCKS,NUM_THREADS>>>( tex2, N / sizeof(int2) );
             break;
         case 4:
-            TexChecksum4<<<NUM_BLOCKS,NUM_THREADS>>>( N / sizeof(int4) );
+            TexChecksum4<<<NUM_BLOCKS,NUM_THREADS>>>( tex4[0], tex4[1], tex4[2], tex4[3], N / sizeof(int4) );
             break;
         default:
             goto Error;
@@ -187,6 +182,19 @@ Error:
 
 #undef min
 #define min(a,b) (((a)<(b)?(a):(b)))
+
+static cudaTextureObject_t
+CreateLinearTexObj( const void *devPtr, cudaChannelFormatDesc chanDesc, size_t numBytes )
+{
+    cudaResourceDesc resDesc = { .resType = cudaResourceTypeLinear };
+    cudaTextureDesc texDesc = {};
+    cudaTextureObject_t tex = 0;
+    resDesc.res.linear.devPtr = (void *) devPtr;
+    resDesc.res.linear.desc = chanDesc;
+    resDesc.res.linear.sizeInBytes = numBytes;
+    cudaCreateTextureObject( &tex, &resDesc, &texDesc, NULL );
+    return tex;
+}
 
 int
 main( int argc, char *argv[] )
@@ -206,6 +214,8 @@ main( int argc, char *argv[] )
     int checksumGPU1;
     int checksumGPU2;
     int checksumGPU4;
+
+    cudaTextureObject_t texObj1 = 0, texObj2 = 0, texObj4[4] = { 0, 0, 0, 0 };
 
     cuda(SetDeviceFlags(cudaDeviceMapHost));
     cuda(GetDeviceProperties( &props, 0));
@@ -245,8 +255,8 @@ main( int argc, char *argv[] )
         cuda(Memcpy( deviceTex, hostTex, numBytes, cudaMemcpyHostToDevice ));
     }
     if ( numBytes <= CUDA_MAX_BYTES_INT1 ) {
-        cuda(BindTexture( NULL, tex1, deviceTex, cudaCreateChannelDesc<unsigned int>(), numBytes ) );
-        if ( ! TexChecksum( &checksumGPU1, 1, numBytes ) ) {
+        texObj1 = CreateLinearTexObj( deviceTex, cudaCreateChannelDesc<int1>(), numBytes );
+        if ( ! TexChecksum( &checksumGPU1, 1, numBytes, texObj1, 0, NULL ) ) {
             printf( "TexCheckSums failed (unsigned int)\n" );
             goto Error;
         }
@@ -256,8 +266,8 @@ main( int argc, char *argv[] )
         printf( "    tex1 checksum: (not performed)\n" );
     }
     if ( numBytes <= CUDA_MAX_BYTES_INT2 ) {
-        cuda(BindTexture( NULL, tex2, deviceTex, cudaCreateChannelDesc<int2>(), numBytes ) );
-        if ( ! TexChecksum( &checksumGPU2, 2, numBytes ) ) {
+        texObj2 = CreateLinearTexObj( deviceTex, cudaCreateChannelDesc<int2>(), numBytes );
+        if ( ! TexChecksum( &checksumGPU2, 2, numBytes, 0, texObj2, NULL ) ) {
             printf( "TexCheckSums failed (int2)\n" );
             goto Error;
         }
@@ -290,11 +300,10 @@ main( int argc, char *argv[] )
             texSizes[iTexture] = texSizes[iTexture-1];
             iTexture++;
         }
-        cuda(BindTexture( NULL, tex4_0, texBases[0], int4Desc, texSizes[0] ) );
-        cuda(BindTexture( NULL, tex4_1, texBases[1], int4Desc, texSizes[1] ) );
-        cuda(BindTexture( NULL, tex4_2, texBases[2], int4Desc, texSizes[2] ) );
-        cuda(BindTexture( NULL, tex4_3, texBases[3], int4Desc, texSizes[3] ) );
-        if ( ! TexChecksum( &checksumGPU4, 4, numBytes ) ) {
+        for ( iTexture = 0; iTexture < 4; iTexture++ ) {
+            texObj4[iTexture] = CreateLinearTexObj( texBases[iTexture], int4Desc, texSizes[iTexture] );
+        }
+        if ( ! TexChecksum( &checksumGPU4, 4, numBytes, 0, 0, texObj4 ) ) {
             printf( "TexCheckSums failed (int4)\n" );
             goto Error;
         }
@@ -303,6 +312,11 @@ main( int argc, char *argv[] )
  
     ret = 0;
 Error:
+    cudaDestroyTextureObject( texObj1 );
+    cudaDestroyTextureObject( texObj2 );
+    for ( int k = 0; k < 4; k++ ) {
+        cudaDestroyTextureObject( texObj4[k] );
+    }
     if ( bAllocedHost ) {
         cudaFreeHost( hostTex );
     }

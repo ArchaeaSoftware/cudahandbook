@@ -43,28 +43,30 @@
 
 #define NUM_FLOATS 16
 
-texture<float, 1, cudaReadModeElementType> tex1;
-
 __global__ void
-TexReadout( float *out, size_t N )
+TexReadout( cudaTextureObject_t tex, float *out, size_t N )
 {
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x; 
           i < N; 
           i += gridDim.x*blockDim.x )   
     {
-        out[i] = tex1Dfetch( tex1, i );
+        out[i] = tex1Dfetch<float>( tex, i );
     }
 }
 
 void
-PrintTex( float *host, size_t N )
+PrintTex( cudaTextureObject_t tex, float *host, size_t N )
 {
     float *device;
     cudaError_t status;
+    int minGridSize, blockSize;
     memset( host, 0, N*sizeof(float) );
     cuda(HostGetDevicePointer( (void **) &device, host, 0 ));
     
-    TexReadout<<<2,384>>>( device, N );
+    // Let the driver pick a block size for this kernel and a grid big
+    // enough to fill the device; the grid-stride loop covers any N.
+    cuda(OccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, TexReadout ));
+    TexReadout<<<minGridSize, blockSize>>>( tex, device, N );
     cuda(DeviceSynchronize());
     for ( int i = 0; i < N; i++ ) {
         printf( "%.2f ", host[i] );
@@ -84,10 +86,9 @@ main( int argc, char *argv[] )
     float *foutHost;
     float *foutDevice;
     cudaError_t status;
-    cudaDeviceProp props;
+    cudaTextureObject_t tex = 0;
 
     cuda(SetDeviceFlags(cudaDeviceMapHost));
-    cuda(GetDeviceProperties( &props, 0));
     cuda(Malloc( (void **) &p, NUM_FLOATS*sizeof(float)) );
     cuda(HostAlloc( (void **) &finHost, NUM_FLOATS*sizeof(float), cudaHostAllocMapped));
     cuda(HostGetDevicePointer( (void **) &finDevice, finHost, 0 ));
@@ -100,14 +101,19 @@ main( int argc, char *argv[] )
     }
 
     {
-        size_t offset;
-        cuda(BindTexture( &offset, tex1, finDevice, NUM_FLOATS*sizeof(float)) );
+        cudaResourceDesc resDesc = { .resType = cudaResourceTypeLinear };
+        cudaTextureDesc texDesc = {};
+        resDesc.res.linear.devPtr = finDevice;
+        resDesc.res.linear.desc = cudaCreateChannelDesc<float>();
+        resDesc.res.linear.sizeInBytes = NUM_FLOATS*sizeof(float);
+        cuda(CreateTextureObject( &tex, &resDesc, &texDesc, NULL ));
     }
 
-    PrintTex( foutHost, NUM_FLOATS );
+    PrintTex( tex, foutHost, NUM_FLOATS );
 
     ret = 0;
 Error:
+    cudaDestroyTextureObject( tex );
     cudaFree( p );
     cudaFreeHost( finHost );
     cudaFreeHost( foutHost );

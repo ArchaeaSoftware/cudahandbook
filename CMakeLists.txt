@@ -53,7 +53,30 @@ add_subdirectory( reduction )
 add_subdirectory( scan )
 add_subdirectory( SMs )
 add_subdirectory( streaming )
-#commenting out for MI300X (no texturing) add_subdirectory( texturing )
+# The texturing (and corr) samples use the CUDA texture/surface object
+# APIs, which are unavailable under HIP/SCALE (e.g. AMD MI300X). Default
+# the option to ON only for genuine NVIDIA nvcc; override on the command
+# line with -DCUDAHANDBOOK_BUILD_TEXTURING=ON|OFF.
+if( CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA" )
+    set( _CUDAHANDBOOK_TEXTURING_DEFAULT ON )
+else()
+    set( _CUDAHANDBOOK_TEXTURING_DEFAULT OFF )
+endif()
+option( CUDAHANDBOOK_BUILD_TEXTURING
+        "Build the CUDA-only texturing samples"
+        ${_CUDAHANDBOOK_TEXTURING_DEFAULT} )
+if( CUDAHANDBOOK_BUILD_TEXTURING )
+    add_subdirectory( texturing )
+    # add_subdirectory( corr )   # re-enable once corr is migrated to texture objects
+    # Set the CUDA architecture here (not in the block below), since these
+    # targets only exist when the option is ON.
+    set_target_properties(
+        surf1Dmemset surf2Dmemset surf2Dmemset_shmoo
+        tex1d_9bit tex1d_addressing tex1d_unnormalized
+        tex1dfetch tex1dfetch_big tex1dfetch_host tex1dfetch_htod tex1dfetch_int2float
+        tex2d_addressing tex2d_addressing_device tex2d_memset tex2d_opengl tex2d_shmoo
+        PROPERTIES CUDA_ARCHITECTURES 80-virtual )
+endif()
 
 # Set CUDA architecture for compilation (e.g., for specific GPU models)
 
@@ -122,24 +145,9 @@ set_target_properties(
     #testScanBlock testScanWarp testStreamCompact_odd timeStreamCompact_odd
     testScan timeScan
 
-    # texturing
-    #surf1Dmemset
-    #surf2Dmemset
-    #surf2Dmemset_shmoo
-    #tex1d_addressing
-    #tex1dfetch
-    #tex1d_9bit
-    #tex1dfetch_big
-    #tex1dfetch_htod
-    #tex1dfetch_host
-    #tex1dfetch_int2float
-    #tex1dfetch_offset
-    #tex1d_unnormalized
-    #tex2d_addressing
-    #tex2d_shmoo
-    #tex2d_addressing_device
-    #tex2d_memset
-    #tex2d_opengl
+    # texturing targets get CUDA_ARCHITECTURES in the
+    # CUDAHANDBOOK_BUILD_TEXTURING block above (they don't exist here
+    # when texturing is disabled).
 
     nbody
 
