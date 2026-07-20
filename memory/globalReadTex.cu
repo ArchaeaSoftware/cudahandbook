@@ -4,6 +4,15 @@
  *
  * Microbenchmark for read bandwidth from global memory via texture.
  *
+ * Historical note: reading global memory through the texture units was
+ * once a way to get a second cache and a second load path. On hardware
+ * where the texture cache has been unified with the L1 (Maxwell and
+ * later), that advantage is gone -- __ldg() / const __restrict__ reads
+ * go through the same cache without the overhead of setting up a
+ * texture, so texturing is no longer a useful read path. This benchmark
+ * is retained for historical interest and is not part of the default
+ * build.
+ *
  * Build with: nvcc -I ../chLib <options> globalReadTex.cu
  * Requires: No minimum SM requirement.
  *
@@ -88,52 +97,46 @@ plus( const myInt4& a, const myInt4& b )
     return ret;
 }
 
-texture<char, 1, cudaReadModeElementType> tex_char;
-texture<short, 1, cudaReadModeElementType> tex_short;
-texture<int, 1, cudaReadModeElementType> tex_int;
-texture<int2, 1, cudaReadModeElementType> tex_int2;
-texture<int4, 1, cudaReadModeElementType> tex_int4;
-
 template<typename T>
 __device__ void
-ReadViaTex( T& passback, size_t i )
+ReadViaTex( cudaTextureObject_t, T& passback, size_t i )
 {
     passback = T(0xbeefcafe);
 }
 
 __device__ void
-ReadViaTex( char& passback, size_t i )
+ReadViaTex( cudaTextureObject_t tex, char& passback, size_t i )
 {
-    passback = tex1Dfetch( tex_char, i );
+    passback = tex1Dfetch<char>( tex, i );
 }
 
 __device__ void
-ReadViaTex( short& passback, size_t i )
+ReadViaTex( cudaTextureObject_t tex, short& passback, size_t i )
 {
-    passback = tex1Dfetch( tex_short, i );
+    passback = tex1Dfetch<short>( tex, i );
 }
 
 __device__ void
-ReadViaTex( int& passback, size_t i )
+ReadViaTex( cudaTextureObject_t tex, int& passback, size_t i )
 {
-    passback = tex1Dfetch( tex_int, i );
+    passback = tex1Dfetch<int>( tex, i );
 }
 
 __device__ void
-ReadViaTex( myInt2& passback, size_t i )
+ReadViaTex( cudaTextureObject_t tex, myInt2& passback, size_t i )
 {
-    passback = tex1Dfetch( tex_int2, i );
+    passback = tex1Dfetch<int2>( tex, i );
 }
 
 __device__ void
-ReadViaTex( myInt4& passback, size_t i )
+ReadViaTex( cudaTextureObject_t tex, myInt4& passback, size_t i )
 {
-    passback = tex1Dfetch( tex_int4, i );
+    passback = tex1Dfetch<int4>( tex, i );
 }
 
 template<class T, const int n> 
 __global__ void
-GlobalReads( T *out, bool bOffset, size_t N, bool bWriteResults )
+GlobalReads( cudaTextureObject_t tex, T *out, bool bOffset, size_t N, bool bWriteResults )
 {
     T sums[n];
     size_t i;
@@ -146,7 +149,7 @@ GlobalReads( T *out, bool bOffset, size_t N, bool bWriteResults )
         for ( int j = 0; j < n; j++ ) {
             size_t index = i+j*blockDim.x;
             T value;
-            ReadViaTex( value, index+bOffset );
+            ReadViaTex( tex, value, index+bOffset );
             sums[j] = plus( sums[j], value );
         }
     }
@@ -155,7 +158,7 @@ GlobalReads( T *out, bool bOffset, size_t N, bool bWriteResults )
     for ( int j = 0; j < n; j++ ) {
         size_t index = i+j*blockDim.x;
         T value;
-        ReadViaTex( value, index+bOffset );
+        ReadViaTex( tex, value, index+bOffset );
         if ( index<N ) sums[j] = plus( sums[j], value );
     }
     
@@ -182,18 +185,26 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
     int cIterations;
     cudaError_t status;
     T sumCPU;
+    cudaTextureObject_t tex = 0;
     cudaEvent_t evStart = 0;
     cudaEvent_t evStop = 0;
 
     cuda(Malloc( &in, N*sizeof(T) ) );
     cuda(Malloc( &out, cBlocks*cThreads*sizeof(T) ) );
 
-    switch ( sizeof(T) ) {
-        case  1: cuda(BindTexture( NULL, tex_char, in, N*sizeof(T) ) );  break;
-        case  2: cuda(BindTexture( NULL, tex_short, in, N*sizeof(T) ) ); break;
-        case  4: cuda(BindTexture( NULL, tex_int, in, N*sizeof(T) ) ); break;
-        case  8: cuda(BindTexture( NULL, tex_int2, in, N*sizeof(T) ) ); break;
-        case 16: cuda(BindTexture( NULL, tex_int4, in, N*sizeof(T) ) ); break;
+    {
+        cudaResourceDesc resDesc = { .resType = cudaResourceTypeLinear };
+        cudaTextureDesc  texDesc = {};
+        resDesc.res.linear.devPtr = in;
+        resDesc.res.linear.sizeInBytes = N*sizeof(T);
+        switch ( sizeof(T) ) {
+            case  1: resDesc.res.linear.desc = cudaCreateChannelDesc<char>();  break;
+            case  2: resDesc.res.linear.desc = cudaCreateChannelDesc<short>(); break;
+            case  4: resDesc.res.linear.desc = cudaCreateChannelDesc<int>();   break;
+            case  8: resDesc.res.linear.desc = cudaCreateChannelDesc<int2>();  break;
+            case 16: resDesc.res.linear.desc = cudaCreateChannelDesc<int4>();  break;
+        }
+        cuda(CreateTextureObject( &tex, &resDesc, &texDesc, NULL ));
     }
 
     hostIn = new T[N];
@@ -217,7 +228,7 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
 
     {
         // confirm that kernel launch with this configuration writes correct result
-        GlobalReads<T,n><<<cBlocks,cThreads>>>( out, bOffset, N-bOffset, true );
+        GlobalReads<T,n><<<cBlocks,cThreads>>>( tex, out, bOffset, N-bOffset, true );
         cuda(Memcpy( hostOut, out, cBlocks*cThreads*sizeof(T), cudaMemcpyDeviceToHost ) );
         cuda(GetLastError() ); 
         T sumGPU = T(0);
@@ -233,7 +244,7 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
     cIterations = 10;
     cudaEventRecord( evStart );
     for ( int i = 0; i < cIterations; i++ ) {
-        GlobalReads<T,n><<<cBlocks,cThreads>>>( out, bOffset, N-bOffset, false );
+        GlobalReads<T,n><<<cBlocks,cThreads>>>( tex, out, bOffset, N-bOffset, false );
     }
     cudaEventRecord( evStop );
     cuda(DeviceSynchronize() );
@@ -250,6 +261,7 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
 Error:
     if ( hostIn ) delete[] hostIn;
     if ( hostOut ) delete[] hostOut;
+    cudaDestroyTextureObject( tex );
     cudaEventDestroy( evStart );
     cudaEventDestroy( evStop );
     cudaFree( in );
