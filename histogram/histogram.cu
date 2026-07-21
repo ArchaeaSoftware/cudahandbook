@@ -60,8 +60,6 @@
 
 #include "pgm.h"
 
-texture<unsigned char, 2> texImage;
-
 #include "histogramPerGrid.cuh"
 #include "histogramPerBlock.cuh"
 #include "histogramPerBlockOffset.cuh"
@@ -207,7 +205,7 @@ TestHistogram(
     unsigned int hHist[256];
     
     unsigned int *dHist = NULL;
-    float ms;
+    float ms, msTotal = 0.0f;
 
     cuda(Malloc( (void **) &dHist, 256*sizeof(int) ) );
     cuda(Memset( dHist, 0, 256*sizeof(int) ) );
@@ -223,9 +221,12 @@ TestHistogram(
 
     for ( int i = 0; i < cIterations; i++ ) {
         pfnHistogram( &ms, dHist, dptrBase, dPitch, 0, 0, w, h, threads );
+        msTotal += ms;
     }
 
-    *pixelsPerSecond = (double) w*h*cIterations*1000.0 / ms;
+    // msTotal accumulates the elapsed time of every iteration, so this is
+    // the aggregate throughput over all cIterations launches.
+    *pixelsPerSecond = (double) w*h*cIterations*1000.0 / msTotal;
     cuda(Memcpy( hHist, dHist, sizeof(hHist), cudaMemcpyDeviceToHost ) );
 
     if ( outputFilename ) {
@@ -267,10 +268,6 @@ main(int argc, char *argv[])
     char *inputFilename = defaultInputFilename;
     char *outputFilename = NULL;
 
-    cudaArray *pArrayImage = NULL;
-#ifndef __HIPCC__
-    cudaChannelFormatDesc desc = cudaCreateChannelDesc<unsigned char>();
-#endif
 
     {
         g_numCPUCores = processorCount();
@@ -374,13 +371,6 @@ main(int argc, char *argv[])
         }
     }
 
-#ifndef __HIPCC__
-    cuda(MallocArray( &pArrayImage, &desc, w, h ) );
-    cuda(MemcpyToArray( pArrayImage, 0, 0, hidata, w*h, cudaMemcpyHostToDevice ) );
-        
-    cuda(BindTextureToArray( texImage, pArrayImage ) );
-#endif
-
     {
         cudaDeviceProp prop;
         cuda(GetDeviceProperties( &prop, 0 ) );
@@ -463,9 +453,7 @@ main(int argc, char *argv[])
     ret = 0;
 Error:
     free( hidata );
-    cudaFree(didata); 
+    cudaFree(didata);
 
-    cudaFreeArray(pArrayImage);
-   
     return ret;
 }

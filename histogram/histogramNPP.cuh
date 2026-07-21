@@ -59,7 +59,7 @@ GPUhistogramNPP(
     cuda(EventCreate( &stop, 0 ) );
 
     // create device scratch buffer for nppiHistogram
-    int nDeviceBufferSize;
+    size_t nDeviceBufferSize;
     nppiHistogramEvenGetBufferSize_8u_C1R(oSizeROI, levelCount ,&nDeviceBufferSize);
     cuda(Malloc((void **)&pDeviceBuffer, nDeviceBufferSize) );
 
