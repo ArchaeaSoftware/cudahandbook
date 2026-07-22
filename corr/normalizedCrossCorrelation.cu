@@ -90,8 +90,9 @@ extern __shared__ unsigned char LocalBlock[];
 #include "corrSharedSums.cuh"
 #include "corrShared.cuh"
 
-#include "corrShared4Sums.cuh"
-#include "corrShared4.cuh"
+#include "corrShared4Dp4aSums.cuh"
+#include "corrShared4Dp4a.cuh"
+#include "corrShared4Dp4aIlp.cuh"
 
 int poffsetx[maxTemplatePixels];
 int poffsety[maxTemplatePixels];
@@ -615,7 +616,27 @@ main(int argc, char *argv[])
     sharedMem = sharedPitch*(threads.y+hTemplate);
 
 
-    TEST_VECTOR( corrShared4, false, 100, NULL );
+    // DP4A inner loop.  On its own this is no faster than the shared-memory
+    // formulation above: the kernel is latency-bound at 100% occupancy, so
+    // collapsing the arithmetic into __dp4a buys nothing (see corrShared4Dp4a.cuh).
+    TEST_VECTOR( corrShared4Dp4a, false, 100, NULL );
+
+    // DP4A plus per-thread column ILP.  Each thread computes CORR_ILP_NCOL
+    // output columns with independent accumulator chains; that interleaving
+    // hides the shared-load latency, which flips the kernel from latency-bound
+    // to arithmetic-bound -- and only THEN does __dp4a pay off (~7x over shared).
+    {
+        int savedWTile = wTile, savedSharedPitch = sharedPitch, savedSharedMem = sharedMem;
+        dim3 savedThreads = threads, savedBlocks = blocks;
+        threads = dim3(32,8);
+        wTile = CORR_ILP_NCOL*threads.x;
+        blocks = dim3( INTCEIL(w,wTile), INTCEIL(h,threads.y) );
+        sharedPitch = ~63&(((wTile+wTemplate)+63));
+        sharedMem = sharedPitch*(threads.y+hTemplate);
+        TEST_VECTOR( corrShared4Dp4aIlp, false, 100, NULL );
+        wTile = savedWTile; sharedPitch = savedSharedPitch; sharedMem = savedSharedMem;
+        threads = savedThreads; blocks = savedBlocks;
+    }
 
     // set up blocking parameters for 2D tex-constant formulation
     threads.x = 32; threads.y = 16; threads.z = 1;
