@@ -40,6 +40,7 @@ add_executable( reportClocks reportClocks.cu )
 #add_executable( globalRead globalRead.cu )
 #add_executable( globalWrite globalWrite.cu )
 add_executable( mallocSpeed mallocSpeed.cu )
+add_executable( devrtMallocSpeed devrtMallocSpeed.cu )
 
 include_directories( chLib )
 
