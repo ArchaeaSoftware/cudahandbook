@@ -40,7 +40,6 @@
 
 extern __shared__ unsigned char LocalBlock[];
 
-template<bool bSM1>
 __global__ void 
 corrSharedSMSums_kernel(
     float *pCorr, size_t CorrPitch,
@@ -94,14 +93,8 @@ corrSharedSMSums_kernel(
                 unsigned char I = LocalBlock[SharedIdx+i];
                 unsigned char T = g_Tpix[idx++];
                 SumI += I;
-                if ( bSM1 ) {
-                    SumISq += __umul24( I, I );
-                    SumIT += __umul24( I, T );
-                }
-                else {
-                    SumISq += I*I;
-                    SumIT += I*T;
-                }
+                SumISq += I*I;
+                SumIT += I*T;
             }
             SharedIdx += SharedPitch;
         }
@@ -159,30 +152,16 @@ corrSharedSMSums(
             tcThreads, tcBlocks,
             sharedMem );
     }
-    if ( props.major == 1 ) {
-        corrSharedSMSums_kernel<true><<<blocks, threads, sharedMem>>>(
-            dCorr, CorrPitch,
-            dSumI, dSumISq, dSumIT,
-            texImage,
-            wTile,
-            wTemplate, hTemplate,
-            (float) xOffset, (float) yOffset,
-            cPixels, fDenomExp, 
-            sharedPitch, 
-            (float) xUL, (float) yUL, w, h );
-    }
-    else {
-        corrSharedSMSums_kernel<false><<<blocks, threads, sharedMem>>>(
-            dCorr, CorrPitch,
-            dSumI, dSumISq, dSumIT,
-            texImage,
-            wTile,
-            wTemplate, hTemplate,
-            (float) xOffset, (float) yOffset,
-            cPixels, fDenomExp, 
-            sharedPitch, 
-            (float) xUL, (float) yUL, w, h );
-    }
+    corrSharedSMSums_kernel<<<blocks, threads, sharedMem>>>(
+        dCorr, CorrPitch,
+        dSumI, dSumISq, dSumIT,
+        texImage,
+        wTile,
+        wTemplate, hTemplate,
+        (float) xOffset, (float) yOffset,
+        cPixels, fDenomExp, 
+        sharedPitch, 
+        (float) xUL, (float) yUL, w, h );
 Error:
     return;
 }

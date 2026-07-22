@@ -40,7 +40,6 @@
 extern __shared__ unsigned char LocalBlock[];
 
 
-template<bool bSM1>
 __global__ void 
 corrShared4_kernel(
     float *pCorr, size_t CorrPitch,
@@ -86,10 +85,10 @@ corrShared4_kernel(
         int SharedIdx = threadIdx.y * SharedPitch + col;
         for ( int j = 0; j < hTemplate; j++ ) {
             for ( int i = 0; i < wTemplate/4; i++) { 
-                corrSharedAccumulate<bSM1>( SumI, SumISq, SumIT, LocalBlock[SharedIdx+i*4+0], g_Tpix[idx++] );
-                corrSharedAccumulate<bSM1>( SumI, SumISq, SumIT, LocalBlock[SharedIdx+i*4+1], g_Tpix[idx++] );
-                corrSharedAccumulate<bSM1>( SumI, SumISq, SumIT, LocalBlock[SharedIdx+i*4+2], g_Tpix[idx++] );
-                corrSharedAccumulate<bSM1>( SumI, SumISq, SumIT, LocalBlock[SharedIdx+i*4+3], g_Tpix[idx++] );
+                corrSharedAccumulate( SumI, SumISq, SumIT, LocalBlock[SharedIdx+i*4+0], g_Tpix[idx++] );
+                corrSharedAccumulate( SumI, SumISq, SumIT, LocalBlock[SharedIdx+i*4+1], g_Tpix[idx++] );
+                corrSharedAccumulate( SumI, SumISq, SumIT, LocalBlock[SharedIdx+i*4+2], g_Tpix[idx++] );
+                corrSharedAccumulate( SumI, SumISq, SumIT, LocalBlock[SharedIdx+i*4+3], g_Tpix[idx++] );
             }
             SharedIdx += SharedPitch;
         }
@@ -143,31 +142,7 @@ corrShared4(
             sharedMem );
     }
     if ( wTemplate % 4 ) {
-        if ( props.major == 1 ) {
-            corrSharedSM_kernel<true><<<blocks, threads, sharedMem>>>(
-                dCorr, CorrPitch,
-                texImage,
-                wTile,
-                wTemplate, hTemplate,
-                (float) xOffset, (float) yOffset,
-                cPixels, fDenomExp, 
-                sharedPitch, 
-                (float) xUL, (float) yUL, w, h );
-        }
-        else {
-            corrSharedSM_kernel<false><<<blocks, threads, sharedMem>>>(
-                dCorr, CorrPitch,
-                texImage,
-                wTile,
-                wTemplate, hTemplate,
-                (float) xOffset, (float) yOffset,
-                cPixels, fDenomExp, 
-                sharedPitch, 
-                (float) xUL, (float) yUL, w, h );
-        }
-    }
-    if ( props.major == 1 ) {
-        corrShared4_kernel<true><<<blocks, threads, sharedMem>>>(
+        corrSharedSM_kernel<<<blocks, threads, sharedMem>>>(
             dCorr, CorrPitch,
             texImage,
             wTile,
@@ -177,17 +152,15 @@ corrShared4(
             sharedPitch, 
             (float) xUL, (float) yUL, w, h );
     }
-    else {
-        corrShared4_kernel<false><<<blocks, threads, sharedMem>>>(
-            dCorr, CorrPitch,
-            texImage,
-            wTile,
-            wTemplate, hTemplate,
-            (float) xOffset, (float) yOffset,
-            cPixels, fDenomExp, 
-            sharedPitch, 
-            (float) xUL, (float) yUL, w, h );
-    }
+    corrShared4_kernel<<<blocks, threads, sharedMem>>>(
+        dCorr, CorrPitch,
+        texImage,
+        wTile,
+        wTemplate, hTemplate,
+        (float) xOffset, (float) yOffset,
+        cPixels, fDenomExp, 
+        sharedPitch, 
+        (float) xUL, (float) yUL, w, h );
 Error:
     return;
 }

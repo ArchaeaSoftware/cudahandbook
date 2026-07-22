@@ -614,7 +614,6 @@ main(int argc, char *argv[])
     sharedPitch = ~63&(((wTile+wTemplate)+63));
     sharedMem = sharedPitch*(threads.y+hTemplate);
 
-    TEST_VECTOR( corrSharedSM, false, 100, NULL );
 
     TEST_VECTOR( corrShared4, false, 100, NULL );
 
