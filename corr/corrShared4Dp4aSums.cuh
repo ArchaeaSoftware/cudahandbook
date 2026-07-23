@@ -19,7 +19,7 @@
  * (unlike SumI and SumISq) depends on image and template bytes landing in
  * matching DP4A lanes.
  *
- * Copyright (c) 2012, Archaea Software, LLC.
+ * Copyright (c) 2012-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

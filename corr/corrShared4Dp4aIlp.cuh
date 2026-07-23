@@ -12,7 +12,7 @@
  * Requires SM 6.1+ for __dp4a.  See corrShared4Dp4aSums.cuh for the
  * packing/endianness notes.
  *
- * Copyright (c) 2012, Archaea Software, LLC.  All rights reserved.
+ * Copyright (c) 2012-2026, Archaea Software, LLC.  All rights reserved.
  * (BSD 2-clause; see other corr headers for the full text.)
  *
  */

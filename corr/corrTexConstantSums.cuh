@@ -6,7 +6,7 @@
  * that reads the template from constant memory, and reports
  * the sums (I, IT, ISq) as well as the output coefficients.
  *
- * Copyright (c) 2012, Archaea Software, LLC.
+ * Copyright (c) 2012-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

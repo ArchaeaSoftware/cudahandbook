@@ -5,7 +5,7 @@
  * Scalar CPU implementation of the O(N^2) N-body calculation.
  * Performs the computation in 32x32 tiles.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

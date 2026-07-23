@@ -7,7 +7,7 @@
  * Build with: nvcc -I ../chLib <options> nullKernelAsyncGraph.cu
  * Requires: CUDA graph availability.
  *
- * Copyright (c) 2023, Archaea Software, LLC.
+ * Copyright (c) 2023-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

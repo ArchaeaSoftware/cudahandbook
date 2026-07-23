@@ -7,7 +7,7 @@
  * Build with: nvcc --gpu-architecture sm_20 -I ../chLib <options> surf1Dmemset.cu
  * Requires: SM 2.x for surface load/store.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

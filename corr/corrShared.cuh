@@ -6,7 +6,7 @@
  * that reads the image from shared memory and the template 
  * from constant memory.
  *
- * Copyright (c) 2012, Archaea Software, LLC.
+ * Copyright (c) 2012-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

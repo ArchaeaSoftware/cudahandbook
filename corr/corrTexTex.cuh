@@ -5,7 +5,7 @@
  * Header file for implementation of normalized correlation
  * that reads both image and template from texture.
  *
- * Copyright (c) 2012, Archaea Software, LLC.
+ * Copyright (c) 2012-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

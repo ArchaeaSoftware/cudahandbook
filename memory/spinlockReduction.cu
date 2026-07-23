@@ -7,15 +7,7 @@
  * then each block acquires a spinlock on the output value to
  * atomically add its partial sum to the final output.
  *
- * Copyright (C) 2012 by Archaea Software, LLC.  All rights reserved.
- *
- * Build line: nvcc --gpu-architecture sm_20 -I ../chLib spinlockReduction.cu
- * Microbenchmark to measure performance of spin locks.
- *
- * Build with: nvcc -I ../chLib --gpu-architecture sm_20 <options> spinlockReduction.cu
- * Requires: SM 2.0 for 
- *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

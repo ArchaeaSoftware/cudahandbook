@@ -10,7 +10,7 @@
  * * The more-concise formulation of these macros is due to
  *   Allan MacKinnon.
  *
- * Copyright (c) 2011-2022, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

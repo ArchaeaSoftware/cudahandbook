@@ -5,7 +5,7 @@
  * Utility functions to deal with shared memory when zero-padding
  * the warps (or not)
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

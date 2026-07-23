@@ -10,7 +10,7 @@
  * Requires SM 6.1+ for __dp4a.  This is the coefficient-only variant used
  * for timing; the Sums variant validates correctness.
  *
- * Copyright (c) 2012, Archaea Software, LLC.
+ * Copyright (c) 2012-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

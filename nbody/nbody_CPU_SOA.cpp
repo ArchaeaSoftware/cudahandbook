@@ -6,7 +6,7 @@
  * This SOA (structure of arrays) formulation blazes the trail
  * for an SSE implementation.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

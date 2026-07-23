@@ -7,7 +7,7 @@
  * Build with: nvcc -I ../chLib <options> cudaGetLastErrorIsAsynchronous.cu
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2024, Archaea Software, LLC.
+ * Copyright (c) 2024-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

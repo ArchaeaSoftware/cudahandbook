@@ -7,7 +7,7 @@
  * Build with: nvcc -I ../chLib <options> peer2peerTestNUMA.cu
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2016, Archaea Software, LLC.
+ * Copyright (c) 2016-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

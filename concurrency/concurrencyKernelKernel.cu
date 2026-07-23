@@ -7,7 +7,7 @@
  * Build with: nvcc -I ../chLib --gpu-architecture sm_20 <options> concurrencyKernelKernel.cu
  * Requires: SM 2.x, if kernel concurrency is desired.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

@@ -6,7 +6,7 @@
  * device memory, both directions. Performs the measurements
  * for all devices in the system.
  *
- * Copyright (c) 2015, Archaea Software, LLC.
+ * Copyright (c) 2015-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

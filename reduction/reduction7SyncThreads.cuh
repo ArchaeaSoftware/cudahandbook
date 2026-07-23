@@ -6,7 +6,7 @@
  * The function is templated to take a bit count - this is only faster
  * for inputs of a few bits at most.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

@@ -7,7 +7,7 @@
  * Build with: nvcc [--gpu-architecture sm_xx] [-D USE_FLOAT] [-D USE_IF_STATEMENT] --cubin solveQuadratic.cu
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

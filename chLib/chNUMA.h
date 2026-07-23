@@ -5,7 +5,7 @@
  * Header that wraps NUMA allocation/free functions for
  * Linux and Windows.
  *
- * Copyright (c) 2016, Archaea Software, LLC.
+ * Copyright (c) 2016-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
