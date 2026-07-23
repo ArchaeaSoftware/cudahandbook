@@ -37,6 +37,7 @@
  */
 
 #include <stdio.h>
+#include <math.h>
 
 #include <chAssert.h>
 #include <chError.h>
@@ -113,11 +114,8 @@ Reduce_block( )
  * Contended spinlock.
  */
 
-__device__ int g_acquireCount;
-int *g_pacquireCount;
-
 __global__ void
-SumValues_1( double *pSum, int *spinlock, const double *in, size_t N, int *acquireCount )
+SumValues_1( double *pSum, int *spinlock, const double *in, size_t N )
 {
     SharedMemory<double> shared;
     cudaSpinlock globalSpinlock( spinlock );
@@ -132,7 +130,13 @@ SumValues_1( double *pSum, int *spinlock, const double *in, size_t N, int *acqui
 
         if ( threadIdx.x == 0 ) {
             globalSpinlock.acquire( );
+            // Acquire fence: atomicCAS is relaxed, so without this the
+            // non-atomic read of *pSum could observe a stale (cached) value
+            // written by the previous lock holder, silently losing updates.
+            __threadfence();
             *pSum += blockSum;
+            // Release fence: publish the *pSum update device-wide before the
+            // unlock store becomes visible to the next acquirer.
             __threadfence();
             globalSpinlock.release( );
         }
@@ -184,18 +188,26 @@ AtomicsPerSecond( size_t N, int cBlocks, int cThreads )
 
     cudaEventRecord( evStart );
     {
-        SumValues_1<<<cBlocks,cThreads,cThreads*sizeof(double)>>>( 
-            d_sumInputValues, 
-            d_spinLocks, 
+        SumValues_1<<<cBlocks,cThreads,cThreads*sizeof(double)>>>(
+            d_sumInputValues,
+            d_spinLocks,
             d_inputValues,
-            N,
-            g_pacquireCount );
+            N );
         cuda(Memcpy( &h_sumInputValues, 
                                   d_sumInputValues, 
                                   sizeof(double), 
                                   cudaMemcpyDeviceToHost ) );
-        if ( h_sumInputValues != sumInputValues ) {
-            printf( "Mismatch: %E should be %E\n", h_sumInputValues, sumInputValues );
+        // The GPU sums block partial sums in a nondeterministic order, so the
+        // result differs from the sequential sum by floating-point rounding
+        // even when the reduction is correct.  Compare with a relative
+        // tolerance: FP-reordering noise is ~1e-9, while a lost block update
+        // (e.g. a lock/fence bug) would be ~1/gridDim, orders of magnitude
+        // larger, so 1e-6 cleanly separates the two.
+        double relErr = fabs( h_sumInputValues - sumInputValues ) /
+                        ( fabs( sumInputValues ) + 1e-300 );
+        if ( relErr > 1e-6 ) {
+            printf( "Mismatch: %E should be %E (relative error %E)\n",
+                    h_sumInputValues, sumInputValues, relErr );
         }
     }
 
@@ -237,8 +249,6 @@ main( int argc, char *argv[] )
     if ( chCommandLineGet( &size, "size", argc, argv ) ) {
         printf( "Using %dM operands ...\n", size );
     }
-
-    cudaGetSymbolAddress( (void **) &g_pacquireCount, "g_acquireCount" );
 
     double ops;
 	ops = AtomicsPerSecond( size*1048576, 1500, props.maxThreadsPerBlock );
