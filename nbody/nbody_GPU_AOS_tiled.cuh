@@ -35,11 +35,9 @@
  *
  */
 
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 300
-
 template<int nTile>
 __device__ void
-DoDiagonalTile_GPU( 
+DoDiagonalTile_GPU(
     float *force, 
     float *posMass,
     float softeningSquared,
@@ -221,15 +219,4 @@ Error:
     cudaEventDestroy( evStart );
     return ms;
 }
-#else
-float
-ComputeGravitation_GPU_AOS_tiled(
-    float *,
-    float *,
-    float,
-    size_t )
-{
-    return 0.0f;
-}
-#endif
 
