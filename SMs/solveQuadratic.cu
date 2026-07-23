@@ -41,7 +41,7 @@ template<class Real>
 __device__ void
 solveQuadratic( Real& x0, Real& x1, Real a, Real b, Real c )
 {
-    Real Determinant = __fsqrt_rn( b*b - 4.0f*a*c );
+    Real Determinant = sqrt( b*b - 4.0f*a*c );
     if ( b >= 0.0f ) {
         x0 = (-b - Determinant) / (2.0f*a);
         x1 = (2.0f*c) / (-b - Determinant);
@@ -56,7 +56,7 @@ template<class Real>
 __device__ void
 solveQuadratic( Real& x0, Real& x1, Real a, Real b, Real c )
 {
-    Real Determinant = __fsqrt_rn( b*b - 4.0f*a*c );
+    Real Determinant = sqrt( b*b - 4.0f*a*c );
     Real adjDeterminant = (b < 0.0f) ? -b+Determinant : -b-Determinant;
     x0 = adjDeterminant / (2.0f*a);
     x1 = (2.0f*c) / adjDeterminant;
