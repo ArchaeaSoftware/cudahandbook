@@ -65,28 +65,14 @@ TexSums( float *out, cudaTextureObject_t tex, size_t Width, size_t Height )
     }
 }
 
-size_t
-CUarray_format_size( CUarray_format fmt )
-{
-    switch ( fmt ) {
-        case CU_AD_FORMAT_UNSIGNED_INT8:  return 1;
-        case CU_AD_FORMAT_UNSIGNED_INT16: return 2;
-        case CU_AD_FORMAT_UNSIGNED_INT32: return 4;
-        case CU_AD_FORMAT_SIGNED_INT8:    return 1;
-        case CU_AD_FORMAT_SIGNED_INT16:   return 2;
-        case CU_AD_FORMAT_SIGNED_INT32:   return 4;
-        case CU_AD_FORMAT_HALF:           return 2;
-        case CU_AD_FORMAT_FLOAT:          return 4;
-    }
-    return 0;
-}
 
 template<typename T>
 cudaError_t
 tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHeight, int iterations )
 {
-    CUarray drvArray = (CUarray) array;
-    CUDA_ARRAY3D_DESCRIPTOR desc;
+    cudaChannelFormatDesc chDesc;
+    cudaExtent extent;
+    unsigned int flags;
     cudaEvent_t start = 0;
     cudaEvent_t stop = 0;
     cudaTextureObject_t tex = 0;
@@ -101,27 +87,24 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
         resDesc.res.array.array = array;
         cuda(CreateTextureObject( &tex, &resDesc, &texDesc, NULL ));
     }
-    if ( CUDA_SUCCESS != cuArray3DGetDescriptor( &desc, drvArray ) ) {
-        status = cudaErrorInvalidValue;
-        goto Error;
-    }
+    cuda(ArrayGetInfo( &chDesc, &extent, &flags, array ));
 
     //
     // Fail if invoked on a CUDA array containing elements of
     // different size than T
     //
-    if ( sizeof(T) != desc.NumChannels*CUarray_format_size(desc.Format) ) {
+    if ( sizeof(T) != (chDesc.x + chDesc.y + chDesc.z + chDesc.w) / 8 ) {
         status = cudaErrorInvalidValue;
         goto Error;
     }
     cuda(EventRecord(start, 0));
     {
         dim3 threads(threadWidth,threadHeight);
-        dim3 blocks = dim3(INTDIVIDE_CEILING(desc.Width, threadWidth), 
-                           INTDIVIDE_CEILING(desc.Height, threadHeight));
+        dim3 blocks = dim3(INTDIVIDE_CEILING(extent.width, threadWidth), 
+                           INTDIVIDE_CEILING(extent.height, threadHeight));
 
         for ( int i = 0; i < iterations; i++ ) {
-            TexSums<<<blocks,threads>>>( NULL, tex, desc.Width, desc.Height );
+            TexSums<<<blocks,threads>>>( NULL, tex, extent.width, extent.height );
         }
 
     }
