@@ -44,7 +44,6 @@
 #include <thrust/copy.h>
 
 #include <chrono>
-#include <chAssert.h>
 #include <chError.h>
 
 #include "scanWarp.cuh"

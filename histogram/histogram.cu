@@ -46,7 +46,6 @@
 
 #include <chError.h>
 #include <chCommandLine.h>
-#include <chAssert.h>
 #include <thread>
 #include <vector>
 #include <chrono>

@@ -43,7 +43,6 @@
 #include <thrust/device_vector.h>
 #include <thrust/copy.h>
 
-#include <chAssert.h>
 #include <chError.h>
 #include <chUtil.h>
 

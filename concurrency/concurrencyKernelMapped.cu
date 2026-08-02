@@ -40,7 +40,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "chAssert.h"
 #include "chError.h"
 #include "chShmoo.h"
 #include "chCommandLine.h"

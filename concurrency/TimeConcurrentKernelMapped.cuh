@@ -39,6 +39,8 @@
 #ifndef __CUDAHANDBOOK__TIMECONCURRENTKERNELMAPPED_CUH__
 #define __CUDAHANDBOOK__TIMECONCURRENTKERNELMAPPED_CUH__
 
+#include <cassert>
+
 
 #ifndef __CUDAHANDBOOK__ADD_KERNEL__
 #include "AddKernel.cuh"
@@ -127,7 +129,7 @@ TimeConcurrentKernelMapped(
 
             // confirm that the computation was done correctly
             for ( size_t i = 0; i < N; i++ ) {
-                CH_ASSERT( hostOut[i] == hostIn[i]+*cycles*0xcc );
+                assert( hostOut[i] == hostIn[i]+*cycles*0xcc );
                 if ( hostOut[i] != hostIn[i]+*cycles*0xcc ) {
                     return false;
                 }

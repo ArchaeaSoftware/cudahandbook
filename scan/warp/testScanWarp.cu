@@ -41,7 +41,6 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 
-#include <chAssert.h>
 #include <chCommandLine.h>
 #include <chError.h>
 

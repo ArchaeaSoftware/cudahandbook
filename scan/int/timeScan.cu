@@ -42,7 +42,6 @@
 //#include <thrust/device_vector.h>
 
 #include <chrono>
-#include <chAssert.h>
 #include <chError.h>
 
 #include "scanWarp.cuh"

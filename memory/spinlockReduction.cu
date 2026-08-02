@@ -39,7 +39,6 @@
 #include <stdio.h>
 #include <math.h>
 
-#include <chAssert.h>
 #include <chError.h>
 #include <chCommandLine.h>
 
