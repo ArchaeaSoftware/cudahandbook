@@ -51,14 +51,12 @@
 
 #include <chCommandLine.h>
 #include <chError.h>
-#include <chThread.h>
+#include <thread>
 #include <chTimer.h>
 
 #include "nbody.h"
 
 #include "bodybodyInteraction.cuh"
-
-using namespace cudahandbook::threading;
 
 inline void
 randomVector( float v[3] )
@@ -500,10 +498,8 @@ Error:
     return false;
 }
 
-workerThread *g_CPUThreadPool;
 int g_numCPUCores;
 
-workerThread *g_GPUThreadPool;
 int g_numGPUs;
 
 struct gpuInit_struct
@@ -549,14 +545,7 @@ main( int argc, char *argv[] )
     srand(7);
 
     {
-        g_numCPUCores = processorCount();
-        g_CPUThreadPool = new workerThread[g_numCPUCores];
-        for ( size_t i = 0; i < g_numCPUCores; i++ ) {
-            if ( ! g_CPUThreadPool[i].initialize( ) ) {
-                fprintf( stderr, "Error initializing thread pool\n" );
-                return 1;
-            }
-        }
+        g_numCPUCores = std::thread::hardware_concurrency();
     }
 
     status = cudaGetDeviceCount( &g_numGPUs );
@@ -672,18 +661,9 @@ main( int argc, char *argv[] )
     if ( g_numGPUs ) {
         // optionally override GPU count from command line
         chCommandLineGet( &g_numGPUs, "numgpus", argc, argv );
-        g_GPUThreadPool = new workerThread[g_numGPUs];
-        for ( size_t i = 0; i < g_numGPUs; i++ ) {
-            if ( ! g_GPUThreadPool[i].initialize( ) ) {
-                fprintf( stderr, "Error initializing thread pool\n" );
-                return 1;
-            }
-        }
         for ( int i = 0; i < g_numGPUs; i++ ) {
             gpuInit_struct initGPU = {i};
-            g_GPUThreadPool[i].delegateSynchronous( 
-                initializeGPU, 
-                &initGPU );
+            initializeGPU( &initGPU );
             if ( cudaSuccess != initGPU.status ) {
                 fprintf( stderr, "Initializing GPU %d failed "
                     " with %d (%s)\n",

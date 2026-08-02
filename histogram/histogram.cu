@@ -47,7 +47,8 @@
 #include <chError.h>
 #include <chCommandLine.h>
 #include <chAssert.h>
-#include <chThread.h>
+#include <thread>
+#include <vector>
 #include <chTimer.h>
 #include <chUtil.h>
 
@@ -72,9 +73,6 @@
 #include "histogramNPP.cuh"
 #endif
 
-using namespace cudahandbook::threading;
-
-workerThread *g_CPUThreadPool;
 int g_numCPUCores;
 
 
@@ -153,6 +151,7 @@ hist1DCPU_threaded(
     chTimerGetTime( &start );
 
     histDelegation *phist = new histDelegation[ g_numCPUCores ];
+    std::vector<std::thread> threads;
     size_t elementsPerCore = INTDIVIDE_CEILING( N, g_numCPUCores );
     for ( size_t i = 0; i < g_numCPUCores; i++ ) {
         phist[i].pData = p;
@@ -160,11 +159,9 @@ hist1DCPU_threaded(
         p += elementsPerCore;
         N -= elementsPerCore;
 
-        g_CPUThreadPool[i].delegateAsynchronous( 
-            histWorkerThread, 
-            &phist[i] );
+        threads.emplace_back( histWorkerThread, &phist[i] );
     }
-    workerThread::waitAll( g_CPUThreadPool, g_numCPUCores );
+    for ( auto &t : threads ) t.join();
 
     memset( pHist, 0, 256*sizeof(unsigned int) );
     for ( size_t i = 0; i < g_numCPUCores; i++ ) {
@@ -270,14 +267,7 @@ main(int argc, char *argv[])
 
 
     {
-        g_numCPUCores = processorCount();
-        g_CPUThreadPool = new workerThread[g_numCPUCores];
-        for ( size_t i = 0; i < g_numCPUCores; i++ ) {
-            if ( ! g_CPUThreadPool[i].initialize( ) ) {
-                fprintf( stderr, "Error initializing thread pool\n" );
-                return 1;
-            }
-        }
+        g_numCPUCores = std::thread::hardware_concurrency();
     }
 
     if ( chCommandLineGetBool( "help", argc, argv ) ) {

@@ -40,13 +40,13 @@
 #include <xmmintrin.h>
 
 #include <chTimer.h>
-#include <chThread.h>
+
+#include <thread>
+#include <vector>
 
 #include "nbody.h"
 #include "bodybodyInteraction_SSE.h"
 #include "nbody_CPU_SIMD.h"
-
-using namespace cudahandbook::threading;
 
 struct sseDelegation {
     size_t i;   // base offset for this thread to process
@@ -112,6 +112,7 @@ ComputeGravitation_SIMD_threaded(
 
     {
         sseDelegation *psse = new sseDelegation[g_numCPUCores];
+        std::vector<std::thread> threads;
         size_t bodiesPerCore = N / g_numCPUCores;
         for ( size_t i = 0; i < g_numCPUCores; i++ ) {
             psse[i].hostPosSOA[0] = pos[0];
@@ -127,11 +128,9 @@ ComputeGravitation_SIMD_threaded(
             psse[i].n = bodiesPerCore;
             psse[i].N = N;
 
-            g_CPUThreadPool[i].delegateAsynchronous( 
-                sseWorkerThread, 
-                &psse[i] );
+            threads.emplace_back( sseWorkerThread, &psse[i] );
         }
-        workerThread::waitAll( g_CPUThreadPool, g_numCPUCores );
+        for ( auto &t : threads ) t.join();
         delete[] psse;
     }
 

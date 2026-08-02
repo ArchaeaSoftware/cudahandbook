@@ -37,14 +37,11 @@
 
 #include <chError.h>
 #include <chTimer.h>
-#include <chThread.h>
 
 #include "nbody.h"
 #include "nbody_multiGPU_shared.cuh"
 
 #include "bodybodyInteraction.cuh"
-
-using namespace cudahandbook::threading;
 
 __global__ void
 ComputeNBodyGravitation_multiGPU_onethread( 
