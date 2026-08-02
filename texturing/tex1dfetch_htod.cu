@@ -7,7 +7,7 @@
  * Build with: nvcc -I ../chLib <options> tex1dfetch_htod.cu
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,39 +40,37 @@
 #include <stdio.h>
 #include <assert.h>
 
-#include <chTimer.h>
+#include <chrono>
 
 #include <chError.h>
 
-texture<float, 1> tex;
-
 extern "C" __global__ void
-TexReadout( float *out, size_t N )
+TexReadout( float *out, cudaTextureObject_t tex, size_t N )
 {
     for ( size_t i = blockIdx.x*blockDim.x + threadIdx.x; 
           i < N; 
           i += gridDim.x*blockDim.x )
     {
-        out[i] = tex1Dfetch( tex, i );
+        out[i] = tex1Dfetch<float>( tex, i );
     }
 }
 
 template<class T>
 float
-MeasureBandwidth( void *out, size_t N, int blocks, int threads )
+MeasureBandwidth( void *out, cudaTextureObject_t tex, size_t N, int blocks, int threads )
 {
     cudaError_t status;
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
     double Bandwidth = 0.0f;
 
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
 
-    TexReadout<<<2,384>>>( (float *) out, N );
+    TexReadout<<<2,384>>>( (float *) out, tex, N );
     cuda(DeviceSynchronize());
 
-    chTimerGetTime( &stop );
+    stop = std::chrono::steady_clock::now();
 
-    Bandwidth = ((double) N*sizeof(T) / chTimerElapsedTime( &start, &stop ))/1048576.0;
+    Bandwidth = ((double) N*sizeof(T) / std::chrono::duration<double>(stop - start).count())/1048576.0;
 Error:
     return (float) Bandwidth;
 }
@@ -90,6 +88,7 @@ ComputeMaximumBandwidth( size_t N )
     float fMaxBandwidth = 0.0f;
     int cMaxBlocks = 0;
     int cMaxThreads = 0;
+    cudaTextureObject_t tex = 0;
 
     cuda(HostAlloc( (void **) &inHost, N*sizeof(T), cudaHostAllocMapped));
     cuda(HostGetDevicePointer( (void **) &inDevice, inHost, 0 ));
@@ -101,13 +100,20 @@ ComputeMaximumBandwidth( size_t N )
         inHost[i] = (T) i;
     }
 
-    cuda(BindTexture(NULL, tex, inDevice, cudaCreateChannelDesc<T>(), N*sizeof(T)));
+    {
+        cudaResourceDesc resDesc = { .resType = cudaResourceTypeLinear };
+        cudaTextureDesc texDesc = {};
+        resDesc.res.linear.devPtr = inDevice;
+        resDesc.res.linear.desc = cudaCreateChannelDesc<T>();
+        resDesc.res.linear.sizeInBytes = N*sizeof(T);
+        cuda(CreateTextureObject( &tex, &resDesc, &texDesc, NULL ));
+    }
 
     {
         for ( int cBlocks = 8; cBlocks <= 512; cBlocks += 8 ) {
             for ( int cThreads = 16; cThreads <= 512; cThreads += 16 ) {
                 memset( outHost, 0, N*sizeof(float) );
-                float bw = MeasureBandwidth<T>( outDevice, N, cBlocks, cThreads );
+                float bw = MeasureBandwidth<T>( outDevice, tex, N, cBlocks, cThreads );
                 if ( bw > fMaxBandwidth ) {
                     fMaxBandwidth = bw;
                     cMaxBlocks = cBlocks;
@@ -129,6 +135,7 @@ ComputeMaximumBandwidth( size_t N )
 
     ret = true;
 Error:
+    cudaDestroyTextureObject( tex );
     cudaFreeHost( inHost );
     cudaFree( outDevice );
     cudaFreeHost( outHost );

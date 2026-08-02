@@ -5,10 +5,9 @@
  * Microbenchmark to measure performance of 2D memset via surface store.
  *
  * Build with: nvcc --gpu-architecture sm_20 -I ../chLib <options> surf2Dmemset_shmoo.cu -lcuda
- * (Needs driver API for cuArrayGetDescriptor() ).
  * Requires: SM 2.x for surface load/store.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,11 +45,9 @@
 
 #include <cuda.h>
 
-surface<void, 2> surf2D;
-
 template<typename T>
 __global__ void
-surf2Dmemset_kernel( T value, 
+surf2Dmemset_kernel( cudaSurfaceObject_t surf2D, T value,
                      int xOffset, int yOffset, 
                      int Width, int Height )
 {
@@ -67,64 +64,51 @@ surf2Dmemset_kernel( T value,
     }
 }
 
-size_t
-CUarray_format_size( CUarray_format fmt )
-{
-    switch ( fmt ) {
-        case CU_AD_FORMAT_UNSIGNED_INT8:  return 1;
-        case CU_AD_FORMAT_UNSIGNED_INT16: return 2;
-        case CU_AD_FORMAT_UNSIGNED_INT32: return 4;
-        case CU_AD_FORMAT_SIGNED_INT8:    return 1;
-        case CU_AD_FORMAT_SIGNED_INT16:   return 2;
-        case CU_AD_FORMAT_SIGNED_INT32:   return 4;
-        case CU_AD_FORMAT_HALF:           return 2;
-        case CU_AD_FORMAT_FLOAT:          return 4;
-    }
-    return 0;
-}
 
 template<typename T>
 cudaError_t
 surf2DmemsetArray_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHeight )
 {
-    CUarray drvArray = (CUarray) array;
-    CUDA_ARRAY_DESCRIPTOR desc;
+    cudaChannelFormatDesc chDesc;
+    cudaExtent extent;
+    unsigned int flags;
     cudaEvent_t start = 0;
     cudaEvent_t stop = 0;
+    cudaSurfaceObject_t surfObj = 0;
+    cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
 
     cudaError_t status;
     
+    resDesc.res.array.array = array;
     cuda(EventCreate(&start));
     cuda(EventCreate(&stop));
-    cuda(BindSurfaceToArray(surf2D, array));
-    if ( CUDA_SUCCESS != cuArrayGetDescriptor( &desc, drvArray ) ) {
-        status = cudaErrorInvalidValue;
-        goto Error;
-    }
+    cuda(CreateSurfaceObject( &surfObj, &resDesc ));
+    cuda(ArrayGetInfo( &chDesc, &extent, &flags, array ));
 
     //
     // Fail if invoked on a CUDA array containing elements of
     // different size than T
     //
-    if ( sizeof(T) != desc.NumChannels*CUarray_format_size(desc.Format) ) {
+    if ( sizeof(T) != (chDesc.x + chDesc.y + chDesc.z + chDesc.w) / 8 ) {
         status = cudaErrorInvalidValue;
         goto Error;
     }
     cuda(EventRecord(start, 0));
     {
         dim3 threads(threadWidth,threadHeight);
-        dim3 blocks = dim3(INTDIVIDE_CEILING(desc.Width, threadWidth), 
-                           INTDIVIDE_CEILING(desc.Height, threadHeight));
+        dim3 blocks = dim3(intDivideCeiling(extent.width, threadWidth), 
+                           intDivideCeiling(extent.height, threadHeight));
         
-        surf2Dmemset_kernel<<<blocks,threads>>>( value, 
+        surf2Dmemset_kernel<<<blocks,threads>>>( surfObj, value,
                                                  0, 0, // X and Y offset
-                                                 desc.Width, 
-                                                 desc.Height );
+                                                 extent.width, 
+                                                 extent.height );
     }
     cuda(EventRecord(stop, 0));
     cuda(DeviceSynchronize());
     cuda(EventElapsedTime(ms, start, stop));
 Error:
+    cudaDestroySurfaceObject(surfObj);
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
     return status;

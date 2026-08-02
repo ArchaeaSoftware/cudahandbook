@@ -11,7 +11,7 @@
  * this application quietly replaces the shuffle and fast-atomic
  * implementations with the shared memory implementation.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,8 +49,8 @@
 
 #include <chCommandLine.h>
 #include <chError.h>
-#include <chThread.h>
-#include <chTimer.h>
+#include <thread>
+#include <chrono>
 
 #include "nbody.h"
 
@@ -58,8 +58,6 @@
 #include "bodybodyInteraction_SSE.h"
 #include "bodybodyInteraction_AVX.h"
 #include "bodybodyInteraction_FMA.h"
-
-using namespace cudahandbook::threading;
 
 inline void
 randomVector( float v[3] )
@@ -278,8 +276,8 @@ float
 NBodyAlgorithm<T>::computeTimeStep( )
 {
     T softeningSquared = softening_*softening_;
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < N_; i++ )
     {
         Force3D<T> acc = { 0, 0, 0 };
@@ -310,8 +308,8 @@ NBodyAlgorithm<T>::computeTimeStep( )
         force_[i].ddz_ = acc.ddz_;
 
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 template<typename T>
@@ -322,8 +320,8 @@ NBodyAlgorithm_SOA<T>::computeTimeStep( )
     auto& force = NBodyAlgorithm<T>::force();
     size_t N = NBodyAlgorithm<T>::N();
     T softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < N; i++ ) {
         x_[i] = posMass[i].x_;
         y_[i] = posMass[i].y_;
@@ -364,8 +362,8 @@ NBodyAlgorithm_SOA<T>::computeTimeStep( )
         force[i].ddy_ = ddy_[i];
         force[i].ddz_ = ddz_[i];
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 template<typename T>
@@ -388,8 +386,8 @@ NBodyAlgorithm_SSE<T>::computeTimeStep( )
     auto& ddz = NBodyAlgorithm_SOA<T>::ddz();
 
     T softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < N; i++ ) {
         x[i] = posMass[i].x_;
         y[i] = posMass[i].y_;
@@ -444,8 +442,8 @@ NBodyAlgorithm_SSE<T>::computeTimeStep( )
         force[i].ddy_ = ddy[i];
         force[i].ddz_ = ddz[i];
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 template<typename T>
@@ -468,8 +466,8 @@ NBodyAlgorithm_AVX<T>::computeTimeStep( )
     auto& ddz = NBodyAlgorithm_SOA<T>::ddz();
 
     T softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < N; i++ ) {
         x[i] = posMass[i].x_;
         y[i] = posMass[i].y_;
@@ -548,8 +546,8 @@ NBodyAlgorithm_AVX<T>::computeTimeStep( )
         force[i].ddy_ = ddy[i];
         force[i].ddz_ = ddz[i];
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 template<typename T>
@@ -572,8 +570,8 @@ NBodyAlgorithm_FMA<T>::computeTimeStep( )
     auto& ddz = NBodyAlgorithm_SOA<T>::ddz();
 
     T softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < N; i++ ) {
         x[i] = posMass[i].x_;
         y[i] = posMass[i].y_;
@@ -644,8 +642,8 @@ NBodyAlgorithm_FMA<T>::computeTimeStep( )
         force[i].ddy_ = ddy[i];
         force[i].ddz_ = ddz[i];
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 template<typename T>
@@ -1026,10 +1024,8 @@ Error:
     return false;
 }
 
-workerThread *g_CPUThreadPool;
 int g_numCPUCores;
 
-workerThread *g_GPUThreadPool;
 int g_numGPUs;
 
 struct gpuInit_struct
@@ -1074,18 +1070,7 @@ main( int argc, char *argv[] )
         return 1;
     }
 
-        g_numCPUCores = processorCount();
-#if 0
-    {
-        g_CPUThreadPool = new workerThread[g_numCPUCores];
-        for ( size_t i = 0; i < g_numCPUCores; i++ ) {
-            if ( ! g_CPUThreadPool[i].initialize( ) ) {
-                fprintf( stderr, "Error initializing thread pool\n" );
-                return 1;
-            }
-        }
-    }
-#endif
+        g_numCPUCores = std::thread::hardware_concurrency();
 
     status = cudaSuccess;
     cuda(GetDeviceCount( &g_numGPUs ) );
@@ -1204,18 +1189,9 @@ main( int argc, char *argv[] )
     if ( g_numGPUs ) {
         // optionally override GPU count from command line
         chCommandLineGet( &g_numGPUs, "numgpus", argc, argv );
-        g_GPUThreadPool = new workerThread[g_numGPUs];
-        for ( size_t i = 0; i < g_numGPUs; i++ ) {
-            if ( ! g_GPUThreadPool[i].initialize( ) ) {
-                fprintf( stderr, "Error initializing thread pool\n" );
-                return 1;
-            }
-        }
         for ( int i = 0; i < g_numGPUs; i++ ) {
             gpuInit_struct initGPU = {i};
-            g_GPUThreadPool[i].delegateSynchronous( 
-                initializeGPU, 
-                &initGPU );
+            initializeGPU( &initGPU );
             if ( cudaSuccess != initGPU.status ) {
                 fprintf( stderr, "Initializing GPU %d failed "
                     " with %d (%s)\n",

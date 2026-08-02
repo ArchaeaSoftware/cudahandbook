@@ -46,9 +46,8 @@
 
 #include <chError.h>
 #include <chCommandLine.h>
-#include <chAssert.h>
 #include <chThread.h>
-#include <chTimer.h>
+#include <chrono>
 #include <chUtil.h>
 
 #include <stdlib.h>
@@ -110,15 +109,15 @@ hist1DCPU(
     unsigned int *pHist, 
     unsigned char *p, size_t N )
 {
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     memset( pHist, 0, 256*sizeof(int) );
     for ( size_t i = 0; i < N; i++ ) {
         pHist[ p[i] ] += 1;
     }
-    chTimerGetTime( &end );
+    end = std::chrono::steady_clock::now();
 
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 
@@ -149,11 +148,11 @@ hist1DCPU_threaded(
     unsigned int *pHist, 
     unsigned char *p, size_t N )
 {
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
 
     histDelegation *phist = new histDelegation[ g_numCPUCores ];
-    size_t elementsPerCore = INTDIVIDE_CEILING( N, g_numCPUCores );
+    size_t elementsPerCore = intDivideCeiling( N, g_numCPUCores );
     for ( size_t i = 0; i < g_numCPUCores; i++ ) {
         phist[i].pData = p;
         phist[i].N = (N) ? elementsPerCore : 0;
@@ -175,9 +174,9 @@ hist1DCPU_threaded(
 
     delete[] phist;
 
-    chTimerGetTime( &end );
+    end = std::chrono::steady_clock::now();
 
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 bool

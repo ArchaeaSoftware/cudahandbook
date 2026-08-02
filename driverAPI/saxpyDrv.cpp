@@ -8,7 +8,7 @@
  * (You also can build with your local C compiler - gcc or cl.exe)
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2012, Archaea Software, LLC.
+ * Copyright (c) 2012-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

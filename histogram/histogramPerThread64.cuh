@@ -7,7 +7,7 @@
  *
  * Requires: SM 1.2, for shared atomics.
  *
- * Copyright (c) 2013, Archaea Software, LLC.
+ * Copyright (c) 2013-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -106,7 +106,7 @@ GPUhistogramPerThread64(
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
     int numthreads = threads.x*threads.y;
-    int numblocks = INTDIVIDE_CEILING( w*h, numthreads*255 );
+    int numblocks = intDivideCeiling( w*h, numthreads*255 );
 
     cuda(EventCreate( &start ) );
     cuda(EventCreate( &stop ) );

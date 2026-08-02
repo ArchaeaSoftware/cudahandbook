@@ -12,7 +12,7 @@
  * (fill in xx with 11, 20, or 30 to examine code generation of Tesla,
  * Fermi and Kepler, respectively)
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

@@ -6,7 +6,7 @@
  * Uses SOA (structure of arrays) representation because it is a much
  * better fit for SSE.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@
 #ifdef _OPENMP
 #include <xmmintrin.h>
 
-#include <chTimer.h>
+#include <chrono>
 
 #include "nbody.h"
 #include "bodybodyInteraction_SSE.h"
@@ -54,8 +54,8 @@ ComputeGravitation_SIMD_openmp(
     size_t N
 )
 {
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
 
 #pragma omp parallel for
     for (int i = 0; i < N; i++)
@@ -90,9 +90,9 @@ ComputeGravitation_SIMD_openmp(
         _mm_store_ss( (float *) &force[2][i], az );
     }
 
-    chTimerGetTime( &end );
+    end = std::chrono::steady_clock::now();
 
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 #endif
 #endif

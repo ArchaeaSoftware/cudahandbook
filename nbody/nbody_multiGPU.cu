@@ -4,7 +4,7 @@
  *
  * Single-threaded multi-GPU implementation of the O(N^2) N-body calculation.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,15 +36,12 @@
 #include <stdio.h>
 
 #include <chError.h>
-#include <chTimer.h>
-#include <chThread.h>
+#include <chrono>
 
 #include "nbody.h"
 #include "nbody_multiGPU_shared.cuh"
 
 #include "bodybodyInteraction.cuh"
-
-using namespace cudahandbook::threading;
 
 __global__ void
 ComputeNBodyGravitation_multiGPU_onethread( 
@@ -80,8 +77,8 @@ ComputeGravitation_multiGPU_singlethread(
     float *dptrForce[g_maxGPUs];
     int oldDevice;
 
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
 
     memset( dptrPosMass, 0, sizeof(dptrPosMass) );
     memset( dptrForce, 0, sizeof(dptrForce) );
@@ -147,8 +144,8 @@ ComputeGravitation_multiGPU_singlethread(
         cuda(SetDevice( i ) );
         cuda(DeviceSynchronize() );
     }
-    chTimerGetTime( &end );
-    ret = chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    ret = std::chrono::duration<double>(end - start).count() * 1000.0f;
 
     if ( g_fGPUCrosscheckOutput ) {
         if ( 1 != fwrite( g_hostAOS_Force, 3*N*sizeof(float), 1, g_fGPUCrosscheckOutput ) )

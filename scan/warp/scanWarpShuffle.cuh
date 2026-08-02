@@ -5,7 +5,7 @@
  * Header file for shuffle-based scan (warp size).
  * Requires gpu-architecture sm_30 or higher.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

@@ -7,7 +7,7 @@
  * Build with: nvcc -I ..\chLib <options> testScanWarp.cu
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,6 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 
-#include <chAssert.h>
 #include <chCommandLine.h>
 #include <chError.h>
 

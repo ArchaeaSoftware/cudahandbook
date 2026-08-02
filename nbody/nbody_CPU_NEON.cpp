@@ -6,7 +6,7 @@
  * Uses SOA (structure of arrays) representation because it is a much
  * better fit for NEON.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,7 +36,7 @@
  */
 
 #ifdef __ARM_NEON__
-#include <chTimer.h>
+#include <chrono>
 
 #include "nbody.h"
 #include "bodybodyInteraction_NEON.h"
@@ -51,8 +51,8 @@ ComputeGravitation_SIMD(
     size_t N
 )
 {
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
 
     for (size_t i = 0; i < N; i++)
     {
@@ -83,8 +83,8 @@ ComputeGravitation_SIMD(
         force[2][i] = _vec_sum( az );
     }
 
-    chTimerGetTime( &end );
+    end = std::chrono::steady_clock::now();
 
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 #endif

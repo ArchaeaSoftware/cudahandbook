@@ -7,7 +7,7 @@
  * Build with: nvcc -I ../chLib <options> tex2d_shmoo.cu
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,10 +45,8 @@
 
 #include <cuda.h>
 
-texture<float, 2, cudaReadModeElementType> tex;
-
 extern "C" __global__ void
-TexSums( float *out, size_t Width, size_t Height )
+TexSums( float *out, cudaTextureObject_t tex, size_t Width, size_t Height )
 {
     float sum = 0.0f;
     for ( int row = blockIdx.y*blockDim.y + threadIdx.y;
@@ -59,7 +57,7 @@ TexSums( float *out, size_t Width, size_t Height )
                   col < Width;
                   col += blockDim.x*gridDim.x )
         {
-            sum += tex2D( tex, (float) col, (float) row );
+            sum += tex2D<float>( tex, (float) col, (float) row );
         }
     }
     if ( out ) {
@@ -67,57 +65,46 @@ TexSums( float *out, size_t Width, size_t Height )
     }
 }
 
-size_t
-CUarray_format_size( CUarray_format fmt )
-{
-    switch ( fmt ) {
-        case CU_AD_FORMAT_UNSIGNED_INT8:  return 1;
-        case CU_AD_FORMAT_UNSIGNED_INT16: return 2;
-        case CU_AD_FORMAT_UNSIGNED_INT32: return 4;
-        case CU_AD_FORMAT_SIGNED_INT8:    return 1;
-        case CU_AD_FORMAT_SIGNED_INT16:   return 2;
-        case CU_AD_FORMAT_SIGNED_INT32:   return 4;
-        case CU_AD_FORMAT_HALF:           return 2;
-        case CU_AD_FORMAT_FLOAT:          return 4;
-    }
-    return 0;
-}
 
 template<typename T>
 cudaError_t
 tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHeight, int iterations )
 {
-    CUarray drvArray = (CUarray) array;
-    CUDA_ARRAY3D_DESCRIPTOR desc;
+    cudaChannelFormatDesc chDesc;
+    cudaExtent extent;
+    unsigned int flags;
     cudaEvent_t start = 0;
     cudaEvent_t stop = 0;
+    cudaTextureObject_t tex = 0;
 
     cudaError_t status;
     
     cuda(EventCreate(&start));
     cuda(EventCreate(&stop));
-    cuda(BindTextureToArray(tex, array));
-    if ( CUDA_SUCCESS != cuArray3DGetDescriptor( &desc, drvArray ) ) {
-        status = cudaErrorInvalidValue;
-        goto Error;
+    {
+        cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
+        cudaTextureDesc  texDesc = {};
+        resDesc.res.array.array = array;
+        cuda(CreateTextureObject( &tex, &resDesc, &texDesc, NULL ));
     }
+    cuda(ArrayGetInfo( &chDesc, &extent, &flags, array ));
 
     //
     // Fail if invoked on a CUDA array containing elements of
     // different size than T
     //
-    if ( sizeof(T) != desc.NumChannels*CUarray_format_size(desc.Format) ) {
+    if ( sizeof(T) != (chDesc.x + chDesc.y + chDesc.z + chDesc.w) / 8 ) {
         status = cudaErrorInvalidValue;
         goto Error;
     }
     cuda(EventRecord(start, 0));
     {
         dim3 threads(threadWidth,threadHeight);
-        dim3 blocks = dim3(INTDIVIDE_CEILING(desc.Width, threadWidth), 
-                           INTDIVIDE_CEILING(desc.Height, threadHeight));
+        dim3 blocks = dim3(intDivideCeiling(extent.width, threadWidth), 
+                           intDivideCeiling(extent.height, threadHeight));
 
         for ( int i = 0; i < iterations; i++ ) {
-            TexSums<<<blocks,threads>>>( NULL, desc.Width, desc.Height );
+            TexSums<<<blocks,threads>>>( NULL, tex, extent.width, extent.height );
         }
 
     }
@@ -125,6 +112,7 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
     cuda(DeviceSynchronize());
     cuda(EventElapsedTime(ms, start, stop));
 Error:
+    cudaDestroyTextureObject(tex);
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
     return status;

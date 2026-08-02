@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025, Archaea Software, LLC.
+# Copyright (c) 2025-2026, Archaea Software, LLC.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -45,10 +45,8 @@ add_executable( surf2Dmemset surf2Dmemset.cu )
 add_executable( tex1dfetch_big tex1dfetch_big.cu )
 add_executable( tex1dfetch_int2float tex1dfetch_int2float.cu )
 add_executable( tex2d_addressing_device tex2d_addressing_device.cu )
-add_executable( tex1dfetch_offset tex1dfetch_offset.cu )
 add_executable( surf2Dmemset_shmoo surf2Dmemset_shmoo.cu )
 add_executable( tex1dfetch tex1dfetch.cu )
-add_executable( tex2d_memset tex2d_memset.cu )
 add_executable( tex1d_9bit tex1d_9bit.cu )
 add_executable( tex1dfetch_host tex1dfetch_host.cu )
 add_executable( tex1d_unnormalized tex1d_unnormalized.cu )

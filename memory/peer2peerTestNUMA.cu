@@ -7,7 +7,7 @@
  * Build with: nvcc -I ../chLib <options> peer2peerTestNUMA.cu
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2016, Archaea Software, LLC.
+ * Copyright (c) 2016-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,8 +41,9 @@
 
 #include <unistd.h>
 
-#include <pthread.h>
-#include <semaphore.h>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 
 #include <assert.h>
 
@@ -53,7 +54,7 @@
 #include <fstream>
 
 #include "chError.h"
-#include "chTimer.h"
+#include <chrono>
 #include "chNUMA.h"
 
 #define MAX_DEVICES 32
@@ -75,7 +76,13 @@ bool g_bEnabled[MAX_DEVICES][MAX_DEVICES];
 #define CHECK_NONZERO(f) { int ret = (f); if ( 0 != ret) { fprintf(stderr, "%s returned %d (File %s at line %d)\n", #f, ret, __FILE__, __LINE__ ); exit(1); } }
 
 // Grab this mutex before writing output, so it does not get garbled
-pthread_mutex_t g_mutexOutput;
+std::mutex g_mutexOutput;
+
+// Synchronized start: worker threads block here until the driver releases
+// them together, so all timed memcpys begin concurrently.
+std::mutex g_startMutex;
+std::condition_variable g_startCV;
+bool g_bStart = false;
 
 // Resources needed for each device
 const size_t g_cBytes = 2560ULL*1048576;
@@ -131,8 +138,6 @@ public:
 
     virtual bool PerformMemcpys() = 0;
 
-    sem_t m_semWait;
-    sem_t m_semDone;
 
     static void *ThreadProc( void * );
 
@@ -230,8 +235,6 @@ CGPULoadDriver::CGPULoadDriver( cEnumCPUGPU dstDevice, cEnumCPUGPU srcDevice, cE
 
     m_cBytes = cBytes;
 
-    CHECK_NONZERO( sem_init( &m_semWait, 0, 1 ) );
-    CHECK_NONZERO( sem_init( &m_semDone, 0, 1 ) );
 
     cuda(SetDevice( m_eventDevice.getGPU() ) );
     cuda(EventCreate( &m_evStart ) );
@@ -317,8 +320,6 @@ Error:
 CGPULoadDriver::~CGPULoadDriver()
 
 {
-    sem_destroy( &m_semWait );
-    sem_destroy( &m_semDone );
     cudaSetDevice( m_eventDevice.getGPU() );
     cudaEventDestroy( m_evStart );
     cudaEventDestroy( m_evStop );
@@ -517,7 +518,6 @@ CGPULoadDriver::TimeMemcpys( )
     bool bRet = false;
     bool bAcquiredMutex = false;
 
-    CHECK_NONZERO( sem_wait( &m_semWait ) );
     cuda(SetDevice( m_eventDevice.getGPU() ) );
     if ( m_bUseEvents ) {
         cuda(EventRecord( m_evStart, NULL ) );
@@ -536,7 +536,7 @@ CGPULoadDriver::TimeMemcpys( )
     }
     cuda(DeviceSynchronize() );
 
-    CHECK_NONZERO( pthread_mutex_lock( &g_mutexOutput ) );
+    g_mutexOutput.lock();
     bAcquiredMutex = true;
 
     if ( m_bUseEvents && (! m_bLatencyTest) )
@@ -550,9 +550,8 @@ CGPULoadDriver::TimeMemcpys( )
     }
     bRet = true;
 Error:
-    CHECK_NONZERO( sem_post( &m_semDone ) );
     if ( bAcquiredMutex ) {
-        CHECK_NONZERO( pthread_mutex_unlock( &g_mutexOutput ) );
+        g_mutexOutput.unlock();
     }
     return bRet;
 }
@@ -562,9 +561,11 @@ CGPULoadDriver::ThreadProc( void *pContext )
 {
     CGPULoadDriver *p = (CGPULoadDriver *) pContext;
 
-    CHECK_NONZERO( sem_wait( &p->m_semWait ) );
+    {
+        std::unique_lock<std::mutex> lk( g_startMutex );
+        g_startCV.wait( lk, []{ return g_bStart; } );
+    }
     p->TimeMemcpys( );
-    CHECK_NONZERO( sem_post( &p->m_semDone ) );
     return NULL;
 }
 
@@ -572,9 +573,9 @@ bool
 LaunchMemcpys_threaded( vector<GPUPair> pairs, size_t cBytes, bool bUseEvents )
 {
     int cPairs = pairs.size();
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
 
-    pthread_t *threads = new pthread_t[cPairs];
+    std::vector<std::thread> threads;
     vector< CGPULoadDriver * > tests( cPairs );
 
     for ( int i = 0; i < cPairs; i++ ) {
@@ -585,22 +586,20 @@ LaunchMemcpys_threaded( vector<GPUPair> pairs, size_t cBytes, bool bUseEvents )
         tests[i] = makeLoadDriver( pairs[i].iDst, pairs[i].iSrc, cBytes, bUseEvents, pairs[i].m_bLatencyTest );
     }
 
+    g_bStart = false;
     for ( int i = 0; i < cPairs; i++ ) {
-        CHECK_NONZERO( pthread_create( &threads[i], NULL, CGPULoadDriver::ThreadProc, (void *) tests[i] ) );
+        threads.emplace_back( CGPULoadDriver::ThreadProc, (void *) tests[i] );
     }
-    sleep(1); // let the threads get a chance to hit the semaphore wait
+    sleep(1); // let the threads reach the start barrier
 
-    chTimerGetTime( &start );
-    for ( int i = 0; i < cPairs; i++ ) {
-        CHECK_NONZERO( sem_post( &tests[i]->m_semWait ) );
+    start = std::chrono::steady_clock::now();
+    {
+        std::lock_guard<std::mutex> lk( g_startMutex );
+        g_bStart = true;
     }
-    for ( int i = 0; i < cPairs; i++ ) {
-        CHECK_NONZERO( sem_wait( &tests[i]->m_semDone ) );
-    }
-    for ( int i = 0; i < cPairs; i++ ) {
-        pthread_join( threads[i], NULL );
-    }
-    chTimerGetTime( &stop );
+    g_startCV.notify_all();
+    for ( auto &t : threads ) t.join();
+    stop = std::chrono::steady_clock::now();
 
     {
         int cActivePairs = 0;
@@ -610,7 +609,7 @@ LaunchMemcpys_threaded( vector<GPUPair> pairs, size_t cBytes, bool bUseEvents )
 
         double TotalMBytes = (double) cActivePairs  * g_cBytes * g_cIterations / 1e6;
         if ( cActivePairs != 0 ) {
-            double ElapsedTime = chTimerElapsedTime( &start, &stop );
+            double ElapsedTime = std::chrono::duration<double>(stop - start).count();
             printf( "    Wall clock total observed bandwidth%s: %.0f MB/s\n", bUseEvents?"":" (no events)", TotalMBytes/ElapsedTime );
         }
     }
@@ -718,7 +717,6 @@ main( int argc, char *argv[] )
 
     printf( "%d devices detected\n", deviceCount );
 
-    pthread_mutex_init( &g_mutexOutput, NULL );
 
     for ( int i = 0; i < deviceCount; i++ ) {
         cudaSetDevice( i );

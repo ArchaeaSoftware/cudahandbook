@@ -4,7 +4,7 @@
  *
  * Multithreaded multi-GPU implementation of the O(N^2) N-body calculation.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,14 +36,13 @@
 #include <stdio.h>
 
 #include <chError.h>
-#include <chTimer.h>
-#include <chThread.h>
+#include <chrono>
+#include <thread>
+#include <vector>
 
 #include "nbody.h"
 #include "bodybodyInteraction.cuh"
 #include "nbody_multiGPU_shared.cuh"
-
-using namespace cudahandbook::threading;
 
 __global__ void
 ComputeNBodyGravitation_multiGPU( 
@@ -67,6 +66,7 @@ struct gpuDelegation {
     size_t i;   // base offset for this thread to process
     size_t n;   // size of this thread's problem
     size_t N;   // total number of bodies
+    int device; // CUDA device this worker runs on
 
     float *hostPosMass;
     float *hostForce;
@@ -82,6 +82,8 @@ gpuWorkerThread( void *_p )
     gpuDelegation *p = (gpuDelegation *) _p;
     float *dptrPosMass = 0;
     float *dptrForce = 0;
+
+    cuda(SetDevice( p->device ) );
 
     //
     // Each GPU has its own device pointer to the host pointer.
@@ -121,10 +123,11 @@ ComputeGravitation_multiGPU_threaded(
     size_t N
 )
 {
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     {
         gpuDelegation *pgpu = new gpuDelegation[g_numGPUs];
+        std::vector<std::thread> threads;
         size_t bodiesPerGPU = N / g_numGPUs;
         if ( N % g_numGPUs ) {
             return 0.0f;
@@ -140,15 +143,14 @@ ComputeGravitation_multiGPU_threaded(
             pgpu[i].i = bodiesPerGPU*i;
             pgpu[i].n = bodiesPerGPU;
             pgpu[i].N = N;
+            pgpu[i].device = (int) i;
 
-            g_GPUThreadPool[i].delegateAsynchronous( 
-                gpuWorkerThread, 
-                &pgpu[i] );
+            threads.emplace_back( gpuWorkerThread, &pgpu[i] );
         }
-        workerThread::waitAll( g_GPUThreadPool, g_numGPUs );
+        for ( auto &t : threads ) t.join();
         delete[] pgpu;
     }
 
-    chTimerGetTime( &end );
-    return chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return std::chrono::duration<double>(end - start).count() * 1000.0f;
 }

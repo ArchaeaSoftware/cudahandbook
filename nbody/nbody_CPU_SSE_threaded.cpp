@@ -6,7 +6,7 @@
  * Uses SOA (structure of arrays) representation because it is a much
  * better fit for SSE.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,14 +39,14 @@
 
 #include <xmmintrin.h>
 
-#include <chTimer.h>
-#include <chThread.h>
+#include <chrono>
+
+#include <thread>
+#include <vector>
 
 #include "nbody.h"
 #include "bodybodyInteraction_SSE.h"
 #include "nbody_CPU_SIMD.h"
-
-using namespace cudahandbook::threading;
 
 struct sseDelegation {
     size_t i;   // base offset for this thread to process
@@ -107,11 +107,12 @@ ComputeGravitation_SIMD_threaded(
     size_t N
 )
 {
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
 
     {
         sseDelegation *psse = new sseDelegation[g_numCPUCores];
+        std::vector<std::thread> threads;
         size_t bodiesPerCore = N / g_numCPUCores;
         for ( size_t i = 0; i < g_numCPUCores; i++ ) {
             psse[i].hostPosSOA[0] = pos[0];
@@ -127,17 +128,15 @@ ComputeGravitation_SIMD_threaded(
             psse[i].n = bodiesPerCore;
             psse[i].N = N;
 
-            g_CPUThreadPool[i].delegateAsynchronous( 
-                sseWorkerThread, 
-                &psse[i] );
+            threads.emplace_back( sseWorkerThread, &psse[i] );
         }
-        workerThread::waitAll( g_CPUThreadPool, g_numCPUCores );
+        for ( auto &t : threads ) t.join();
         delete[] psse;
     }
 
-    chTimerGetTime( &end );
+    end = std::chrono::steady_clock::now();
 
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 #endif

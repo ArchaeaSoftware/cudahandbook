@@ -4,7 +4,7 @@
  *
  * Header file to declare globals in nbody.cu
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,7 +38,6 @@
 
 #include "nbody_CPU_SIMD.h"
 
-#include <chThread.h>
 
 extern bool g_bCUDAPresent;
 extern bool g_bGPUCrossCheck;
@@ -96,9 +95,9 @@ enum nbodyAlgorithm_enum {
     multiGPU_MultiCPUThread,
 // SM 3.0 only
     GPU_Shuffle,
-//    GPU_AOS_tiled,
-//    GPU_AOS_tiled_const,
-//    GPU_Atomic
+    GPU_AOS_tiled,
+    GPU_AOS_tiled_const,
+    GPU_Atomic
 };
 
 
@@ -122,9 +121,9 @@ static const char *rgszAlgorithmNames[] = {
     "multiGPU_MultiCPUThread",
 // SM 3.0 only
     "GPU_Shuffle",
-//    "GPU_AOS_tiled",
-//    "GPU_AOS_tiled_const",
-//    "GPU_Atomic"
+    "GPU_AOS_tiled",
+    "GPU_AOS_tiled_const",
+    "GPU_Atomic"
 };
 
 extern const char *rgszAlgorithmNames[];
@@ -141,11 +140,9 @@ extern enum nbodyAlgorithm_enum g_maxAlgorithm;
 extern bool g_bCrossCheck;
 extern bool g_bNoCPU;
 
-extern cudahandbook::threading::workerThread *g_CPUThreadPool;
 extern int g_numCPUCores;
 
 extern int g_numGPUs;
-extern cudahandbook::threading::workerThread *g_GPUThreadPool;
 
 extern float ComputeGravitation_GPU_Shared           ( float *force, float *posMass, float softeningSquared, size_t N );
 extern float ComputeGravitation_multiGPU_singlethread( float *force, float *posMass, float softeningSquared, size_t N );

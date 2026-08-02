@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025, Archaea Software, LLC.
+# Copyright (c) 2025-2026, Archaea Software, LLC.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -40,6 +40,7 @@ add_executable( reportClocks reportClocks.cu )
 #add_executable( globalRead globalRead.cu )
 #add_executable( globalWrite globalWrite.cu )
 add_executable( mallocSpeed mallocSpeed.cu )
+add_executable( devrtMallocSpeed devrtMallocSpeed.cu )
 
 include_directories( chLib )
 

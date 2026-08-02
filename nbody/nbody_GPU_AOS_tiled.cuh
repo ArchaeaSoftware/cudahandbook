@@ -6,7 +6,7 @@
  * Tiled to take advantage of the symmetry of gravitational
  * forces: Fij=-Fji
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,11 +35,9 @@
  *
  */
 
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 300
-
 template<int nTile>
 __device__ void
-DoDiagonalTile_GPU( 
+DoDiagonalTile_GPU(
     float *force, 
     float *posMass,
     float softeningSquared,
@@ -221,15 +219,4 @@ Error:
     cudaEventDestroy( evStart );
     return ms;
 }
-#else
-float
-ComputeGravitation_GPU_AOS_tiled(
-    float *,
-    float *,
-    float,
-    size_t )
-{
-    return 0.0f;
-}
-#endif
 

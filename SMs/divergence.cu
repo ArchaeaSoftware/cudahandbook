@@ -7,7 +7,7 @@
  * Build with: nvcc [--gpu-architecture sm_xx] divergence.cu
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2021, Archaea Software, LLC.
+ * Copyright (c) 2021-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

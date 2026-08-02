@@ -5,7 +5,7 @@
  * Shared memory-based implementation of the O(N^2) N-body calculation.
  * This header is designed to be included by the multi-GPU versions.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

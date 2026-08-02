@@ -4,7 +4,7 @@
  *
  * Header file to declare globals in nbody.cu
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,7 +38,6 @@
 
 //#include "nbody_CPU_SIMD.h"
 
-#include <chThread.h>
 //#include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 
@@ -292,11 +291,9 @@ extern enum nbodyAlgorithm_enum g_maxAlgorithm;
 extern bool g_bCrossCheck;
 extern bool g_bNoCPU;
 
-extern cudahandbook::threading::workerThread *g_CPUThreadPool;
 extern int g_numCPUCores;
 
 extern int g_numGPUs;
-extern cudahandbook::threading::workerThread *g_GPUThreadPool;
 
 //extern float *g_hostAOS_PosMass;
 extern std::vector<PosMass<float>> g_hostAOS_PosMass;

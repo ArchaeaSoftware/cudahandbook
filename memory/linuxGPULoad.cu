@@ -9,7 +9,7 @@
  * Runs indefinitely until it detects a 'Q' keystroke.
  * Hitting the space bar will cause it to reset counts.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,8 @@
 
 #ifndef _WIN32
 #include <numa.h>
-#include <pthread.h>
+#include <thread>
+#include <mutex>
 #include <ctype.h>
 #endif
 
@@ -52,7 +53,7 @@
 
 #include <cuda.h>
 
-#include <chTimer.h>
+#include <chrono>
 #include <chCommandLine.h>
 
 #include <emmintrin.h>
@@ -74,9 +75,9 @@ double
 elapsedTimeCopyToGPU( void *dst, void *src, size_t bytes, int cIterations )
 {
     double ret = 0.0f;
-    chTimerTimestamp start, end;
+    std::chrono::steady_clock::time_point start, end;
 
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     {
         for ( int i = 0; i < cIterations; i++ ) {
             if ( cudaSuccess != cudaMemcpyAsync( dst, src, bytes, cudaMemcpyHostToDevice ) )
@@ -86,9 +87,9 @@ elapsedTimeCopyToGPU( void *dst, void *src, size_t bytes, int cIterations )
     if ( cudaSuccess != cudaDeviceSynchronize() )
         goto Error;
     
-    chTimerGetTime( &end );
+    end = std::chrono::steady_clock::now();
 
-    ret = chTimerElapsedTime( &start, &end );
+    ret = std::chrono::duration<double>(end - start).count();
 Error:
     return ret;
 }
@@ -97,9 +98,9 @@ double
 elapsedTimeCopyFromGPU( void *dst, void *src, size_t bytes, int cIterations )
 {
     double ret = 0.0f;
-    chTimerTimestamp start, end;
+    std::chrono::steady_clock::time_point start, end;
 
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     {
         for ( int i = 0; i < cIterations; i++ ) {
             if ( cudaSuccess != cudaMemcpyAsync( dst, src, bytes, cudaMemcpyDeviceToHost ) )
@@ -109,9 +110,9 @@ elapsedTimeCopyFromGPU( void *dst, void *src, size_t bytes, int cIterations )
     if ( cudaSuccess != cudaDeviceSynchronize() )
         goto Error;
     
-    chTimerGetTime( &end );
+    end = std::chrono::steady_clock::now();
 
-    ret = chTimerElapsedTime( &start, &end );
+    ret = std::chrono::duration<double>(end - start).count();
 Error:
     return ret;
 }
@@ -140,7 +141,7 @@ typedef struct __GPU_BANDWIDTH_PARAMETERS
 } GPU_BANDWIDTH_PARAMETERS;
 
 typedef struct __GLOBAL_RUNNING_SUMS {
-    pthread_mutex_t mutex;
+    std::mutex mutex;
 
     double totalTime;
     unsigned long long totalBytes;
@@ -177,10 +178,10 @@ threadBandwidthToSocket( void *_p )
             printf( "Error during DMA\n" );
             goto Error;
         }
-        pthread_mutex_lock( &globals.mutex );
+        globals.mutex.lock();
         globals.totalBytes += g_cIterations*p->size;
         globals.totalTime += et;
-        pthread_mutex_unlock( &globals.mutex );
+        globals.mutex.unlock();
     }
     ret = 0;
 Error:
@@ -189,9 +190,9 @@ Error:
         cudaHostUnregister( pHost );
         pageAlignedNumaFree( pHost, p->size );
     }
-    pthread_mutex_lock( &globals.mutex );
+    globals.mutex.lock();
     globals.bExit = true;
-    pthread_mutex_unlock( &globals.mutex );
+    globals.mutex.unlock();
     return ret;
 }
 
@@ -255,33 +256,21 @@ main( int argc, char *argv[] )
     printf( "%d MB on node %d is being %s by GPU %d\n", size, node, bCopyToDevice?"read":"written", device );
 
     {
-        pthread_mutexattr_t attr;
-        pthread_mutexattr_init( &attr );
-        pthread_mutex_init( &globals.mutex, &attr );
-    }
-
-    {
-        GPU_BANDWIDTH_PARAMETERS cpuParms;
-        pthread_t pThread;
-        pthread_attr_t attr;
+        static GPU_BANDWIDTH_PARAMETERS cpuParms;
 
         cpuParms.node = node;
         cpuParms.device = device;
         cpuParms.size = globals.size;
         cpuParms.copyToDevice = bCopyToDevice;
 
-        pthread_attr_init( &attr );
-        if ( 0 != pthread_create( &pThread, &attr, threadBandwidthToSocket, &cpuParms ) ) {
-            fprintf( stderr, "Yipes. Thread creation failed\n" );
-            exit(1);
-        }
+        std::thread( threadBandwidthToSocket, &cpuParms ).detach();
 
     }
 
     do {
 
         sleep( 10 );
-        pthread_mutex_lock( &globals.mutex );
+        globals.mutex.lock();
             printf( "Bandwidth: %.2f GB/s\n", (double) globals.totalBytes /1e9 / globals.totalTime );
             globals.totalBytes = 0;
             globals.totalTime = 0;
@@ -297,7 +286,7 @@ main( int argc, char *argv[] )
                     globals.bExit = true;
                 }
             }
-        pthread_mutex_unlock( &globals.mutex );
+        globals.mutex.unlock();
     } while ( ! globals.bExit );
     ret = 0;
 

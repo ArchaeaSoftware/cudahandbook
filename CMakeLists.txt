@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025, Archaea Software, LLC.
+# Copyright (c) 2025-2026, Archaea Software, LLC.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -43,7 +43,6 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-unused-result")
 include_directories( chLib )
 
 add_subdirectory( chLib )
-#commenting out for MI300X (no texturing) add_subdirectory( corr )
 add_subdirectory( concurrency )
 add_subdirectory( histogram )
 add_subdirectory( memory )
@@ -53,7 +52,31 @@ add_subdirectory( reduction )
 add_subdirectory( scan )
 add_subdirectory( SMs )
 add_subdirectory( streaming )
-#commenting out for MI300X (no texturing) add_subdirectory( texturing )
+# The texturing (and corr) samples use the CUDA texture/surface object
+# APIs, which are unavailable under HIP/SCALE (e.g. AMD MI300X). Default
+# the option to ON only for genuine NVIDIA nvcc; override on the command
+# line with -DCUDAHANDBOOK_BUILD_TEXTURING=ON|OFF.
+if( CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA" )
+    set( _CUDAHANDBOOK_TEXTURING_DEFAULT ON )
+else()
+    set( _CUDAHANDBOOK_TEXTURING_DEFAULT OFF )
+endif()
+option( CUDAHANDBOOK_BUILD_TEXTURING
+        "Build the CUDA-only texturing samples"
+        ${_CUDAHANDBOOK_TEXTURING_DEFAULT} )
+if( CUDAHANDBOOK_BUILD_TEXTURING )
+    add_subdirectory( texturing )
+    add_subdirectory( corr )
+    # Set the CUDA architecture here (not in the block below), since these
+    # targets only exist when the option is ON.
+    set_target_properties(
+        surf1Dmemset surf2Dmemset surf2Dmemset_shmoo
+        tex1d_9bit tex1d_addressing tex1d_unnormalized
+        tex1dfetch tex1dfetch_big tex1dfetch_host tex1dfetch_htod tex1dfetch_int2float
+        tex2d_addressing tex2d_addressing_device tex2d_opengl tex2d_shmoo
+        normalizedCrossCorrelation
+        PROPERTIES CUDA_ARCHITECTURES 80-virtual )
+endif()
 
 # Set CUDA architecture for compilation (e.g., for specific GPU models)
 
@@ -100,8 +123,8 @@ set_target_properties(
     # histogram
     #histogram
 
-    # corr
-    #normalizedCrossCorrelation
+    # corr targets get CUDA_ARCHITECTURES in the
+    # CUDAHANDBOOK_BUILD_TEXTURING block above (corr uses texturing).
 
     # microbench
     globalRead
@@ -122,24 +145,9 @@ set_target_properties(
     #testScanBlock testScanWarp testStreamCompact_odd timeStreamCompact_odd
     testScan timeScan
 
-    # texturing
-    #surf1Dmemset
-    #surf2Dmemset
-    #surf2Dmemset_shmoo
-    #tex1d_addressing
-    #tex1dfetch
-    #tex1d_9bit
-    #tex1dfetch_big
-    #tex1dfetch_htod
-    #tex1dfetch_host
-    #tex1dfetch_int2float
-    #tex1dfetch_offset
-    #tex1d_unnormalized
-    #tex2d_addressing
-    #tex2d_shmoo
-    #tex2d_addressing_device
-    #tex2d_memset
-    #tex2d_opengl
+    # texturing targets get CUDA_ARCHITECTURES in the
+    # CUDAHANDBOOK_BUILD_TEXTURING block above (they don't exist here
+    # when texturing is disabled).
 
     nbody
 

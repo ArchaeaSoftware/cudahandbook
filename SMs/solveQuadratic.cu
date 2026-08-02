@@ -7,7 +7,7 @@
  * Build with: nvcc [--gpu-architecture sm_xx] [-D USE_FLOAT] [-D USE_IF_STATEMENT] --cubin solveQuadratic.cu
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@ template<class Real>
 __device__ void
 solveQuadratic( Real& x0, Real& x1, Real a, Real b, Real c )
 {
-    Real Determinant = __fsqrt_rn( b*b - 4.0f*a*c );
+    Real Determinant = sqrt( b*b - 4.0f*a*c );
     if ( b >= 0.0f ) {
         x0 = (-b - Determinant) / (2.0f*a);
         x1 = (2.0f*c) / (-b - Determinant);
@@ -56,7 +56,7 @@ template<class Real>
 __device__ void
 solveQuadratic( Real& x0, Real& x1, Real a, Real b, Real c )
 {
-    Real Determinant = __fsqrt_rn( b*b - 4.0f*a*c );
+    Real Determinant = sqrt( b*b - 4.0f*a*c );
     Real adjDeterminant = (b < 0.0f) ? -b+Determinant : -b-Determinant;
     x0 = adjDeterminant / (2.0f*a);
     x1 = (2.0f*c) / adjDeterminant;

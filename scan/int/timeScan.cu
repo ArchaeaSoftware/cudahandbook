@@ -7,7 +7,7 @@
  * Build with: nvcc -I ../../chLib <options> timeScan.cu
  * Requires: No minimum SM requirement.
  *
- * Copyright (c) 2011-2012, Archaea Software, LLC.
+ * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,8 +41,7 @@
 //#include <thrust/host_vector.h>
 //#include <thrust/device_vector.h>
 
-#include <chTimer.h>
-#include <chAssert.h>
+#include <chrono>
 #include <chError.h>
 
 #include "scanWarp.cuh"
@@ -76,7 +75,7 @@ TimeScan( void (*pfnScanGPU)(T *, const T *, size_t, int),
           int numThreads, 
           int cIterations )
 {
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
     cudaError_t status;
 
     double ret = 0.0;
@@ -92,16 +91,16 @@ TimeScan( void (*pfnScanGPU)(T *, const T *, size_t, int),
 
     RandomArray( inCPU, N, N );
     cuda(Memcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     for ( int i = 0; i < cIterations; i++ ) {
         pfnScanGPU( outGPU, inGPU, N, numThreads );
     }
     if ( cudaSuccess != cudaDeviceSynchronize() )
         goto Error;
-    chTimerGetTime( &stop );
+    stop = std::chrono::steady_clock::now();
 
     // ints per second
-    ret = (double) cIterations*N / chTimerElapsedTime( &start, &stop );
+    ret = (double) cIterations*N / std::chrono::duration<double>(stop - start).count();
     
 Error:
     cudaFree( outGPU );
