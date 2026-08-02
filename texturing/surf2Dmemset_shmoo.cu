@@ -96,8 +96,8 @@ surf2DmemsetArray_time( float *ms, cudaArray *array, T value, int threadWidth, i
     cuda(EventRecord(start, 0));
     {
         dim3 threads(threadWidth,threadHeight);
-        dim3 blocks = dim3(INTDIVIDE_CEILING(extent.width, threadWidth), 
-                           INTDIVIDE_CEILING(extent.height, threadHeight));
+        dim3 blocks = dim3(intDivideCeiling(extent.width, threadWidth), 
+                           intDivideCeiling(extent.height, threadHeight));
         
         surf2Dmemset_kernel<<<blocks,threads>>>( surfObj, value,
                                                  0, 0, // X and Y offset

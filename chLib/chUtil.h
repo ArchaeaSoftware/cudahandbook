@@ -40,6 +40,10 @@
 //
 // compute ceil(i/N)
 //
-#define INTDIVIDE_CEILING(i,N) (((i)+(N)-1)/(N))
+template <typename T, typename U>
+constexpr auto intDivideCeiling( T i, U N )
+{
+    return i / N + (i % N != 0);   // no (i+N-1) overflow, unlike the old macro
+}
 
 #endif // __CUDAHANDBOOK_UTIL_H__

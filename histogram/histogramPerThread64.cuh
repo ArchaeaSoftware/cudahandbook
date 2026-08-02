@@ -106,7 +106,7 @@ GPUhistogramPerThread64(
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
     int numthreads = threads.x*threads.y;
-    int numblocks = INTDIVIDE_CEILING( w*h, numthreads*255 );
+    int numblocks = intDivideCeiling( w*h, numthreads*255 );
 
     cuda(EventCreate( &start ) );
     cuda(EventCreate( &stop ) );

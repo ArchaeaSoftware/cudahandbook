@@ -100,8 +100,8 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
     cuda(EventRecord(start, 0));
     {
         dim3 threads(threadWidth,threadHeight);
-        dim3 blocks = dim3(INTDIVIDE_CEILING(extent.width, threadWidth), 
-                           INTDIVIDE_CEILING(extent.height, threadHeight));
+        dim3 blocks = dim3(intDivideCeiling(extent.width, threadWidth), 
+                           intDivideCeiling(extent.height, threadHeight));
 
         for ( int i = 0; i < iterations; i++ ) {
             TexSums<<<blocks,threads>>>( NULL, tex, extent.width, extent.height );

@@ -151,7 +151,7 @@ hist1DCPU_threaded(
 
     histDelegation *phist = new histDelegation[ g_numCPUCores ];
     std::vector<std::thread> threads;
-    size_t elementsPerCore = INTDIVIDE_CEILING( N, g_numCPUCores );
+    size_t elementsPerCore = intDivideCeiling( N, g_numCPUCores );
     for ( size_t i = 0; i < g_numCPUCores; i++ ) {
         phist[i].pData = p;
         phist[i].N = (N) ? elementsPerCore : 0;

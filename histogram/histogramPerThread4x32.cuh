@@ -152,7 +152,7 @@ GPUhistogramPerThread4x32(
     cudaError_t status;
     cudaEvent_t start = 0, stop = 0;
     int numthreads = threads.x*threads.y;
-    int numblocks = bPeriodicMerge ? 256 : INTDIVIDE_CEILING( w*h, numthreads*(255/4) );
+    int numblocks = bPeriodicMerge ? 256 : intDivideCeiling( w*h, numthreads*(255/4) );
 
     cuda(EventCreate( &start ) );
     cuda(EventCreate( &stop ) );
