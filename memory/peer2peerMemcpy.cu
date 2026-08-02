@@ -41,7 +41,7 @@
 #include <stdio.h>
 
 #include "chError.h"
-#include "chTimer.h"
+#include <chrono>
 
 #define MAX_DEVICES 32
 
@@ -143,7 +143,7 @@ main( int argc, char *argv[] )
     int *testVector = 0;
     printf( "Peer-to-peer memcpy... " ); fflush( stdout );
 
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
 
     memset( deviceInt, 0, sizeof(deviceInt) );
 
@@ -216,16 +216,16 @@ main( int argc, char *argv[] )
                 printf( "Not enabled\n" );
                 continue;
             }
-            chTimerGetTime( &start );
+            start = std::chrono::steady_clock::now();
             for ( int i = 0; i < cIterations; i++ ) {
                 cudaMemcpyPeerAsync( deviceInt[dstDevice], dstDevice, deviceInt[srcDevice], srcDevice, numInts*sizeof(int) ) ;
             }
             cuda(DeviceSynchronize() );
-            chTimerGetTime( &stop );
+            stop = std::chrono::steady_clock::now();
 
             {
                 double MBytes = cIterations*numInts*sizeof(int) / 1048576.0;
-                double MBpers = MBytes / chTimerElapsedTime( &start, &stop );
+                double MBpers = MBytes / std::chrono::duration<double>(stop - start).count();
 
                 printf( "%.2f MB/s\n", MBpers );
             }

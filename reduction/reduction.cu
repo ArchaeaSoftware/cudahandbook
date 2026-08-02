@@ -39,7 +39,7 @@
 
 #include <assert.h>
 
-#include <chTimer.h>
+#include <chrono>
 #include <chCommandLine.h>
 #include <chError.h>
 
@@ -161,17 +161,17 @@ usPerInvocation( int cIterations, size_t N,
     int *smallArray = 0;
     int *partialSums = 0;
     double ret = 0.0f;
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
 
     cuda(Malloc( &smallArray, N*sizeof(int) ) );
     cuda(Malloc( &partialSums, 1*sizeof(int) ) );
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     for ( int i = 0; i < cIterations; i++ ) {
         pfnReduction( partialSums, partialSums, smallArray, N, 1, 256 );
     }
     cuda(DeviceSynchronize() );
-    chTimerGetTime( &stop );
-    ret = chTimerElapsedTime( &start, &stop );
+    stop = std::chrono::steady_clock::now();
+    ret = std::chrono::duration<double>(stop - start).count();
     ret = (ret / (double) cIterations) * 1e6;
 Error:
     (void) cudaFree( partialSums );

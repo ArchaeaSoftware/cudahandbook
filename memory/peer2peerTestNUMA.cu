@@ -54,7 +54,7 @@
 #include <fstream>
 
 #include "chError.h"
-#include "chTimer.h"
+#include <chrono>
 #include "chNUMA.h"
 
 #define MAX_DEVICES 32
@@ -573,7 +573,7 @@ bool
 LaunchMemcpys_threaded( vector<GPUPair> pairs, size_t cBytes, bool bUseEvents )
 {
     int cPairs = pairs.size();
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
 
     std::vector<std::thread> threads;
     vector< CGPULoadDriver * > tests( cPairs );
@@ -592,14 +592,14 @@ LaunchMemcpys_threaded( vector<GPUPair> pairs, size_t cBytes, bool bUseEvents )
     }
     sleep(1); // let the threads reach the start barrier
 
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     {
         std::lock_guard<std::mutex> lk( g_startMutex );
         g_bStart = true;
     }
     g_startCV.notify_all();
     for ( auto &t : threads ) t.join();
-    chTimerGetTime( &stop );
+    stop = std::chrono::steady_clock::now();
 
     {
         int cActivePairs = 0;
@@ -609,7 +609,7 @@ LaunchMemcpys_threaded( vector<GPUPair> pairs, size_t cBytes, bool bUseEvents )
 
         double TotalMBytes = (double) cActivePairs  * g_cBytes * g_cIterations / 1e6;
         if ( cActivePairs != 0 ) {
-            double ElapsedTime = chTimerElapsedTime( &start, &stop );
+            double ElapsedTime = std::chrono::duration<double>(stop - start).count();
             printf( "    Wall clock total observed bandwidth%s: %.0f MB/s\n", bUseEvents?"":" (no events)", TotalMBytes/ElapsedTime );
         }
     }

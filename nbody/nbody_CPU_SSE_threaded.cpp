@@ -39,7 +39,7 @@
 
 #include <xmmintrin.h>
 
-#include <chTimer.h>
+#include <chrono>
 
 #include <thread>
 #include <vector>
@@ -107,8 +107,8 @@ ComputeGravitation_SIMD_threaded(
     size_t N
 )
 {
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
 
     {
         sseDelegation *psse = new sseDelegation[g_numCPUCores];
@@ -134,9 +134,9 @@ ComputeGravitation_SIMD_threaded(
         delete[] psse;
     }
 
-    chTimerGetTime( &end );
+    end = std::chrono::steady_clock::now();
 
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 #endif

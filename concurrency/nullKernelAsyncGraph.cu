@@ -39,7 +39,7 @@
 #include <stdio.h>
 
 #include "chError.h"
-#include "chTimer.h"
+#include <chrono>
 
 #ifdef __HIPCC_
 #define cudaStreamCaptureModeGlobal hipStreamCaptureModeGlobal
@@ -84,21 +84,21 @@ usPerLaunch( int cIterations )
     cudaStream_t stream;
     cudaGraph_t graph;
     cudaGraphExec_t graphInstance;
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
 
     cuda(Free(0));
     cuda(StreamCreate( &stream ));
     cuda(CreateGraphNullKernelLaunches( &graph, &graphInstance, stream, itersPerGraph ));
 
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     int i;
     for ( i = 0; i < cIterations; i += itersPerGraph ) {
         cuda(GraphLaunch( graphInstance, NULL ));
     }
     cuda(DeviceSynchronize());
-    chTimerGetTime( &stop );
+    stop = std::chrono::steady_clock::now();
 
-    microseconds = 1e6*chTimerElapsedTime( &start, &stop );
+    microseconds = 1e6*std::chrono::duration<double>(stop - start).count();
     ret = microseconds / (float) i;
 
 Error:

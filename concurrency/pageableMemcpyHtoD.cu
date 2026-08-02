@@ -44,7 +44,7 @@
 #include <stdio.h>
 
 #include "chError.h"
-#include "chTimer.h"
+#include <chrono>
 
 #define STAGING_BUFFER_SIZE 1048576
 
@@ -107,7 +107,7 @@ main( int argc, char *argv[] )
     int *testVector = 0;
     printf( "Pageable memcpy... " ); fflush( stdout );
 
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
 
     cuda(HostAlloc( &g_hostBuffers[0], STAGING_BUFFER_SIZE, cudaHostAllocDefault ) );
     cuda(HostAlloc( &g_hostBuffers[1], STAGING_BUFFER_SIZE, cudaHostAllocDefault ) );
@@ -141,16 +141,16 @@ main( int argc, char *argv[] )
         }
     }
 
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     for ( int i = 0; i < cIterations; i++ ) {
         chMemcpyHtoD( deviceInt, testVector, numInts*sizeof(int) ) ;
     }
     cuda(DeviceSynchronize() );
-    chTimerGetTime( &stop );
+    stop = std::chrono::steady_clock::now();
 
     {
         double MBytes = cIterations*numInts*sizeof(int) / 1048576.0;
-        double MBpers = MBytes / chTimerElapsedTime( &start, &stop );
+        double MBpers = MBytes / std::chrono::duration<double>(stop - start).count();
 
         printf( "%.2f MB/s\n", MBpers );
     }

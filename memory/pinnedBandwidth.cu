@@ -40,7 +40,7 @@
 #include <chError.h>
 
 #include <chCommandLine.h>
-#include <chTimer.h>
+#include <chrono>
 
 template< cudaMemcpyKind type >
 double
@@ -49,19 +49,19 @@ Bandwidth( int iDevice, int cIterations, size_t N )
     cudaError_t status;
 
     double ret = 0.0;
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
     void *pHost = 0, *pDevice = 0;
 
     cuda(SetDevice( iDevice ) );
     cuda(Malloc( &pDevice, N ) );
     cuda(MallocHost( &pHost, N ) );
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     for ( int i = 0; i < cIterations; i++ ) {
         cuda(MemcpyAsync( pDevice, pHost, N, type, NULL ) );
     }
     cuda(DeviceSynchronize() );
-    chTimerGetTime( &stop );
-    ret = chTimerBandwidth( &start, &stop, cIterations*N );
+    stop = std::chrono::steady_clock::now();
+    ret = (cIterations*N) / std::chrono::duration<double>(stop - start).count();
 Error:
     cudaFree( pDevice );
     cudaFreeHost( pHost );

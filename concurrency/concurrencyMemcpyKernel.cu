@@ -43,7 +43,6 @@
 #include "chError.h"
 #include "chShmoo.h"
 #include "chCommandLine.h"
-#include "chTimer.h"
 
 #include "AddKernel.cuh"
 

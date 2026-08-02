@@ -50,7 +50,7 @@
 #include <chCommandLine.h>
 #include <chError.h>
 #include <thread>
-#include <chTimer.h>
+#include <chrono>
 
 #include "nbody.h"
 
@@ -276,8 +276,8 @@ float
 NBodyAlgorithm<T>::computeTimeStep( )
 {
     T softeningSquared = softening_*softening_;
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < N_; i++ )
     {
         Force3D<T> acc = { 0, 0, 0 };
@@ -308,8 +308,8 @@ NBodyAlgorithm<T>::computeTimeStep( )
         force_[i].ddz_ = acc.ddz_;
 
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 template<typename T>
@@ -320,8 +320,8 @@ NBodyAlgorithm_SOA<T>::computeTimeStep( )
     auto& force = NBodyAlgorithm<T>::force();
     size_t N = NBodyAlgorithm<T>::N();
     T softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < N; i++ ) {
         x_[i] = posMass[i].x_;
         y_[i] = posMass[i].y_;
@@ -362,8 +362,8 @@ NBodyAlgorithm_SOA<T>::computeTimeStep( )
         force[i].ddy_ = ddy_[i];
         force[i].ddz_ = ddz_[i];
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 template<typename T>
@@ -386,8 +386,8 @@ NBodyAlgorithm_SSE<T>::computeTimeStep( )
     auto& ddz = NBodyAlgorithm_SOA<T>::ddz();
 
     T softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < N; i++ ) {
         x[i] = posMass[i].x_;
         y[i] = posMass[i].y_;
@@ -442,8 +442,8 @@ NBodyAlgorithm_SSE<T>::computeTimeStep( )
         force[i].ddy_ = ddy[i];
         force[i].ddz_ = ddz[i];
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 template<typename T>
@@ -466,8 +466,8 @@ NBodyAlgorithm_AVX<T>::computeTimeStep( )
     auto& ddz = NBodyAlgorithm_SOA<T>::ddz();
 
     T softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < N; i++ ) {
         x[i] = posMass[i].x_;
         y[i] = posMass[i].y_;
@@ -546,8 +546,8 @@ NBodyAlgorithm_AVX<T>::computeTimeStep( )
         force[i].ddy_ = ddy[i];
         force[i].ddz_ = ddz[i];
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 template<typename T>
@@ -570,8 +570,8 @@ NBodyAlgorithm_FMA<T>::computeTimeStep( )
     auto& ddz = NBodyAlgorithm_SOA<T>::ddz();
 
     T softeningSquared = NBodyAlgorithm<T>::softening()*NBodyAlgorithm<T>::softening();
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < N; i++ ) {
         x[i] = posMass[i].x_;
         y[i] = posMass[i].y_;
@@ -642,8 +642,8 @@ NBodyAlgorithm_FMA<T>::computeTimeStep( )
         force[i].ddy_ = ddy[i];
         force[i].ddz_ = ddz[i];
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 template<typename T>

@@ -52,7 +52,6 @@
 #include <chCommandLine.h>
 #include <chError.h>
 #include <thread>
-#include <chTimer.h>
 
 #include "nbody.h"
 

@@ -49,7 +49,7 @@
 #include <chAssert.h>
 #include <thread>
 #include <vector>
-#include <chTimer.h>
+#include <chrono>
 #include <chUtil.h>
 
 #include <stdlib.h>
@@ -108,15 +108,15 @@ hist1DCPU(
     unsigned int *pHist, 
     unsigned char *p, size_t N )
 {
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     memset( pHist, 0, 256*sizeof(int) );
     for ( size_t i = 0; i < N; i++ ) {
         pHist[ p[i] ] += 1;
     }
-    chTimerGetTime( &end );
+    end = std::chrono::steady_clock::now();
 
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 
@@ -147,8 +147,8 @@ hist1DCPU_threaded(
     unsigned int *pHist, 
     unsigned char *p, size_t N )
 {
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
 
     histDelegation *phist = new histDelegation[ g_numCPUCores ];
     std::vector<std::thread> threads;
@@ -172,9 +172,9 @@ hist1DCPU_threaded(
 
     delete[] phist;
 
-    chTimerGetTime( &end );
+    end = std::chrono::steady_clock::now();
 
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 bool

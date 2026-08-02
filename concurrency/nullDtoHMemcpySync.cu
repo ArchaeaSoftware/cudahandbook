@@ -39,7 +39,7 @@
 #include <stdio.h>
 
 #include "chError.h"
-#include "chTimer.h"
+#include <chrono>
 
 int
 main( int argc, char *argv[] )
@@ -50,25 +50,25 @@ main( int argc, char *argv[] )
     int cIterations = 1000;
     printf( "Measuring NULL device->host memcpy's (with sync)... " ); fflush( stdout );
 
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
 
     cuda(Malloc( &deviceInt, sizeof(int) ) );
     cuda(HostAlloc( &hostInt, sizeof(int), 0 ) );
 
     do {
-        chTimerGetTime( &start );
+        start = std::chrono::steady_clock::now();
         for ( int i = 0; i < cIterations; i++ ) {
             cuda(Memcpy( hostInt, deviceInt, sizeof(int), 
                 cudaMemcpyDeviceToHost ) );
         }
         cuda(DeviceSynchronize() );
-        chTimerGetTime( &stop );
+        stop = std::chrono::steady_clock::now();
         cIterations *= 2;
-    } while ( chTimerElapsedTime( &start, &stop ) < 0.5f ) ;
+    } while ( std::chrono::duration<double>(stop - start).count() < 0.5f ) ;
     cIterations /= 2;   // one too many
 
     {
-        double microseconds = 1e6*chTimerElapsedTime( &start, &stop );
+        double microseconds = 1e6*std::chrono::duration<double>(stop - start).count();
         double usPerMemcpy = microseconds / (float) cIterations;
 
         printf( "%.2f us (%d iterations)\n", usPerMemcpy, cIterations );

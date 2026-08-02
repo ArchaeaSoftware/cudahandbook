@@ -42,7 +42,7 @@
 #include <stdio.h>
 
 #include <chError.h>
-#include <chTimer.h>
+#include <chrono>
 
 #include <tlhelp32.h>
 #include <tchar.h>
@@ -204,9 +204,9 @@ cuda(StreamAddCallback( NULL, CStreamCallbacksStats::countCallbacks, &stats, cud
 
     printf( "Measuring asynchronous launch time (with nonblocking callbacks)... " ); fflush( stdout );
 
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
 
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     for ( int i = 0; i < cIterations; i++ ) {
         NullKernel<<<1,1>>>();
         cuda(StreamAddCallback( NULL, CStreamCallbacksStats::countCallbacks, &stats, cudaStreamCallbackNonblocking ) );
@@ -217,14 +217,14 @@ cuda(StreamAddCallback( NULL, CStreamCallbacksStats::countCallbacks, &stats, cud
     DereferenceNullKernel<<<1,1>>>();
     cuda(StreamAddCallback( NULL, CStreamCallbacksStats::countCallbacks, &stats, cudaStreamCallbackNonblocking ) );
     cudaDeviceSynchronize();
-    chTimerGetTime( &stop );
+    stop = std::chrono::steady_clock::now();
 
     // race condition unless we wait here
     stats.Wait();
 
     printf( "%d callbacks\n", stats.getTotalCallbacks() );
     {
-        double microseconds = 1e6*chTimerElapsedTime( &start, &stop );
+        double microseconds = 1e6*std::chrono::duration<double>(stop - start).count();
         double usPerLaunch = microseconds / (float) cIterations;
 
         printf( "%.2f us\n", usPerLaunch );

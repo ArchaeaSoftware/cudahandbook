@@ -38,7 +38,7 @@
 #define NO_CUDA
 #endif
 #include <chCUDA.h>
-#include <chTimer.h>
+#include <chrono>
 
 #include "bodybodyInteraction.cuh"
 
@@ -158,8 +158,8 @@ ComputeGravitation_AOS_tiled(
 )
 {
     memset( force, 0, 3*N*sizeof(float) );
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     for ( size_t iTile = 0; iTile < N/nTile; iTile++ ) {
         for ( size_t jTile = 0; jTile <= iTile; jTile++ ) {
             if ( iTile != jTile ) {
@@ -178,8 +178,8 @@ ComputeGravitation_AOS_tiled(
             softeningSquared,
             iTile, iTile );
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 float

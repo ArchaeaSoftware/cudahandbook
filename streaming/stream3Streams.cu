@@ -38,7 +38,7 @@
 
 #include <chError.h>
 #include <chCommandLine.h>
-#include <chTimer.h>
+#include <chrono>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -57,7 +57,7 @@ MeasureTimes(
     int nThreads )
 {
     cudaError_t status;
-    chTimerTimestamp chStart, chStop;
+    std::chrono::steady_clock::time_point chStart, chStop;
     float *dptrOut = 0, *hptrOut = 0;
     float *dptrY = 0, *hptrY = 0;
     float *dptrX = 0, *hptrX = 0;
@@ -98,7 +98,7 @@ MeasureTimes(
     cuda(EventCreate( &evStart ) );
     cuda(EventCreate( &evStop ) );
 
-    chTimerGetTime( &chStart );
+    chStart = std::chrono::steady_clock::now();
 
     cuda(EventRecord( evStart, 0 ) );
 
@@ -137,8 +137,8 @@ MeasureTimes(
 
     cuda(EventRecord( evStop, 0 ) );
     cuda(DeviceSynchronize() );
-    chTimerGetTime( &chStop );
-    *msWallClock = 1000.0f*chTimerElapsedTime( &chStart, &chStop );
+    chStop = std::chrono::steady_clock::now();
+    *msWallClock = 1000.0f*std::chrono::duration<double>(chStop - chStart).count();
     for ( size_t i = 0; i < N; i++ ) {
         if ( fabsf( hptrOut[i] - (alpha*hptrX[i]+hptrY[i]) ) > 1e-5f ) {
             status = cudaErrorUnknown;

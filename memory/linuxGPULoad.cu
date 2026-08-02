@@ -53,7 +53,7 @@
 
 #include <cuda.h>
 
-#include <chTimer.h>
+#include <chrono>
 #include <chCommandLine.h>
 
 #include <emmintrin.h>
@@ -75,9 +75,9 @@ double
 elapsedTimeCopyToGPU( void *dst, void *src, size_t bytes, int cIterations )
 {
     double ret = 0.0f;
-    chTimerTimestamp start, end;
+    std::chrono::steady_clock::time_point start, end;
 
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     {
         for ( int i = 0; i < cIterations; i++ ) {
             if ( cudaSuccess != cudaMemcpyAsync( dst, src, bytes, cudaMemcpyHostToDevice ) )
@@ -87,9 +87,9 @@ elapsedTimeCopyToGPU( void *dst, void *src, size_t bytes, int cIterations )
     if ( cudaSuccess != cudaDeviceSynchronize() )
         goto Error;
     
-    chTimerGetTime( &end );
+    end = std::chrono::steady_clock::now();
 
-    ret = chTimerElapsedTime( &start, &end );
+    ret = std::chrono::duration<double>(end - start).count();
 Error:
     return ret;
 }
@@ -98,9 +98,9 @@ double
 elapsedTimeCopyFromGPU( void *dst, void *src, size_t bytes, int cIterations )
 {
     double ret = 0.0f;
-    chTimerTimestamp start, end;
+    std::chrono::steady_clock::time_point start, end;
 
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     {
         for ( int i = 0; i < cIterations; i++ ) {
             if ( cudaSuccess != cudaMemcpyAsync( dst, src, bytes, cudaMemcpyDeviceToHost ) )
@@ -110,9 +110,9 @@ elapsedTimeCopyFromGPU( void *dst, void *src, size_t bytes, int cIterations )
     if ( cudaSuccess != cudaDeviceSynchronize() )
         goto Error;
     
-    chTimerGetTime( &end );
+    end = std::chrono::steady_clock::now();
 
-    ret = chTimerElapsedTime( &start, &end );
+    ret = std::chrono::duration<double>(end - start).count();
 Error:
     return ret;
 }

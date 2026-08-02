@@ -40,7 +40,7 @@
 #include <stdio.h>
 #include <assert.h>
 
-#include <chTimer.h>
+#include <chrono>
 
 #include <chError.h>
 
@@ -60,17 +60,17 @@ float
 MeasureBandwidth( void *out, cudaTextureObject_t tex, size_t N, int blocks, int threads )
 {
     cudaError_t status;
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
     double Bandwidth = 0.0f;
 
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
 
     TexReadout<<<2,384>>>( (float *) out, tex, N );
     cuda(DeviceSynchronize());
 
-    chTimerGetTime( &stop );
+    stop = std::chrono::steady_clock::now();
 
-    Bandwidth = ((double) N*sizeof(T) / chTimerElapsedTime( &start, &stop ))/1048576.0;
+    Bandwidth = ((double) N*sizeof(T) / std::chrono::duration<double>(stop - start).count())/1048576.0;
 Error:
     return (float) Bandwidth;
 }

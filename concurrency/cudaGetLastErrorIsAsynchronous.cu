@@ -40,7 +40,7 @@
 #include <iostream>
 
 #include "chError.h"
-#include "chTimer.h"
+#include <chrono>
 
 #ifdef __HIPCC__
 #include <hip/hip_runtime.h>
@@ -67,14 +67,14 @@ usPerLaunch( int cIterations )
 {
     cudaError_t status;
     double microseconds, ret;
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
     cudaEvent_t ev=0;
 
     cuda(EventCreate( &ev ) )
 
     cuda(Free(0));
 
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     for ( int i = 0; i < cIterations; i++ ) {
         NullKernel<<<1,1>>>( NULL, false );
     }
@@ -90,9 +90,9 @@ usPerLaunch( int cIterations )
     status = cudaGetLastError();
     std::cout << "cudaGetLastError returned " << status << " (after cudaDeviceSynchronize())" << std::endl;
     cuda(EventDestroy(ev));
-    chTimerGetTime( &stop );
+    stop = std::chrono::steady_clock::now();
 
-    microseconds = 1e6*chTimerElapsedTime( &start, &stop );
+    microseconds = 1e6*std::chrono::duration<double>(stop - start).count();
     ret = microseconds / (float) cIterations;
 
 Error:

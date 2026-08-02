@@ -40,7 +40,7 @@
 #include <iostream>
 
 #include "chError.h"
-#include "chTimer.h"
+#include <chrono>
 
 __global__
 void
@@ -56,18 +56,18 @@ usPerLaunch( int cIterations )
 {
     cudaError_t status;
     double microseconds, ret;
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
 
     cuda(Free(0));
 
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     for ( int i = 0; i < cIterations; i++ ) {
         NullKernel<<<1,1>>>( NULL, false );
     }
     cuda(DeviceSynchronize());
-    chTimerGetTime( &stop );
+    stop = std::chrono::steady_clock::now();
 
-    microseconds = 1e6*chTimerElapsedTime( &start, &stop );
+    microseconds = 1e6*std::chrono::duration<double>(stop - start).count();
     ret = microseconds / (float) cIterations;
 
 Error:

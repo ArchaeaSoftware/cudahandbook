@@ -43,7 +43,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/copy.h>
 
-#include <chTimer.h>
+#include <chrono>
 #include <chAssert.h>
 #include <chError.h>
 
@@ -89,7 +89,7 @@ TimeStreamCompact(
     int cIterations,
     float fRatio )  // ratio of numbers to be odd
 {
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
     cudaError_t status;
 
     double ret = 0.0;
@@ -118,16 +118,16 @@ TimeStreamCompact(
     }
 
     cuda(Memcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     for ( int i = 0; i < cIterations; i++ ) {
         pfnScanGPU( outGPU, deviceTotal, inGPU, N, numThreads );
     }
     if ( cudaSuccess != cudaDeviceSynchronize() )
         goto Error;
-    chTimerGetTime( &stop );
+    stop = std::chrono::steady_clock::now();
 
     // ints per second
-    ret = (double) cIterations*N / chTimerElapsedTime( &start, &stop );
+    ret = (double) cIterations*N / std::chrono::duration<double>(stop - start).count();
 
     printf( "%s (%d threads/block): %.2f Gints/s (ratio: %.2f)\n", szScanFunction, numThreads, ret/1e9, fRatio );
 

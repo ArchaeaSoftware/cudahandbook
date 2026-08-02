@@ -39,7 +39,7 @@
 
 #include <stdio.h>
 
-#include "chTimer.h"
+#include <chrono>
 #include "chCommandLine.h"
 
 __device__ int deviceTime;
@@ -75,7 +75,7 @@ main( int argc, char *argv[] )
     }
 
 	// Take a warm-up lap
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
     for ( int i = 0; i < cIterations; i++ ) {
         WaitKernel<<<1,1>>>( 0, false );
     }
@@ -86,13 +86,13 @@ main( int argc, char *argv[] )
     printf("Cycles\tus\n" );
     for ( int cycles = minCycles; cycles < maxCycles; cycles += stepCycles ) {
         printf( "%d\t", cycles ); fflush( stdout );
-        chTimerGetTime( &start );
+        start = std::chrono::steady_clock::now();
         for ( int i = 0; i < cIterations; i++ ) {
             WaitKernel<<<1,1>>>( cycles, false );
         }
         cudaDeviceSynchronize();
-        chTimerGetTime( &stop );
-        double microseconds = 1e6*chTimerElapsedTime( &start, &stop );
+        stop = std::chrono::steady_clock::now();
+        double microseconds = 1e6*std::chrono::duration<double>(stop - start).count();
         double usPerLaunch = microseconds / (float) cIterations;
 
         printf( "%.2f\n", usPerLaunch );

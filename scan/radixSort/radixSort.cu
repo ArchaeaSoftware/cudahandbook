@@ -45,7 +45,7 @@
 
 #include <assert.h>
 #include <stdint.h>
-#include <chTimer.h>
+#include <chrono>
 #include <chError.h>
 
 
@@ -183,7 +183,7 @@ RadixSort( uint32_t *out[2], const uint32_t *in, size_t N )
 bool
 TestSort( float *et, uint32_t *(*pfnSort)( uint32_t *[2], const uint32_t *, size_t ), size_t N, uint32_t mask = 0xffffffff )
 {
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
     bool ret = false;
     uint32_t *sortInput = new uint32_t[ N ];
     uint32_t *sortOutput[2];
@@ -206,7 +206,7 @@ TestSort( float *et, uint32_t *(*pfnSort)( uint32_t *[2], const uint32_t *, size
         std::sort( sortedOutput.begin(), sortedOutput.end() );
     }
 
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
 
     //
     // RadixSort returns sortOutput[0] or sortOutput[1],
@@ -215,8 +215,8 @@ TestSort( float *et, uint32_t *(*pfnSort)( uint32_t *[2], const uint32_t *, size
     //
     radixSortedArray = pfnSort( sortOutput, sortInput, N );
 
-    chTimerGetTime( &stop );
-    *et = chTimerElapsedTime( &start, &stop );
+    stop = std::chrono::steady_clock::now();
+    *et = std::chrono::duration<double>(stop - start).count();
 
     for ( size_t i = 0; i < N; i++ ) {
         if ( radixSortedArray[i] != sortedOutput[i] ) {
@@ -475,12 +475,12 @@ TestSortGPU( float *et, size_t N )
     cuda(Malloc( &dScratch, (M+4096)*sizeof(int) ));
     cuda(Memcpy( dIn, in.data(), N*sizeof(uint32_t), cudaMemcpyHostToDevice ));
 
-    chTimerTimestamp start, stop;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, stop;
+    start = std::chrono::steady_clock::now();
     RadixSortGPU<b>( dOut, dIn, dSorted, dHist, dScan, dScratch, N, numTiles );
     cuda(DeviceSynchronize());
-    chTimerGetTime( &stop );
-    *et = chTimerElapsedTime( &start, &stop );
+    stop = std::chrono::steady_clock::now();
+    *et = std::chrono::duration<double>(stop - start).count();
 
     cuda(Memcpy( got.data(), dOut, N*sizeof(uint32_t), cudaMemcpyDeviceToHost ));
     ret = std::equal( got.begin(), got.end(), ref.begin() );

@@ -39,7 +39,7 @@
 
 #include <xmmintrin.h>
 
-#include <chTimer.h>
+#include <chrono>
 
 #include "bodybodyInteraction_SSE.h"
 #include "nbody_CPU_SIMD.h"
@@ -53,8 +53,8 @@ ComputeGravitation_SIMD(
     size_t N
 )
 {
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
 
     for (int i = 0; i < N; i++)
     {
@@ -87,8 +87,8 @@ ComputeGravitation_SIMD(
         _mm_store_ss( (float *) &force[1][i], ay );
         _mm_store_ss( (float *) &force[2][i], az );
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
 
 #endif

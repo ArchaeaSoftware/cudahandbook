@@ -39,7 +39,7 @@
 #define NO_CUDA
 #endif
 #include <chCUDA.h>
-#include <chTimer.h>
+#include <chrono>
 
 #include "bodybodyInteraction.cuh"
 
@@ -52,11 +52,11 @@ ComputeGravitation_SOA(
     size_t N
 )
 {
-    chTimerTimestamp start, end;
+    std::chrono::steady_clock::time_point start, end;
     memset( force[0], 0, N*sizeof(float) );
     memset( force[1], 0, N*sizeof(float) );
     memset( force[2], 0, N*sizeof(float) );
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     for (size_t i = 0; i < N; i++)
     {
         float acc[3] = {0, 0, 0};
@@ -93,6 +93,6 @@ ComputeGravitation_SOA(
         force[1][i] += acc[1];
         force[2][i] += acc[2];
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }

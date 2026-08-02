@@ -42,7 +42,6 @@
 #include <chAssert.h>
 #include <chError.h>
 #include <chShmoo.h>
-#include <chTimer.h>
 #include <chCommandLine.h>
 
 #include "AddKernel.cuh"

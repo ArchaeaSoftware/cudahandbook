@@ -37,7 +37,7 @@
 #define NO_CUDA
 #endif
 #include <chCUDA.h>
-#include <chTimer.h>
+#include <chrono>
 
 #include "nbody.h"
 #include "bodybodyInteraction.cuh"
@@ -56,8 +56,8 @@ float
 NBodyAlgorithm<T>::computeTimeStep( std::vector<Force3D<T> >& force )
 {
     T softeningSquared = softening_*softening_;
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < N; i++ )
     {
         Force3D<T> acc = { 0, 0, 0 };
@@ -86,8 +86,8 @@ NBodyAlgorithm<T>::computeTimeStep( std::vector<Force3D<T> >& force )
         force[i] = acc.dy_;
         force[i] = acc.dz_;
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
     
 }
 
@@ -99,8 +99,8 @@ ComputeGravitation_AOS(
     size_t N
 )
 {
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < N; i++ )
     {
         float acc[3] = {0, 0, 0};
@@ -129,6 +129,6 @@ ComputeGravitation_AOS(
         force[3*i+1] = acc[1];
         force[3*i+2] = acc[2];
     }
-    chTimerGetTime( &end );
-    return (float) chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }

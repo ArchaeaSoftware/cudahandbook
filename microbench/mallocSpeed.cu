@@ -39,20 +39,20 @@
 
 #include <stdio.h>
 
-#include "chTimer.h"
+#include <chrono>
 
 template <bool bDevice>
 float
 mallocSpeed( int cIterations, size_t N )
 {
-    chTimerTimestamp start, stop;
+    std::chrono::steady_clock::time_point start, stop;
     float ret = 0.0f;
     void **p = (void **) malloc( cIterations*sizeof(void *));
     if ( ! p )
         goto Error;
     memset( p, 0, cIterations*sizeof(void *) );
     
-    chTimerGetTime( &start );
+    start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < cIterations; i++ ) {
         if ( bDevice ) {
             if ( cudaSuccess != cudaMalloc( &p[i], N ) ) {
@@ -64,8 +64,8 @@ mallocSpeed( int cIterations, size_t N )
                 goto Error;
         }
     }
-    chTimerGetTime( &stop );
-    ret = chTimerElapsedTime( &start, &stop );
+    stop = std::chrono::steady_clock::now();
+    ret = std::chrono::duration<double>(stop - start).count();
 Error:
     if ( p ) {
         for ( size_t i = 0; i < cIterations; i++ ) {

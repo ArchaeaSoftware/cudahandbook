@@ -36,7 +36,7 @@
 #include <stdio.h>
 
 #include <chError.h>
-#include <chTimer.h>
+#include <chrono>
 #include <thread>
 #include <vector>
 
@@ -123,8 +123,8 @@ ComputeGravitation_multiGPU_threaded(
     size_t N
 )
 {
-    chTimerTimestamp start, end;
-    chTimerGetTime( &start );
+    std::chrono::steady_clock::time_point start, end;
+    start = std::chrono::steady_clock::now();
     {
         gpuDelegation *pgpu = new gpuDelegation[g_numGPUs];
         std::vector<std::thread> threads;
@@ -151,6 +151,6 @@ ComputeGravitation_multiGPU_threaded(
         delete[] pgpu;
     }
 
-    chTimerGetTime( &end );
-    return chTimerElapsedTime( &start, &end ) * 1000.0f;
+    end = std::chrono::steady_clock::now();
+    return std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
