@@ -81,7 +81,7 @@ predicateReduceSubarrays_odd( int *gPartials, const T *in, size_t N, int numPart
     }
 }
 
-template<class T, bool bZeroPad>
+template<class T>
 __global__ void
 predicateScan_kernel( 
     T *out, 
@@ -91,11 +91,9 @@ predicateScan_kernel(
 {
     extern volatile __shared__ T sPartials[];
     const int tid = threadIdx.x;
-    int sIndex = scanSharedIndex<bZeroPad>( threadIdx.x );
+    int sIndex = (threadIdx.x);
 
-    if ( bZeroPad ) {
-        sPartials[sIndex-16] = 0;
-    }
+    
     T base_sum = 0;
     for ( size_t i = 0;
                  i < elementsPerPartial;
@@ -105,7 +103,7 @@ predicateScan_kernel(
         sPartials[sIndex] = (index < N) ? in[index] : 0;
         __syncthreads();
 
-        scanBlock<T,bZeroPad>( sPartials+sIndex );
+        scanBlock<T>( sPartials+sIndex );
         __syncthreads();
         if ( index < N ) {
             out[index] = sPartials[sIndex]+base_sum;
@@ -113,12 +111,12 @@ predicateScan_kernel(
         __syncthreads();
 
         // carry forward from this block to the next.
-        base_sum += sPartials[ scanSharedIndex<bZeroPad>( blockDim.x-1 ) ];
+        base_sum += sPartials[ (blockDim.x-1) ];
         __syncthreads();
     }
 }
 
-template<class T, bool bZeroPad>
+template<class T>
 __global__ void
 streamCompact_odd_kernel( 
     T *out, 
@@ -130,11 +128,9 @@ streamCompact_odd_kernel(
 {
     extern volatile __shared__ int sPartials[];
     const int tid = threadIdx.x;
-    int sIndex = scanSharedIndex<bZeroPad>( threadIdx.x );
+    int sIndex = (threadIdx.x);
 
-    if ( bZeroPad ) {
-        sPartials[sIndex-16] = 0;
-    }
+    
     // exclusive scan element gBaseSums[blockIdx.x]
     int base_sum = 0;
     if ( blockIdx.x && gBaseSums ) {
@@ -148,12 +144,12 @@ streamCompact_odd_kernel(
         sPartials[sIndex] = (index < N) ? isOdd( value ) : 0;
         __syncthreads();
 
-        scanBlock<int,bZeroPad>( sPartials+sIndex );
+        scanBlock<int>( sPartials+sIndex );
         __syncthreads();
         if ( index < N && isOdd( value ) ) {
             int outIndex = base_sum;
             if ( tid ) {
-                int index = scanSharedIndex<bZeroPad>(tid-1);
+                int index = (tid-1);
                 outIndex += sPartials[index];
             }
             out[outIndex] = value;
@@ -162,7 +158,7 @@ streamCompact_odd_kernel(
 
         // carry forward from this block to the next.
         {
-            int index = scanSharedIndex<bZeroPad>( blockDim.x-1 );
+            int index = (blockDim.x-1);
             base_sum += sPartials[ index ];
         }
         __syncthreads();
@@ -172,7 +168,7 @@ streamCompact_odd_kernel(
             *outCount = gBaseSums[gridDim.x-1];
         }
         else {
-            int index = scanSharedIndex<bZeroPad>( blockDim.x-1 );
+            int index = (blockDim.x-1);
             *outCount = sPartials[ index ];
         }
     }
@@ -200,14 +196,14 @@ streamCompact_odd_kernel(
 
 __device__ int g_globalPartials[MAX_PARTIALS];
 
-template<class T, bool bZeroPad>
+template<class T>
 void
 streamCompact_odd( T *out, int *outCount, const T *in, size_t N, int b )
 {
-    int sBytes = scanSharedMemory<int,bZeroPad>( b );
+    int sBytes = ((b)*sizeof(int));
 
     if ( N <= b ) {
-        return streamCompact_odd_kernel<T, bZeroPad><<<1,b,sBytes>>>( 
+        return streamCompact_odd_kernel<T><<<1,b,sBytes>>>( 
             out, outCount, 0, in, N, N );
     }
 
@@ -249,12 +245,12 @@ streamCompact_odd( T *out, int *outCount, const T *in, size_t N, int b )
             elementsPerPartial, 
             numBlocks, 
             b );
-        predicateScan_kernel<int, bZeroPad><<<1,b,sBytes>>>( 
+        predicateScan_kernel<int><<<1,b,sBytes>>>( 
             gPartials, 
             gPartials, 
             numPartials, 
             numPartials);
-        streamCompact_odd_kernel<T, bZeroPad><<<numBlocks,b,sBytes>>>(
+        streamCompact_odd_kernel<T><<<numBlocks,b,sBytes>>>(
             out, 
             outCount,
             gPartials, 

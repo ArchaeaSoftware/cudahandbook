@@ -99,7 +99,7 @@ scanReduceSubarrays( T *gPartials, const T *in, size_t N, int numPartials, int c
     }
 }
 
-template<class T, bool bZeroPad>
+template<class T>
 __global__ void
 scan2Level_kernel( 
     T *out, 
@@ -110,11 +110,9 @@ scan2Level_kernel(
 {
     extern volatile __shared__ T sPartials[];
     const int tid = threadIdx.x;
-    int sIndex = scanSharedIndex<bZeroPad>( threadIdx.x );
+    int sIndex = (threadIdx.x);
 
-    if ( bZeroPad ) {
-        sPartials[sIndex-16] = 0;
-    }
+    
     T base_sum = 0;
     if ( blockIdx.x && gBaseSums ) {
         base_sum = gBaseSums[blockIdx.x-1];
@@ -126,7 +124,7 @@ scan2Level_kernel(
         sPartials[sIndex] = (index < N) ? in[index] : 0;
         __syncthreads();
 
-        scanBlock<T,bZeroPad>( sPartials+sIndex );
+        scanBlock<T>( sPartials+sIndex );
         __syncthreads();
         if ( index < N ) {
             out[index] = sPartials[sIndex]+base_sum;
@@ -135,7 +133,7 @@ scan2Level_kernel(
 
         // carry forward from this block to the next.
         base_sum += sPartials[ 
-            scanSharedIndex<bZeroPad>( blockDim.x-1 ) ];
+            (blockDim.x-1) ];
         __syncthreads();
     }
 }
@@ -155,14 +153,14 @@ scan2Level_kernel(
 
 __device__ int g_globalPartials[MAX_PARTIALS];
 
-template<class T, bool bZeroPad>
+template<class T>
 void
 scan2Level( T *out, const T *in, size_t N, int b )
 {
-    int sBytes = scanSharedMemory<T,bZeroPad>( b );
+    int sBytes = ((b)*sizeof(T));
 
     if ( N <= b ) {
-        return scan2Level_kernel<T, bZeroPad><<<1,b,sBytes>>>( 
+        return scan2Level_kernel<T><<<1,b,sBytes>>>( 
             out, 0, in, N, N );
     }
 
@@ -202,13 +200,13 @@ scan2Level( T *out, const T *in, size_t N, int b )
             elementsPerPartial, 
             numBlocks, 
             b );
-        scan2Level_kernel<T, bZeroPad><<<1,b,sBytes>>>( 
+        scan2Level_kernel<T><<<1,b,sBytes>>>( 
             gPartials, 
             0, 
             gPartials, 
             numPartials, 
             numPartials );
-        scan2Level_kernel<T, bZeroPad><<<numBlocks,b,sBytes>>>(
+        scan2Level_kernel<T><<<numBlocks,b,sBytes>>>(
             out, 
             gPartials, 
             in, 
@@ -222,12 +220,6 @@ template<class T>
 void
 scan2Level_0( T *out, const T *in, size_t N, int b )
 {
-    scan2Level<T,false>( out, in, N, b );
+    scan2Level<T>( out, in, N, b );
 }
 
-template<class T>
-void
-scan2Level( T *out, const T *in, size_t N, int b )
-{
-    scan2Level<T,true>( out, in, N, b );
-}

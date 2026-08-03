@@ -38,6 +38,8 @@
  */
 
 #include <stdlib.h>
+#include <algorithm>
+#include <cstdio>
 
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
@@ -49,7 +51,6 @@
 #include "scanWarp.cuh"
 #include "scanBlock.cuh"
 
-#include "scanZeroPad.cuh"
 
 #define min(a,b) ((a)<(b)?(a):(b))
 
@@ -67,7 +68,7 @@ struct is_odd : public thrust::unary_function<T,bool>
     }
 };
 
-template<class T, bool bZeroPad>
+template<class T>
 void
 streamCompact_odd_Thrust( T *out, int *outCount, const T *in, size_t N, int b )
 {
@@ -155,7 +156,7 @@ main( int argc, char *argv[] )
         for ( float fRatio = 0.25f; fRatio <= 1.0f; fRatio *= 2.0f ) {
             for ( int numThreads = 128; numThreads <= maxThreads; numThreads *= 2 ) {
                 TimeStreamCompact<int>( "streamCompact_odd", 
-                                        streamCompact_odd<int, false>, 
+                                        streamCompact_odd<int>, 
                                         32*1024*1024, 
                                         numThreads, 
                                         10, 
@@ -164,7 +165,7 @@ main( int argc, char *argv[] )
         }
         for ( float fRatio = 0.25f; fRatio <= 1.0f; fRatio *= 2.0f ) {
             TimeStreamCompact<int>( "streamCompact_odd (Thrust)", 
-                                    streamCompact_odd_Thrust<int, false>, 
+                                    streamCompact_odd_Thrust<int>, 
                                     32*1024*1024, 
                                     0, 
                                     10, 
@@ -174,7 +175,7 @@ main( int argc, char *argv[] )
         for ( float fRatio = 0.25f; fRatio <= 1.0f; fRatio *= 2.0f ) {
             for ( int numThreads = 128; numThreads <= maxThreads; numThreads *= 2 ) {
                 TimeStreamCompact<int>( "streamCompact_odd", 
-                                        streamCompact_odd<int, true>, 
+                                        streamCompact_odd<int>, 
                                         32*1024*1024, 
                                         numThreads, 
                                         10, 
@@ -183,7 +184,7 @@ main( int argc, char *argv[] )
         }
         for ( float fRatio = 0.25f; fRatio <= 1.0f; fRatio *= 2.0f ) {
             TimeStreamCompact<int>( "streamCompact_odd (Thrust)", 
-                                    streamCompact_odd_Thrust<int, true>, 
+                                    streamCompact_odd_Thrust<int>, 
                                     32*1024*1024, 
                                     0, 
                                     10, 

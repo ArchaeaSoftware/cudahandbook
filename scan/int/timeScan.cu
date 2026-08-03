@@ -37,6 +37,8 @@
  */
 
 #include <stdlib.h>
+#include <algorithm>
+#include <cstdio>
 
 //#include <thrust/host_vector.h>
 //#include <thrust/device_vector.h>
@@ -47,7 +49,6 @@
 #include "scanWarp.cuh"
 #include "scanBlock.cuh"
 
-#include "scanZeroPad.cuh"
 
 //#define min(a,b) ((a)<(b)?(a):(b))
 
@@ -144,10 +145,10 @@ main( int argc, char *argv[] )
     if ( maxThreads >= 1024 )
     printf( "scanReduceThenScan_0 (64M, 1024 threads/block): %.2f Mints/s\n", TimeScan<int>(scanReduceThenScan_0<int>, 64*1048576, 1024, 10)/1048576 );
 
-    printf( "scan2Level_0 (64M, 128 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int,true>, 64*1048576, 128, 10)/1048576 );
-    printf( "scan2Level_0 (64M, 256 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int,true>, 64*1048576, 256, 10)/1048576 );
-    printf( "scan2Level_0 (64M, 512 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int,true>, 64*1048576, 512, 10)/1048576 );
+    printf( "scan2Level_0 (64M, 128 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int>, 64*1048576, 128, 10)/1048576 );
+    printf( "scan2Level_0 (64M, 256 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int>, 64*1048576, 256, 10)/1048576 );
+    printf( "scan2Level_0 (64M, 512 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int>, 64*1048576, 512, 10)/1048576 );
     if ( maxThreads >= 1024 )
-    printf( "scan2Level_0 (64M, 1024 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int,true>, 64*1048576, 1024, 10)/1048576 );
+    printf( "scan2Level_0 (64M, 1024 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int>, 64*1048576, 1024, 10)/1048576 );
 
 }

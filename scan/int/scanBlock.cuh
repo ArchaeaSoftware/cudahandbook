@@ -52,7 +52,7 @@
  *    shared memory.
  *
  */
-template<class T, bool bZeroPadded>
+template<class T>
 inline __device__ T
 scanBlock( volatile T *sPartials )
 {
@@ -64,7 +64,7 @@ scanBlock( volatile T *sPartials )
     //
     // Compute this thread's partial sum
     //
-    T sum = scanWarp<T,bZeroPadded>( sPartials );
+    T sum = scanWarp<T>( sPartials );
     __syncthreads();
 
     //
@@ -79,7 +79,7 @@ scanBlock( volatile T *sPartials )
     // Have one warp scan reductions
     //
     if ( warpid==0 ) {
-        scanWarp<T,bZeroPadded>( 16+warpPartials+tid );
+        scanWarp<T>( 16+warpPartials+tid );
     }
     __syncthreads();
 
@@ -107,11 +107,5 @@ scanBlock( volatile T *sPartials )
     return sum;
 }
 
-template<class T>
-inline __device__ T
-scanBlock( volatile T *sPartials )
-{
-    return scanBlock<T,false>( sPartials );
-}
 
 #endif // __SCAN_BLOCK_CUH__

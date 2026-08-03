@@ -36,6 +36,8 @@
  *
  */
 
+#include <algorithm>
+#include <cstdio>
 #include <stdlib.h>
 
 #include <thrust/host_vector.h>
@@ -49,7 +51,6 @@
 #include "scanWarp2.cuh"
 #include "scanWarpShuffle.cuh"
 
-#include "scanZeroPad.cuh"
 
 
 #define min(a,b) ((a)<(b)?(a):(b))
@@ -120,10 +121,10 @@ ScanGPUWarp( int *out, const int *in, size_t N )
         sPartials[threadIdx.x] = in[i+threadIdx.x];
         __syncthreads();
         if ( scantype == Inclusive ) {
-            out[i+threadIdx.x] = scanWarp<int,false>( sPartials+threadIdx.x );
+            out[i+threadIdx.x] = scanWarp<int>( sPartials+threadIdx.x );
         }
         else {
-            out[i+threadIdx.x] = scanWarpExclusive<int,false>( sPartials+threadIdx.x );
+            out[i+threadIdx.x] = scanWarpExclusive<int>( sPartials+threadIdx.x );
         }
     }
 }
@@ -148,7 +149,7 @@ __global__ void
 ScanInclusiveGPUWarp_0( int *out, const int *in, size_t N )
 {
     extern __shared__ int sPartials[];
-    const int sIndex = scanSharedIndex<true>( threadIdx.x );
+    const int sIndex = (threadIdx.x);
 
     sPartials[sIndex-16] = 0;
 
@@ -156,7 +157,7 @@ ScanInclusiveGPUWarp_0( int *out, const int *in, size_t N )
                  i < N;
                  i += blockDim.x ) {
         sPartials[sIndex] = in[i+threadIdx.x];
-        out[i+threadIdx.x] = scanWarp<int,true>( sPartials+sIndex );
+        out[i+threadIdx.x] = scanWarp<int>( sPartials+sIndex );
     }
 }
 
@@ -173,7 +174,7 @@ ScanInclusiveGPU_0(
     }
     ScanInclusiveGPUWarp_0<<<cBlocks, 
         cThreads, 
-        scanSharedMemory<int,true>(cThreads)>>>( 
+        ((cThreads)*sizeof(int))>>>( 
         out, in, N );
 }
 
@@ -181,7 +182,7 @@ __global__ void
 ScanExclusiveGPUWarp_0( int *out, const int *in, size_t N )
 {
     extern __shared__ int sPartials[];
-    const int sIndex = scanSharedIndex<true>( threadIdx.x );
+    const int sIndex = (threadIdx.x);
 
     sPartials[sIndex-16] = 0;
 
@@ -189,7 +190,7 @@ ScanExclusiveGPUWarp_0( int *out, const int *in, size_t N )
                  i < N;
                  i += blockDim.x ) {
         sPartials[sIndex] = in[i+threadIdx.x];
-        out[i+threadIdx.x] = scanWarpExclusive<int,true>( sPartials+sIndex );
+        out[i+threadIdx.x] = scanWarpExclusive<int>( sPartials+sIndex );
     }
 }
 
@@ -206,7 +207,7 @@ ScanExclusiveGPU_0(
     }
     ScanExclusiveGPUWarp_0<<<cBlocks, 
         cThreads, 
-        scanSharedMemory<int,true>(cThreads)>>>( 
+        ((cThreads)*sizeof(int))>>>( 
         out, in, N );
 }
 
@@ -219,7 +220,7 @@ ScanInclusiveGPUWarp2( int *out, const int *in, size_t N )
                  i += blockDim.x ) {
         sPartials[threadIdx.x] = in[i+threadIdx.x];
         __syncthreads();
-        out[i+threadIdx.x] = scanWarp2<int,false>( sPartials+threadIdx.x );
+        out[i+threadIdx.x] = scanWarp2<int>( sPartials+threadIdx.x );
     }
 }
 
@@ -247,7 +248,7 @@ ScanExclusiveGPUWarp2( int *out, const int *in, size_t N )
                  i += blockDim.x ) {
         sPartials[threadIdx.x] = in[i+threadIdx.x];
         __syncthreads();
-        out[i+threadIdx.x] = scanWarpExclusive2<int,false>( sPartials+threadIdx.x );
+        out[i+threadIdx.x] = scanWarpExclusive2<int>( sPartials+threadIdx.x );
     }
 }
 

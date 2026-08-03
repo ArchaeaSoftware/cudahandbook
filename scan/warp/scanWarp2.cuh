@@ -63,53 +63,33 @@ scanWarp( volatile T *sPartials )
  *    the routine takes fewer instructions.
  * idx is the base index of the warp to scan.
  */
-template<class T, bool bZeroPadded>
+template<class T>
 inline __device__ T
 scanWarp2( volatile T *sPartials )
 {
-    if ( bZeroPadded ) {
-        T t = sPartials[0];
-        sPartials[0] = t = t + sPartials[- 1];
-        sPartials[0] = t = t + sPartials[- 2];
-        sPartials[0] = t = t + sPartials[- 4];
-        sPartials[0] = t = t + sPartials[- 8];
-        sPartials[0] = t = t + sPartials[-16];
-    }
-    else {
         const int tid = threadIdx.x;
-        const int lane = tid & 31;
+    const int lane = tid & 31;
 
-        if ( lane >=  1 ) sPartials[0] += sPartials[- 1];
-        if ( lane >=  2 ) sPartials[0] += sPartials[- 2];
-        if ( lane >=  4 ) sPartials[0] += sPartials[- 4];
-        if ( lane >=  8 ) sPartials[0] += sPartials[- 8];
-        if ( lane >= 16 ) sPartials[0] += sPartials[-16];
-    }
+    if ( lane >=  1 ) sPartials[0] += sPartials[- 1];
+    if ( lane >=  2 ) sPartials[0] += sPartials[- 2];
+    if ( lane >=  4 ) sPartials[0] += sPartials[- 4];
+    if ( lane >=  8 ) sPartials[0] += sPartials[- 8];
+    if ( lane >= 16 ) sPartials[0] += sPartials[-16];
     return sPartials[0];
 }
 
-template<class T, bool bZeroPadded>
+template<class T>
 inline __device__ T
 scanWarpExclusive2( volatile T *sPartials )
 {
-    if ( bZeroPadded ) {
-        T t = sPartials[0];
-        sPartials[0] = t = t + sPartials[- 1];
-        sPartials[0] = t = t + sPartials[- 2];
-        sPartials[0] = t = t + sPartials[- 4];
-        sPartials[0] = t = t + sPartials[- 8];
-        sPartials[0] = t = t + sPartials[-16];
-    }
-    else {
         const int tid = threadIdx.x;
-        const int lane = tid & 31;
+    const int lane = tid & 31;
 
-        if ( lane >=  1 ) sPartials[0] += sPartials[- 1];
-        if ( lane >=  2 ) sPartials[0] += sPartials[- 2];
-        if ( lane >=  4 ) sPartials[0] += sPartials[- 4];
-        if ( lane >=  8 ) sPartials[0] += sPartials[- 8];
-        if ( lane >= 16 ) sPartials[0] += sPartials[-16];
-    }
+    if ( lane >=  1 ) sPartials[0] += sPartials[- 1];
+    if ( lane >=  2 ) sPartials[0] += sPartials[- 2];
+    if ( lane >=  4 ) sPartials[0] += sPartials[- 4];
+    if ( lane >=  8 ) sPartials[0] += sPartials[- 8];
+    if ( lane >= 16 ) sPartials[0] += sPartials[-16];
     return (threadIdx.x&31) ? sPartials[-1] : 0;
 }
 

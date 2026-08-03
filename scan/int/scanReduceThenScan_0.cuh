@@ -35,7 +35,7 @@
 
 #include <assert.h>
 
-template<class T, bool bZeroPad>
+template<class T>
 __global__ void
 scanWithBaseSums_0( T *out, 
                     const T *gBaseSums, 
@@ -45,7 +45,7 @@ scanWithBaseSums_0( T *out,
 {
     extern volatile __shared__ T sPartials[];
     const int tid = threadIdx.x;
-    const int sIndex = scanSharedIndex<bZeroPad>( tid );
+    const int sIndex = (tid);
 
     sPartials[sIndex-16] = 0;
     for ( size_t iBlock = blockIdx.x; 
@@ -60,7 +60,7 @@ scanWithBaseSums_0( T *out,
         sPartials[sIndex] = (index < N) ? in[index] : 0;
         __syncthreads();
 
-        scanBlock<T,true>( sPartials+sIndex );
+        scanBlock<T>( sPartials+sIndex );
         __syncthreads();
         if ( index < N ) {
             out[index] = sPartials[sIndex]+base_sum;
@@ -90,10 +90,10 @@ scanReduceThenScan_0( T *out, const T *in, size_t N, int b )
 {
     cudaError_t status;
 
-    int sBytes = scanSharedMemory<T,true>( b );
+    int sBytes = ((b)*sizeof(T));
 
     if ( N <= b ) {
-        return scanWithBaseSums_0<T, true><<<1,b,sBytes>>>( 
+        return scanWithBaseSums_0<T><<<1,b,sBytes>>>( 
             out, 0, in, N, 1 );
     }
 
@@ -128,7 +128,7 @@ scanReduceThenScan_0( T *out, const T *in, size_t N, int b )
         gPartials, 
         numPartials, 
         b );
-    scanWithBaseSums_0<T, true><<<numBlocks,b,2*b*sizeof(T)>>>( 
+    scanWithBaseSums_0<T><<<numBlocks,b,2*b*sizeof(T)>>>( 
         out, 
         gPartials, 
         in, 

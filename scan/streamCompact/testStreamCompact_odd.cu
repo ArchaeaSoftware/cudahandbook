@@ -38,6 +38,8 @@
  */
 
 #include <stdlib.h>
+#include <algorithm>
+#include <cstdio>
 
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
@@ -49,7 +51,6 @@
 #include "scanWarp.cuh"
 #include "scanBlock.cuh"
 
-#include "scanZeroPad.cuh"
 
 #define min(a,b) ((a)<(b)?(a):(b))
 
@@ -153,22 +154,22 @@ main( int argc, char *argv[] )
     printf( "Testing WITHOUT zero padding:\n" );
     for ( float fRatio = 0.25f; fRatio <= 1.0f; fRatio *= 2.0f ) {
         for ( int numThreads = 128; numThreads <= maxThreads; numThreads *= 2 ) {
-            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int, false>, 32, numThreads, fRatio );
-            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int, false>, 1024, numThreads, fRatio );
-            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int, false>, 1020, numThreads, fRatio );
-            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int, false>, 16*1024*1024, numThreads, fRatio );
-            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int, false>, 16*1024*1024 -10, numThreads, fRatio );
+            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int>, 32, numThreads, fRatio );
+            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int>, 1024, numThreads, fRatio );
+            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int>, 1020, numThreads, fRatio );
+            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int>, 16*1024*1024, numThreads, fRatio );
+            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int>, 16*1024*1024 -10, numThreads, fRatio );
         }
     }
 
     printf( "Testing WITH zero padding:\n" );
     for ( float fRatio = 0.25f; fRatio <= 1.0f; fRatio *= 2.0f ) {
         for ( int numThreads = 128; numThreads <= maxThreads; numThreads *= 2 ) {
-            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int, true>, 32, numThreads, fRatio );
-            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int, true>, 1024, numThreads, fRatio );
-            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int, true>, 1020, numThreads, fRatio );
-            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int, true>, 16*1024*1024, numThreads, fRatio );
-            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int, true>, 16*1024*1024 -10, numThreads, fRatio );
+            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int>, 32, numThreads, fRatio );
+            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int>, 1024, numThreads, fRatio );
+            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int>, 1020, numThreads, fRatio );
+            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int>, 16*1024*1024, numThreads, fRatio );
+            TestStreamCompact<int>( "streamCompact_odd", streamCompact_odd<int>, 16*1024*1024 -10, numThreads, fRatio );
         }
     }
 }

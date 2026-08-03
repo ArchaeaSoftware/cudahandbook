@@ -37,6 +37,8 @@
  */
 
 #include <stdlib.h>
+#include <algorithm>
+#include <cstdio>
 
 //#include <thrust/host_vector.h>
 //#include <thrust/device_vector.h>
@@ -46,7 +48,6 @@
 #include "scanWarp.cuh"
 #include "scanBlock.cuh"
 
-#include "scanZeroPad.cuh"
 
 //#define min(a,b) ((a)<(b)?(a):(b))
 

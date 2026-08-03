@@ -53,7 +53,7 @@
  *
  */
 
-template<class T, bool bZeroPadded>
+template<class T>
 inline __device__ T
 scanBlock( volatile T *sPartials, T (*pfnScanWarp)(volatile T *) )
 {
@@ -108,11 +108,5 @@ scanBlock( volatile T *sPartials, T (*pfnScanWarp)(volatile T *) )
     return sum;
 }
 
-template<class T>
-inline __device__ T
-scanBlock( volatile T *sPartials )
-{
-    return scanBlock<T,false>( sPartials );
-}
 
 #endif // __SCAN_BLOCK_CUH__
