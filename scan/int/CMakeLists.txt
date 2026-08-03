@@ -38,6 +38,7 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 add_executable( testScan testScan.cu )
 add_executable( timeScan timeScan.cu )
+add_executable( testDecoupledLookback testDecoupledLookback.cu )
 
 include_directories( chLib )
 
