@@ -67,6 +67,59 @@ scanPackStatus( uint32_t flag, int value )
     return ( (scanStatus) flag << 32 ) | (uint32_t) value;
 }
 
+//
+// Warp-cooperative look-back: warp 0 computes this tile's exclusive prefix into
+// s_base, and publishes this tile's inclusive prefix. Shared by the decoupled
+// look-back scan (both variants) and stream compaction. Reads 32 predecessors
+// at a time; __ballot finds the nearest ready prefix, a warp reduction sums the
+// aggregates back to it. The kernel below inlines the same logic to show it in
+// full; every other caller uses this function.
+//
+template<class T>
+__device__ __forceinline__ void
+scanCoopLookback( volatile scanStatus *status, uint32_t tile, T aggregate, T &s_base )
+{
+    if ( tile == 0 ) {
+        if ( threadIdx.x == 0 ) {
+            atomicExch( (scanStatus *) &status[tile], scanPackStatus( SCAN_P, aggregate ) );
+            s_base = (T) 0;
+        }
+        return;
+    }
+    if ( threadIdx.x == 0 )
+        atomicExch( (scanStatus *) &status[tile], scanPackStatus( SCAN_A, aggregate ) );
+    if ( threadIdx.x < 32 ) {
+        const int lane = threadIdx.x;
+        T exclusive = (T) 0;
+        int frontier = (int) tile - 1;
+        for ( ;; ) {
+            const int pidx = frontier - lane;
+            uint32_t flag; T val;
+            do {
+                if ( pidx >= 0 ) {
+                    scanStatus d = atomicOr( (scanStatus *) &status[pidx], 0ull );
+                    flag = (uint32_t) ( d >> 32 );
+                    val  = (T) (int) ( d & 0xffffffffu );
+                } else { flag = SCAN_P; val = (T) 0; }
+            } while ( __any_sync( 0xffffffffu, flag == SCAN_X ) );
+            const uint32_t pmask = __ballot_sync( 0xffffffffu, flag == SCAN_P );
+            const int firstP = pmask ? ( __ffs( pmask ) - 1 ) : 32;
+            T contrib = ( lane <= firstP ) ? val : (T) 0;
+            #pragma unroll
+            for ( int off = 16; off > 0; off >>= 1 )
+                contrib += __shfl_xor_sync( 0xffffffffu, contrib, off );
+            exclusive += contrib;
+            if ( firstP < 32 ) break;
+            frontier -= 32;
+        }
+        if ( lane == 0 ) {
+            s_base = exclusive;
+            atomicExch( (scanStatus *) &status[tile],
+                        scanPackStatus( SCAN_P, exclusive + aggregate ) );
+        }
+    }
+}
+
 template<class T>
 __global__ void
 scanDecoupledLookback_kernel(

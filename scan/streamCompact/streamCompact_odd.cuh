@@ -1,13 +1,13 @@
 /*
  *
- * Copyright (C) 2011-2026 by Archaea Software, LLC.  
+ * Copyright (C) 2011-2026 by Archaea Software, LLC.
  *      All rights reserved.
  *
  */
 
-#include <assert.h>
+#include <cstdint>
 
-#include "reduceBlock.cuh"
+#include "scanDecoupledLookback.cuh"
 
 template<class T>
 __host__ __device__ bool
@@ -16,246 +16,96 @@ isOdd( T x )
     return x & 1;
 }
 
-template<class T, int numThreads>
-__device__ void
-predicateReduceSubarray_odd( 
-    int *gPartials, 
-    const T *in, 
-    size_t iBlock, 
-    size_t N, 
-    int elementsPerPartial )
+//
+// Single-pass stream compaction, built on decoupled look-back: emit the input
+// elements that satisfy a predicate (here, the odd ones), compactly and in
+// order. One thread block processes one tile in a single pass -- it scans the
+// tile's 0/1 predicate flags, looks back to learn how many elements earlier
+// tiles kept, and scatters its kept elements to out[]. The last tile writes the
+// total to *outCount. This is the shape CUB's DeviceSelect uses.
+//
+template<class T>
+__global__ void
+streamCompact_odd_kernel(
+    T *out,
+    int *outCount,                    // total kept (written by the last tile)
+    const T *in,
+    volatile scanStatus *status,      // one descriptor per tile (SCAN_X-initialized)
+    uint32_t *tileCounter,            // one global counter, 0-initialized
+    uint32_t numTiles,
+    size_t N )
 {
-    extern volatile __shared__ int sPartials[];
-    const int tid = threadIdx.x;
+    extern __shared__ int sPartials[];   // blockDim.x predicate flags
+    __shared__ uint32_t s_tile;
+    __shared__ int s_base;               // number of elements kept by earlier tiles
 
-    size_t baseIndex = iBlock*elementsPerPartial;
+    if ( threadIdx.x == 0 )
+        s_tile = atomicAdd( tileCounter, 1 );
+    __syncthreads();
+    const uint32_t tile = s_tile;
+    const size_t gidx = (size_t) tile * blockDim.x + threadIdx.x;
 
-    int sum = 0;
-    for ( int i = tid; i < elementsPerPartial; i += blockDim.x ) {
-        size_t index = baseIndex+i;
-        if ( index < N )
-            sum += isOdd( in[index] );
+    //
+    // Evaluate the predicate, then inclusive-scan the 0/1 flags in shared
+    // memory (Kogge-Stone). sPartials[blockDim.x-1] is the tile's keep count.
+    //
+    T value = (T) 0;
+    int pred = 0;
+    if ( gidx < N ) {
+        value = in[gidx];
+        pred = isOdd( value ) ? 1 : 0;
     }
-    sPartials[tid] = sum;
+    sPartials[threadIdx.x] = pred;
+    __syncthreads();
+    for ( int off = 1; off < blockDim.x; off <<= 1 ) {
+        int add = ( threadIdx.x >= off ) ? sPartials[threadIdx.x - off] : 0;
+        __syncthreads();
+        sPartials[threadIdx.x] += add;
+        __syncthreads();
+    }
+    const int aggregate = sPartials[blockDim.x - 1];
+
+    //
+    // Cooperative look-back over the per-tile keep counts: s_base is the number
+    // of elements kept by every earlier tile -- this tile's base output index.
+    //
+    scanCoopLookback<int>( status, tile, aggregate, s_base );
     __syncthreads();
 
-    reduceBlock<int,numThreads>( &gPartials[iBlock], sPartials );
+    //
+    // Scatter. sPartials[threadIdx.x] is the inclusive keep count, so
+    // sPartials[threadIdx.x]-1 is this element's index among the tile's kept
+    // elements; s_base offsets it into the global output.
+    //
+    if ( gidx < N && pred )
+        out[s_base + sPartials[threadIdx.x] - 1] = value;
+
+    if ( tile == numTiles - 1 && threadIdx.x == 0 )
+        *outCount = s_base + aggregate;
 }
-
-/*
- * Compute the reductions of each subarray of size
- * elementsPerPartial, and write them to gPartials.
- */
-template<class T, int numThreads>
-__global__ void
-predicateReduceSubarrays_odd( 
-    int *gPartials, 
-    const T *in, 
-    size_t N, 
-    int elementsPerPartial )
-{
-    extern volatile __shared__ int sPartials[];
-
-    for ( int iBlock = blockIdx.x; 
-          iBlock*elementsPerPartial < N; 
-          iBlock += gridDim.x )
-    {
-        predicateReduceSubarray_odd<T,numThreads>( 
-            gPartials, 
-            in, 
-            iBlock, 
-            N, 
-            elementsPerPartial );
-    }
-}
-
-template<class T>
-void
-predicateReduceSubarrays_odd( int *gPartials, const T *in, size_t N, int numPartials, int cBlocks, int cThreads )
-{
-    switch ( cThreads ) {
-        case 128: return predicateReduceSubarrays_odd<T,128><<<cBlocks, 128, 128*sizeof(T)>>>( gPartials, in, N, numPartials );
-        case 256: return predicateReduceSubarrays_odd<T,256><<<cBlocks, 256, 256*sizeof(T)>>>( gPartials, in, N, numPartials );
-        case 512: return predicateReduceSubarrays_odd<T,512><<<cBlocks, 512, 512*sizeof(T)>>>( gPartials, in, N, numPartials );
-        case 1024: return predicateReduceSubarrays_odd<T,1024><<<cBlocks, 1024, 1024*sizeof(T)>>>( gPartials, in, N, numPartials );
-    }
-}
-
-template<class T>
-__global__ void
-predicateScan_kernel( 
-    T *out, 
-    const T *in, 
-    size_t N, 
-    size_t elementsPerPartial )
-{
-    extern volatile __shared__ T sPartials[];
-    const int tid = threadIdx.x;
-    int sIndex = (threadIdx.x);
-
-    
-    T base_sum = 0;
-    for ( size_t i = 0;
-                 i < elementsPerPartial;
-                 i += blockDim.x )
-    {
-        size_t index = blockIdx.x*elementsPerPartial + i + tid;
-        sPartials[sIndex] = (index < N) ? in[index] : 0;
-        __syncthreads();
-
-        scanBlock<T>( sPartials+sIndex );
-        __syncthreads();
-        if ( index < N ) {
-            out[index] = sPartials[sIndex]+base_sum;
-        }
-        __syncthreads();
-
-        // carry forward from this block to the next.
-        base_sum += sPartials[ (blockDim.x-1) ];
-        __syncthreads();
-    }
-}
-
-template<class T>
-__global__ void
-streamCompact_odd_kernel( 
-    T *out, 
-    int *outCount,
-    const int *gBaseSums, 
-    const T *in, 
-    size_t N, 
-    size_t elementsPerPartial )
-{
-    extern volatile __shared__ int sPartials[];
-    const int tid = threadIdx.x;
-    int sIndex = (threadIdx.x);
-
-    
-    // exclusive scan element gBaseSums[blockIdx.x]
-    int base_sum = 0;
-    if ( blockIdx.x && gBaseSums ) {
-        base_sum = gBaseSums[blockIdx.x-1];
-    }
-    for ( size_t i = 0;
-                 i < elementsPerPartial;
-                 i += blockDim.x ) {
-        size_t index = blockIdx.x*elementsPerPartial + i + tid;
-        int value = (index < N) ? in[index] : 0;
-        sPartials[sIndex] = (index < N) ? isOdd( value ) : 0;
-        __syncthreads();
-
-        scanBlock<int>( sPartials+sIndex );
-        __syncthreads();
-        if ( index < N && isOdd( value ) ) {
-            int outIndex = base_sum;
-            if ( tid ) {
-                int index = (tid-1);
-                outIndex += sPartials[index];
-            }
-            out[outIndex] = value;
-        }
-        __syncthreads();
-
-        // carry forward from this block to the next.
-        {
-            int index = (blockDim.x-1);
-            base_sum += sPartials[ index ];
-        }
-        __syncthreads();
-    }
-    if ( threadIdx.x == 0 && blockIdx.x == 0 ) {
-        if ( gBaseSums ) {
-            *outCount = gBaseSums[gridDim.x-1];
-        }
-        else {
-            int index = (blockDim.x-1);
-            *outCount = sPartials[ index ];
-        }
-    }
-}
-
-
-
-/*
- * streamCompact_odd
- *
- *     This sample illustrates how to scan predicates,
- *     with an example predicate of testing integers
- *     and emitting values that are odd.
- *
- * The algorithm is implemented using the 2-pass scan 
- *     algorithm, counting the true predicates with a
- *     reduction pass; scanning the predicates; then 
- *     passing over the data again, evaluating the 
- *     predicates again and using the scanned predicate
- *     values as indices to write the output for which
- *     the predicate is true.
- */
-
-#define MAX_PARTIALS 300
-
-__device__ int g_globalPartials[MAX_PARTIALS];
 
 template<class T>
 void
 streamCompact_odd( T *out, int *outCount, const T *in, size_t N, int b )
 {
-    int sBytes = ((b)*sizeof(int));
-
-    if ( N <= b ) {
-        return streamCompact_odd_kernel<T><<<1,b,sBytes>>>( 
-            out, outCount, 0, in, N, N );
-    }
-
     cudaError_t status;
-    int *gPartials = 0;
-    status = cudaGetSymbolAddress( 
-        (void **) &gPartials, 
-        g_globalPartials );
+    scanStatus *gStatus = 0;
+    uint32_t *tileCounter = 0;
 
-    if ( cudaSuccess ==  status ) {
-        //
-        // ceil(N/b) = number of partial sums to compute
-        //
-        size_t numPartials = (N+b-1)/b;
+    if ( N == 0 )
+        return;
 
-        if ( numPartials > MAX_PARTIALS ) {
-            numPartials = MAX_PARTIALS;
-        }
+    uint32_t numTiles = (uint32_t) ( ( N + b - 1 ) / b );
 
-        //
-        // elementsPerPartial has to be a multiple of b
-        // 
-        unsigned int elementsPerPartial = (N+numPartials-1)/numPartials;
-        elementsPerPartial = b * ((elementsPerPartial+b-1)/b);
-        numPartials = (N+elementsPerPartial-1)/elementsPerPartial;
+    cuda(Malloc( &gStatus, numTiles * sizeof(scanStatus) ) );
+    cuda(Memset( gStatus, 0, numTiles * sizeof(scanStatus) ) );   // SCAN_X == 0
+    cuda(Malloc( &tileCounter, sizeof(uint32_t) ) );
+    cuda(Memset( tileCounter, 0, sizeof(uint32_t) ) );
 
-        //
-        // number of CUDA threadblocks to use.  The kernels are 
-        // blocking agnostic, so we can clamp to any number within 
-        // CUDA's limits and the code will work.
-        //
-        const unsigned int maxBlocks = MAX_PARTIALS;
-        unsigned int numBlocks = min( numPartials, maxBlocks );
+    streamCompact_odd_kernel<T><<<numTiles, b, b * sizeof(int)>>>(
+        out, outCount, in, gStatus, tileCounter, numTiles, N );
 
-        predicateReduceSubarrays_odd<T>( 
-            gPartials, 
-            in, 
-            N, 
-            elementsPerPartial, 
-            numBlocks, 
-            b );
-        predicateScan_kernel<int><<<1,b,sBytes>>>( 
-            gPartials, 
-            gPartials, 
-            numPartials, 
-            numPartials);
-        streamCompact_odd_kernel<T><<<numBlocks,b,sBytes>>>(
-            out, 
-            outCount,
-            gPartials, 
-            in, 
-            N, 
-            elementsPerPartial );
-    }
+Error:
+    cudaFree( gStatus );
+    cudaFree( tileCounter );
 }
