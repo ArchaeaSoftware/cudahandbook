@@ -11,7 +11,10 @@
  * pass over the input. Each tile publishes a status descriptor; a tile
  * computes its exclusive prefix by looking back over predecessors, summing
  * their aggregates until it reaches one whose inclusive prefix is already
- * available -- reusing that prefix instead of recomputing it.
+ * available -- reusing that prefix instead of recomputing it. The look-back
+ * is cooperative: one warp inspects 32 predecessors at a time, using __ballot
+ * to find the nearest ready prefix and a warp reduction to sum the aggregates
+ * back to it (after CUB).
  *
  * The descriptor packs the status flag and its value into one 64-bit word
  * so the two are written and read atomically together; no separate memory
@@ -105,34 +108,65 @@ scanDecoupledLookback_kernel(
     const T aggregate = s[blockDim.x - 1];
 
     //
-    // Thread 0 publishes this tile's status and, for tiles after the first,
-    // looks back to compute the exclusive prefix of everything before it.
+    // Compute this tile's exclusive prefix. Tile 0 has no predecessors; every
+    // other tile advertises its aggregate, then warp 0 looks back cooperatively
+    // over 32 predecessors at a time.
     //
-    if ( threadIdx.x == 0 ) {
-        T exclusive = (T) 0;
-        if ( tile == 0 ) {
-            // No predecessors: our inclusive prefix is just our aggregate.
+    if ( tile == 0 ) {
+        if ( threadIdx.x == 0 ) {
             atomicExch( (scanStatus *) &status[tile],
                         scanPackStatus( SCAN_P, aggregate ) );
+            s_exclusive = (T) 0;
         }
-        else {
-            // Advertise our aggregate, then walk predecessors nearest-first,
-            // stopping once we reach one whose inclusive prefix is ready.
+    }
+    else {
+        // Advertise our aggregate so successors can make progress without us.
+        if ( threadIdx.x == 0 )
             atomicExch( (scanStatus *) &status[tile],
                         scanPackStatus( SCAN_A, aggregate ) );
-            uint32_t flag = SCAN_A;                     // sentinel: not yet a prefix
-            for ( int p = (int) tile - 1; p >= 0 && flag != SCAN_P; --p ) {
-                scanStatus d;
-                do {                                    // spin until p is ready
-                    d = atomicOr( (scanStatus *) &status[p], 0ull );
-                    flag = (uint32_t) ( d >> 32 );
-                } while ( flag == SCAN_X );
-                exclusive += (T) (int) ( d & 0xffffffffu );  // p's aggregate, or its prefix at the stop
+
+        if ( threadIdx.x < 32 ) {
+            const int lane = threadIdx.x;
+            T exclusive = (T) 0;
+            int frontier = (int) tile - 1;      // nearest predecessor not yet consumed
+            for ( ;; ) {
+                // Lane L inspects predecessor (frontier - L): the 32 nearest
+                // predecessors at once, lane 0 == nearest.
+                const int pidx = frontier - lane;
+                uint32_t flag;
+                T val;
+                do {                            // re-read the window until no lane sees X
+                    if ( pidx >= 0 ) {
+                        scanStatus d = atomicOr( (scanStatus *) &status[pidx], 0ull );
+                        flag = (uint32_t) ( d >> 32 );
+                        val  = (T) (int) ( d & 0xffffffffu );
+                    } else {
+                        flag = SCAN_P;          // out of range: prefix 0, stops the walk
+                        val  = (T) 0;
+                    }
+                } while ( __any_sync( 0xffffffffu, flag == SCAN_X ) );
+
+                // Nearest inclusive prefix in the window (lowest lane with P).
+                const uint32_t pmask = __ballot_sync( 0xffffffffu, flag == SCAN_P );
+                const int firstP = pmask ? ( __ffs( pmask ) - 1 ) : 32;
+
+                // Sum lanes 0..firstP: aggregates up to it, plus its prefix.
+                T contrib = ( lane <= firstP ) ? val : (T) 0;
+                #pragma unroll
+                for ( int off = 16; off > 0; off >>= 1 )
+                    contrib += __shfl_xor_sync( 0xffffffffu, contrib, off );
+                exclusive += contrib;
+
+                if ( firstP < 32 )              // reached a prefix -> done
+                    break;
+                frontier -= 32;                 // whole window was aggregates -> keep walking
             }
-            atomicExch( (scanStatus *) &status[tile],
-                        scanPackStatus( SCAN_P, exclusive + aggregate ) );
+            if ( lane == 0 ) {
+                s_exclusive = exclusive;
+                atomicExch( (scanStatus *) &status[tile],
+                            scanPackStatus( SCAN_P, exclusive + aggregate ) );
+            }
         }
-        s_exclusive = exclusive;
     }
     __syncthreads();
 
