@@ -50,6 +50,8 @@
 #include "reduction5Atomics.cuh"
 #include "reduction6AnyBlockSize.cuh"
 #include "reduction7SyncThreads.cuh"
+#include "reductionWarpShuffleCG.cuh"
+#include "reductionVectorized.cuh"
 
 typedef struct TimingResult_struct {
     double Bandwidth;
@@ -237,7 +239,9 @@ main( int argc, char *argv[] )
                         { "single pass", Reduction4 },
                         { "global atomic", Reduction5 },
                         { "any block size", Reduction6 },
-                        { "syncthreads", Reduction7 }
+                        { "syncthreads", Reduction7 },
+                        { "cg::reduce", ReductionCG },
+                        { "vectorized", ReductionVector }
                        };
 
         const size_t numTests = sizeof(rgTests)/sizeof(rgTests[0]);

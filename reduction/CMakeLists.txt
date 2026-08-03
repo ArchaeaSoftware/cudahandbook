@@ -37,6 +37,7 @@ set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 add_executable(reduction reduction.cu )
+add_executable(timeReductionVsCUB timeReductionVsCUB.cu )
 
 include_directories( chLib )
 
