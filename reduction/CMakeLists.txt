@@ -38,6 +38,8 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 add_executable(reduction reduction.cu )
 add_executable(timeReductionVsCUB timeReductionVsCUB.cu )
+add_executable(reductionNVRTC reductionNVRTC.cu )
+target_link_libraries(reductionNVRTC nvrtc cuda )
 
 include_directories( chLib )
 

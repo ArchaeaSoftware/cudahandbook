@@ -255,6 +255,21 @@ chGetErrorString( CUresult status )
 
 #endif // NO_CUDA
 
+//
+// nvrtc() echoes cuda()/cu() for the NVRTC runtime-compilation API. It is
+// defined only when <nvrtc.h> has been included before <chError.h>, so code
+// that does not use NVRTC need not depend on it. A later commit switches to
+// suffix-named status/labels (status_nvrtc / Error_nvrtc) so one function can
+// mix runtime, driver, and NVRTC checks.
+//
+#ifdef __NVRTC_H__
+#ifdef DEBUG
+#define nvrtc( fn ) do { (status) = (nvrtc##fn); if ( NVRTC_SUCCESS != (status) ) { fprintf( stderr, "NVRTC Failure (line %d of file %s): %s returned 0x%x (%s)\n", __LINE__, __FILE__, #fn, status, nvrtcGetErrorString((nvrtcResult) status) ); goto Error; } } while (0);
+#else
+#define nvrtc( fn ) do { (status) = (nvrtc##fn); if ( NVRTC_SUCCESS != (status) ) { goto Error; } } while (0);
+#endif // DEBUG
+#endif // __NVRTC_H__
+
 #endif
 
 #endif // __CHERROR_CUDA_H__
