@@ -88,7 +88,7 @@ template<class T>
 void
 scanReduceThenScan_0( T *out, const T *in, size_t N, int b )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     int sBytes = ((b)*sizeof(T));
 
@@ -134,7 +134,7 @@ scanReduceThenScan_0( T *out, const T *in, size_t N, int b )
         in, 
         N, 
         numPartials );
-Error:
+Error_cudart:
     cudaFree( gPartials );
 
 }

@@ -46,15 +46,15 @@
 
 #ifndef DEBUG
 #define cuda( fn ) do { \
-	            status = (hip##fn); \
-	            if ( hipSuccess != (status) ) { \
-			                                    goto Error; \
+	            status_cudart = (hip##fn); \
+	            if ( hipSuccess != (status_cudart) ) { \
+			                                    goto Error_cudart; \
 			                                } \
 	            } while (0);
 #define CUDART_CHECK( fn ) do { \
-    status = (fn); \
-    if ( hipSuccess != (status) ) { \
-	    goto Error; \
+    status_cudart = (fn); \
+    if ( hipSuccess != (status_cudart) ) { \
+	    goto Error_cudart; \
 	} \
     } while (0);
 #endif
@@ -124,73 +124,73 @@ chGetErrorString( T status )
 
 #ifdef DEBUG
 #define CUDART_CHECK( fn ) do { \
-        (status) =  (fn); \
-        if ( hipSuccess != (status) ) { \
+        (status_cudart) =  (fn); \
+        if ( hipSuccess != (status_cudart) ) { \
             fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t" \
                 "%s returned 0x%x (%s)\n", \
-                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
-            goto Error; \
+                __LINE__, __FILE__, #fn, status_cudart, chGetErrorString(status_cudart) ); \
+            goto Error_cudart; \
         } \
     } while (0);
 
 #define cuda( fn ) do { \
-        (status) =  (hip##fn); \
-        if ( hipSuccess != (status) ) { \
+        (status_cudart) =  (hip##fn); \
+        if ( hipSuccess != (status_cudart) ) { \
             fprintf( stderr, "HIP Runtime Failure (line %d of file %s):\n\t" \
                 "%s returned 0x%x (%s)\n", \
-                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
-            goto Error; \
+                __LINE__, __FILE__, #fn, status_cudart, chGetErrorString(status_cudart) ); \
+            goto Error_cudart; \
         } \
     } while (0);
 
 #define cu( fn ) do { \
-        (status) =  (hip##fn); \
-        if ( CUDA_SUCCESS != (status) ) { \
+        (status_cuda) =  (hip##fn); \
+        if ( CUDA_SUCCESS != (status_cuda) ) { \
             fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t%s "\
                 "returned 0x%x (%s)\n", \
-                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
-            goto Error; \
+                __LINE__, __FILE__, #fn, status_cuda, chGetErrorString(status_cuda) ); \
+            goto Error_cuda; \
         } \
     } while (0);
 
 #define CUDA_CHECK( fn ) do { \
-        (status) =  (fn); \
-        if ( CUDA_SUCCESS != (status) ) { \
+        (status_cuda) =  (fn); \
+        if ( CUDA_SUCCESS != (status_cuda) ) { \
             fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t%s "\
                 "returned 0x%x (%s)\n", \
-                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
-            goto Error; \
+                __LINE__, __FILE__, #fn, status_cuda, chGetErrorString(status_cuda) ); \
+            goto Error_cuda; \
         } \
     } while (0);
 
 #else
 
 #define CUDART_CHECK( fn ) do { \
-    status = (fn); \
-    if ( hipSuccess != (status) ) { \
-	    goto Error; \
+    status_cudart = (fn); \
+    if ( hipSuccess != (status_cudart) ) { \
+	    goto Error_cudart; \
 	} \
     } while (0);
 
 #define cuda( fn ) do { \
-    status = (hip##fn); \
-    if ( hipSuccess != (status) ) { \
-	    goto Error; \
+    status_cudart = (hip##fn); \
+    if ( hipSuccess != (status_cudart) ) { \
+	    goto Error_cudart; \
 	} \
     } while (0);
 
 
 #define CUDA_CHECK( fn ) do { \
-        (status) =  (fn); \
-        if ( CUDA_SUCCESS != (status) ) { \
-            goto Error; \
+        (status_cuda) =  (fn); \
+        if ( CUDA_SUCCESS != (status_cuda) ) { \
+            goto Error_cuda; \
         } \
     } while (0);
 
 #define cu( fn ) do { \
-        (status) =  (cu##fn); \
-        if ( CUDA_SUCCESS != (status) ) { \
-            goto Error; \
+        (status_cuda) =  (cu##fn); \
+        if ( CUDA_SUCCESS != (status_cuda) ) { \
+            goto Error_cuda; \
         } \
     } while (0);
 

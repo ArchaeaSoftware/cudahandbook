@@ -61,7 +61,7 @@ cudaEvent_t g_events[2];
 void
 chMemcpyHtoD( void *device, const void *host, size_t N ) 
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     char *dst = (char *) device;
     const char *src = (const char *) host;
     int stagingIndex = 0;
@@ -78,7 +78,7 @@ chMemcpyHtoD( void *device, const void *host, size_t N )
         N -= thisCopySize;
         stagingIndex = 1 - stagingIndex;
     }
-Error:
+Error_cudart:
     return;
 }
 
@@ -99,7 +99,7 @@ TestMemcpy( int *dstDevice, int *srcHost, const int *srcOriginal,
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     int *deviceInt = 0;
     int *hostInt = 0;
     const size_t numInts = 8*1048576;
@@ -129,7 +129,7 @@ main( int argc, char *argv[] )
     }
 
     if ( ! TestMemcpy( deviceInt, hostInt, testVector, 0, 0, numInts ) ) {
-        goto Error;
+        goto Error_cudart;
     }
     for ( int i = 0; i < cIterations; i++ ) {
         size_t dstOffset = rand() % (numInts-1);
@@ -137,7 +137,7 @@ main( int argc, char *argv[] )
         size_t intsThisIteration = 1 + rand() % (numInts-max(dstOffset,srcOffset)-1);
         if ( ! TestMemcpy( deviceInt, hostInt, testVector, dstOffset, srcOffset, intsThisIteration ) ) {
             TestMemcpy( deviceInt, hostInt, testVector, dstOffset, srcOffset, intsThisIteration );
-            goto Error;
+            goto Error_cudart;
         }
     }
 
@@ -158,7 +158,7 @@ main( int argc, char *argv[] )
     cudaFree( deviceInt );
     cudaFreeHost( hostInt );
     return 0;
-Error:
+Error_cudart:
     printf( "Error\n" );
     return 1;
 }

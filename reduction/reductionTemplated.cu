@@ -123,7 +123,7 @@ TimedReduction(
     float ms;
     cudaEvent_t start = 0;
     cudaEvent_t stop = 0;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     cuda(Malloc( &deviceAnswer, sizeof(ReductionType) ) );
     cuda(Malloc( &partialSums, cBlocks*sizeof(ReductionType) ) );
@@ -140,7 +140,7 @@ TimedReduction(
     ret = ms * 1000.0f;
 
     // fall through to free resources before returning
-Error:
+Error_cudart:
     cudaFree( deviceAnswer );
     cudaFree( partialSums );
     cudaEventDestroy( start );
@@ -197,7 +197,7 @@ usPerInvocation( int cIterations, size_t N,
     void (*pfnReduction)( ReductionType *out, ReductionType *partial, 
         const T *in, size_t N, int numBlocks, int numThreads ) )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     T *smallArray = 0;
     ReductionType *partialSums = 0;
     double ret = 0.0f;
@@ -213,7 +213,7 @@ usPerInvocation( int cIterations, size_t N,
     stop = std::chrono::steady_clock::now();
     ret = std::chrono::duration<double>(stop - start).count();
     ret = (ret / (double) cIterations) * 1e6;
-Error:
+Error_cudart:
     (void) cudaFree( partialSums );
     (void) cudaFree( smallArray );
     return ret;
@@ -235,7 +235,7 @@ template<typename ReductionType, typename T>
 bool
 ShmooReport( size_t N, bool bFloat )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaDeviceProp props;
     bool ret = false;
     T *hostData = 0;
@@ -245,7 +245,7 @@ ShmooReport( size_t N, bool bFloat )
         (bFloat) ? "float" : "int" );
     hostData = (T *) malloc( N*sizeof(T) );
     if ( ! hostData )
-        goto Error;
+        goto Error_cudart;
     cuda(SetDeviceFlags( cudaDeviceMapHost ) );
     cuda(Malloc( &deviceData, N*sizeof(T) ) );
     cuda(GetDeviceProperties( &props, 0 ) );
@@ -282,7 +282,7 @@ ShmooReport( size_t N, bool bFloat )
         }
         forkPrint( g_fileShmoo, "\n" );
     }
-Error:
+Error_cudart:
     free( hostData );
     cudaFree( deviceData );
     return ret;

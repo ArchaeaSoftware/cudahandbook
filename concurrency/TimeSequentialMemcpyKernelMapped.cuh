@@ -52,7 +52,7 @@ TimeSequentialMemcpyKernelMapped(
     const chShmooRange& cyclesRange,
     int numBlocks, int unrollFactor )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     bool ret = false;
     int *hostIn = 0;
     int *hostOut = 0;
@@ -106,7 +106,7 @@ TimeSequentialMemcpyKernelMapped(
 
     ret = true;
 
-Error:
+Error_cudart:
     for ( int i = 0; i < numEvents; i++ ) {
         cudaEventDestroy( events[i] );
     }

@@ -131,7 +131,7 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
     double elapsedTime;
     float ms;
     int cIterations;
-    cudaError_t status;
+    cudaError_t status_cudart;
     T sumCPU;
     cudaEvent_t evStart = 0;
     cudaEvent_t evStop = 0;
@@ -141,10 +141,10 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
 
     hostIn = new T[N];
     if ( ! hostIn )
-        goto Error;
+        goto Error_cudart;
     hostOut = new T[cBlocks*cThreads];
     if ( ! hostOut )
-        goto Error;
+        goto Error_cudart;
 
     sumCPU = T(0);
     // populate input array with random numbers
@@ -169,7 +169,7 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
         }
         if ( memcmp( &sumCPU, &sumGPU, sizeof(T) ) ) {
             printf( "Incorrect sum computed!\n" );
-            goto Error;
+            goto Error_cudart;
         }
     }
 
@@ -190,7 +190,7 @@ BandwidthReads( size_t N, int cBlocks, int cThreads )
     // gigabytes per second
     ret /= 1024.0*1048576.0;
 
-Error:
+Error_cudart:
     if ( hostIn ) delete[] hostIn;
     if ( hostOut ) delete[] hostOut;
     cudaEventDestroy( evStart );
@@ -257,7 +257,7 @@ Shmoo( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     int device = 0;
     int size = 16;
     cudaDeviceProp prop;
@@ -287,6 +287,6 @@ main( int argc, char *argv[] )
         Shmoo<myInt4,true>( (size_t) size*1048576, 32, 512, 1500 );
     }
     return 0;
-Error:
+Error_cudart:
     return 1;
 }

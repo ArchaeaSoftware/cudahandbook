@@ -77,7 +77,7 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
     cudaEvent_t stop = 0;
     cudaTextureObject_t tex = 0;
 
-    cudaError_t status;
+    cudaError_t status_cudart;
     
     cuda(EventCreate(&start));
     cuda(EventCreate(&stop));
@@ -94,8 +94,8 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
     // different size than T
     //
     if ( sizeof(T) != (chDesc.x + chDesc.y + chDesc.z + chDesc.w) / 8 ) {
-        status = cudaErrorInvalidValue;
-        goto Error;
+        status_cudart = cudaErrorInvalidValue;
+        goto Error_cudart;
     }
     cuda(EventRecord(start, 0));
     {
@@ -111,11 +111,11 @@ tex2D_time( float *ms, cudaArray *array, T value, int threadWidth, int threadHei
     cuda(EventRecord(stop, 0));
     cuda(DeviceSynchronize());
     cuda(EventElapsedTime(ms, start, stop));
-Error:
+Error_cudart:
     cudaDestroyTextureObject(tex);
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
-    return status;
+    return status_cudart;
 }
 
 template<class T>
@@ -125,7 +125,7 @@ ShmooTex2D(
 )
 {
     cudaArray *texArray = 0;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<T>();
     cudaDeviceProp props;
     dim3 blocks, threads;
@@ -166,7 +166,7 @@ ShmooTex2D(
     }
     printf( "Maximum bandwidth of %.2f G/s achieved with %d x %d blocks\n", 
         maxBandwidth, minThreadWidth, minThreadHeight );
-Error:
+Error_cudart:
     cudaFreeArray( texArray );
 }
 
@@ -175,13 +175,13 @@ main( int argc, char *argv[] )
 {
     int ret = 1;
 
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     cuda(SetDeviceFlags(cudaDeviceMapHost));
     cuda(Free(0));
     ShmooTex2D<float>( 4096, 4096, 10 );
 
     ret = 0;
-Error:
+Error_cudart:
     return ret;
 }

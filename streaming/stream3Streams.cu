@@ -56,7 +56,7 @@ MeasureTimes(
     int nBlocks, 
     int nThreads )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     std::chrono::steady_clock::time_point chStart, chStop;
     float *dptrOut = 0, *hptrOut = 0;
     float *dptrY = 0, *hptrY = 0;
@@ -68,14 +68,14 @@ MeasureTimes(
 
     if ( N % nStreams ) {
         printf( "Stream count must be evenly divisible into N\n" );
-        status = cudaErrorInvalidValue;
-        goto Error;
+        status_cudart = cudaErrorInvalidValue;
+        goto Error_cudart;
     }
 
     streams = new cudaStream_t[nStreams];
     if ( ! streams ) {
-        status = cudaErrorMemoryAllocation;
-        goto Error;
+        status_cudart = cudaErrorMemoryAllocation;
+        goto Error_cudart;
     }
     memset( streams, 0, nStreams*sizeof(cudaStream_t) );
     for ( int i = 0; i < nStreams; i++ ) {
@@ -141,12 +141,12 @@ MeasureTimes(
     *msWallClock = 1000.0f*std::chrono::duration<double>(chStop - chStart).count();
     for ( size_t i = 0; i < N; i++ ) {
         if ( fabsf( hptrOut[i] - (alpha*hptrX[i]+hptrY[i]) ) > 1e-5f ) {
-            status = cudaErrorUnknown;
-            goto Error;
+            status_cudart = cudaErrorUnknown;
+            goto Error_cudart;
         }
     }
     cuda(EventElapsedTime( msTotal, evStart, evStop ) );
-Error:
+Error_cudart:
     if ( streams ) {
         for ( int i = 0; i < nStreams; i++ ) {
             cudaStreamDestroy( streams[i] );
@@ -161,7 +161,7 @@ Error:
     cudaFreeHost( hptrOut );
     cudaFreeHost( hptrX );
     cudaFreeHost( hptrY );
-    return status;
+    return status_cudart;
 }
 
 double
@@ -173,7 +173,7 @@ Bandwidth( float ms, double NumBytes )
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     int N_Mfloats = 128;
     size_t N;
     int maxStreams = 8;
@@ -205,12 +205,12 @@ main( int argc, char *argv[] )
         printf( "%d\t%.2f ms\t%.2f\n", numStreams, msTotal, Bandwidth( msWallClock, 3*thisN*sizeof(float) ) );
     }
 
-Error:
-    if ( status == cudaErrorMemoryAllocation ) {
+Error_cudart:
+    if ( status_cudart == cudaErrorMemoryAllocation ) {
         printf( "Memory allocation failed\n" );
     }
-    else if ( cudaSuccess != status ) {
+    else if ( cudaSuccess != status_cudart ) {
         printf( "Failed\n" );
     }
-    return cudaSuccess != status;
+    return cudaSuccess != status_cudart;
 }

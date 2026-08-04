@@ -58,7 +58,7 @@ void
 PrintTex( float *host, cudaTextureObject_t tex, size_t N )
 {
     float *device;
-    cudaError_t status;
+    cudaError_t status_cudart;
     int minGridSize, blockSize;
     memset( host, 0, N*sizeof(float) );
     cuda(HostGetDevicePointer( (void **) &device, host, 0 ));
@@ -72,7 +72,7 @@ PrintTex( float *host, cudaTextureObject_t tex, size_t N )
         printf( "%.2f ", host[i] );
     }
     printf( "\n" );
-Error:;
+Error_cudart:;
 }
 
 int
@@ -85,7 +85,7 @@ main( int argc, char *argv[] )
 
     float *foutHost;
     float *foutDevice;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaTextureObject_t tex = 0;
 
     cuda(SetDeviceFlags(cudaDeviceMapHost));
@@ -112,7 +112,7 @@ main( int argc, char *argv[] )
     PrintTex( foutHost, tex, NUM_FLOATS );
 
     ret = 0;
-Error:
+Error_cudart:
     cudaDestroyTextureObject( tex );
     cudaFree( p );
     cudaFreeHost( finHost );

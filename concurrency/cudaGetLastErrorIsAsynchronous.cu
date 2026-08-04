@@ -46,9 +46,9 @@
 #include <hip/hip_runtime.h>
 
 #define cuda( fn ) do { \
-	    status = (hip##fn); \
-	    if ( hipSuccess != (status) ) { \
-		                goto Error; \
+	    status_cudart = (hip##fn); \
+	    if ( hipSuccess != (status_cudart) ) { \
+		                goto Error_cudart; \
 		            } \
 	    } while (0);
 #endif
@@ -65,7 +65,7 @@ NullKernel( volatile int *p, bool write, int a=0, int b=1, int c=2, int d=3, int
 double
 usPerLaunch( int cIterations )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     double microseconds, ret;
     std::chrono::steady_clock::time_point start, stop;
     cudaEvent_t ev=0;
@@ -80,23 +80,23 @@ usPerLaunch( int cIterations )
     }
     NullKernel<<<1,1>>>( NULL, true );
     cuda(EventRecord( ev ));
-    status = cudaEventQuery( ev );
-    std::cout << "cudaEventQuery returned " << status << std::endl;
-    status = cudaGetLastError();
-    std::cout << "cudaGetLastError returned " << status << " (before cudaDeviceSynchronize())" << std::endl;
+    status_cudart = cudaEventQuery( ev );
+    std::cout << "cudaEventQuery returned " << status_cudart << std::endl;
+    status_cudart = cudaGetLastError();
+    std::cout << "cudaGetLastError returned " << status_cudart << " (before cudaDeviceSynchronize())" << std::endl;
 
     // this returns error due to deliberate dereference of NULL on last kernel invocation
     (void) cudaDeviceSynchronize();
-    status = cudaGetLastError();
-    std::cout << "cudaGetLastError returned " << status << " (after cudaDeviceSynchronize())" << std::endl;
+    status_cudart = cudaGetLastError();
+    std::cout << "cudaGetLastError returned " << status_cudart << " (after cudaDeviceSynchronize())" << std::endl;
     cuda(EventDestroy(ev));
     stop = std::chrono::steady_clock::now();
 
     microseconds = 1e6*std::chrono::duration<double>(stop - start).count();
     ret = microseconds / (float) cIterations;
 
-Error:
-    return (status) ? 0.0 : ret;
+Error_cudart:
+    return (status_cudart) ? 0.0 : ret;
 }
 
 int

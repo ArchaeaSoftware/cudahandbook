@@ -95,7 +95,7 @@ bool
 RadixPass( uint32_t *out, const uint32_t *in, size_t N, int shift, int mask )
 {
     bool ret = false;
-    cudaError_t status;
+    cudaError_t status_cudart;
     const int numCounts = 1<<b;
     int counts[numCounts];
     memset( counts, 0, sizeof(counts) );
@@ -109,8 +109,8 @@ cuda(Malloc( &gpuHistogram, (1<<b)*sizeof(int) ) );
 cuda(Memset( gpuHistogram, 0, (1<<b)*sizeof(int) ) );
 cpuHistogram = (int *) malloc( (1<<b)*sizeof(int) );
 if ( ! cpuHistogram ) {
-    status = cudaErrorMemoryAllocation;
-    goto Error;
+    status_cudart = cudaErrorMemoryAllocation;
+    goto Error_cudart;
 }
 
 RadixHistogram<b>( gpuHistogram, gpuIn, N, shift, mask, 1500, 512 );
@@ -149,7 +149,7 @@ for ( int j = 0; j < (1<<b); j++ ) {
         counts[index] += 1;
     }
     ret = true;
-Error:
+Error_cudart:
     cudaFree( gpuIn );
     cudaFree( gpuHistogram );
     free( cpuHistogram );
@@ -195,7 +195,7 @@ TestSort( float *et, uint32_t *(*pfnSort)( uint32_t *[2], const uint32_t *, size
     if ( 0 == sortInput || 
          0 == sortOutput[0] ||
          0 == sortOutput[1] ) {
-        goto Error;
+        goto Error_cudart;
     }
 
     for ( int i = 0; i < N; i++ ) {
@@ -223,11 +223,11 @@ TestSort( float *et, uint32_t *(*pfnSort)( uint32_t *[2], const uint32_t *, size
 #ifdef _WIN32
             __debugbreak();
 #endif
-            goto Error;
+            goto Error_cudart;
         }
     }
     ret = true;
-Error:
+Error_cudart:
     delete[] sortInput;
     delete[] sortOutput[0];
     delete[] sortOutput[1];
@@ -459,7 +459,7 @@ TestSortGPU( float *et, size_t N )
     size_t M       = (size_t) numTiles * NUM_DIGITS;
     size_t padded  = (size_t) numTiles * RADIX_TILE;
     bool ret = false;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     std::vector<uint32_t> in( N ), ref( N ), got( N );
     for ( size_t i = 0; i < N; i++ )
@@ -484,7 +484,7 @@ TestSortGPU( float *et, size_t N )
 
     cuda(Memcpy( got.data(), dOut, N*sizeof(uint32_t), cudaMemcpyDeviceToHost ));
     ret = std::equal( got.begin(), got.end(), ref.begin() );
-Error:
+Error_cudart:
     cudaFree(dIn); cudaFree(dOut); cudaFree(dSorted);
     cudaFree(dHist); cudaFree(dScan); cudaFree(dScratch);
     return ret;

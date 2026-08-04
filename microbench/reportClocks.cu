@@ -78,7 +78,7 @@ WriteOutput( FILE *out, dim3 gridSize, dim3 blockSize, const unsigned int *hostO
 bool
 ReportTimesAndIDs( FILE *clocksFile, FILE *tidsFile, dim3 gridSize, dim3 blockSize )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     bool ret = false;
     size_t totalBlockSize = blockSize.x*blockSize.y*blockSize.z;
     size_t numTimes = totalBlockSize*gridSize.x*gridSize.y*gridSize.z;
@@ -133,7 +133,7 @@ ReportTimesAndIDs( FILE *clocksFile, FILE *tidsFile, dim3 gridSize, dim3 blockSi
     }
 
     ret = true;
-Error:
+Error_cudart:
     cudaFree( deviceClockValues );
     cudaFree( deviceThreadIDs );
     cudaFreeHost( hostOut );

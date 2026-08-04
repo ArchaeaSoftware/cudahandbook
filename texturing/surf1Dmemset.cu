@@ -58,7 +58,7 @@ template<typename T>
 cudaError_t
 surf1Dmemset( cudaArray *array, T value, int offset, size_t N )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaSurfaceObject_t surfObj = 0;
     int minGridSize, blockSize;
     cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
@@ -67,9 +67,9 @@ surf1Dmemset( cudaArray *array, T value, int offset, size_t N )
     cuda(OccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, surf1Dmemset_kernel<T> ));
     surf1Dmemset_kernel<<<minGridSize, blockSize>>>( surfObj, value, offset, N*sizeof(T) );
     cuda(DeviceSynchronize());
-Error:
+Error_cudart:
     cudaDestroySurfaceObject( surfObj );
-    return status;
+    return status_cudart;
 }
 
 int
@@ -77,7 +77,7 @@ main( int argc, char *argv[] )
 {
     int ret = 1;
     float *foutHost = 0;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float>();
     cudaArray *array = 0;
 
@@ -86,7 +86,7 @@ main( int argc, char *argv[] )
     cuda(GetDeviceProperties(&prop, 0));
     if ( prop.major < 2 ) {
         printf( "This application requires SM 2.x (for surface load/store)\n" );
-        goto Error;
+        goto Error_cudart;
     }
 
     cuda(HostAlloc( 
@@ -123,7 +123,7 @@ main( int argc, char *argv[] )
     printf( "\n" );
     ret = 0;
 
-Error:
+Error_cudart:
     cudaFreeHost( foutHost );
     return ret;
 }

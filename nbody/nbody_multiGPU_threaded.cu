@@ -78,7 +78,7 @@ struct gpuDelegation {
 void
 gpuWorkerThread( void *_p )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     gpuDelegation *p = (gpuDelegation *) _p;
     float *dptrPosMass = 0;
     float *dptrForce = 0;
@@ -109,10 +109,10 @@ gpuWorkerThread( void *_p )
         dptrForce, 
         3*p->n*sizeof(float), 
         cudaMemcpyDeviceToHost ) );
-Error:
+Error_cudart:
     cudaFree( dptrPosMass );
     cudaFree( dptrForce );
-    p->status = status;
+    p->status = status_cudart;
 }
 
 float

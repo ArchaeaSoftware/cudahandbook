@@ -49,24 +49,24 @@ mallocSpeed( int cIterations, size_t N )
     float ret = 0.0f;
     void **p = (void **) malloc( cIterations*sizeof(void *));
     if ( ! p )
-        goto Error;
+        goto Error_cudart;
     memset( p, 0, cIterations*sizeof(void *) );
     
     start = std::chrono::steady_clock::now();
     for ( size_t i = 0; i < cIterations; i++ ) {
         if ( bDevice ) {
             if ( cudaSuccess != cudaMalloc( &p[i], N ) ) {
-                goto Error;
+                goto Error_cudart;
             }
         }
         else {
             if ( cudaSuccess != cudaMallocHost( &p[i], N ) )
-                goto Error;
+                goto Error_cudart;
         }
     }
     stop = std::chrono::steady_clock::now();
     ret = std::chrono::duration<double>(stop - start).count();
-Error:
+Error_cudart:
     if ( p ) {
         for ( size_t i = 0; i < cIterations; i++ ) {
             if ( bDevice ) {

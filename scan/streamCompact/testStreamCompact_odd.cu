@@ -66,7 +66,7 @@ TestStreamCompact(
     float fRatio )
 {
     bool ret = false;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     T *inGPU = 0;
     T *outGPU = 0;
@@ -77,7 +77,7 @@ TestStreamCompact(
     T *hostGPU = (T *) malloc( N*sizeof(T) );
     int *pScanCPU = (int *) malloc( N*sizeof(int) );
     if ( 0 == inCPU || 0==outCPU || 0==hostGPU || 0==pScanCPU )
-        goto Error;
+        goto Error_cudart;
 
     printf( "Testing %s (%d integers, %d threads/block)\n", 
         szScanFunction,
@@ -111,7 +111,7 @@ TestStreamCompact(
             if ( isOdd( inCPU[inxIn] ) ) {
                 if ( hostGPU[inxOut] != inCPU[inxIn] ) {
                     printf( "Scan failed\n" );
-                    goto Error;
+                    goto Error_cudart;
                 }
                 inxOut += 1;
             }
@@ -128,7 +128,7 @@ TestStreamCompact(
         }
     }
     ret = true;
-Error:
+Error_cudart:
     cudaFree( outGPU );
     cudaFree( inGPU );
     cudaFreeHost( hostTotal );

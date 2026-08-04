@@ -53,7 +53,7 @@ TestAOStoSOA(
     int cIterations = 1 )
 {
     double ret = 0.0;
-    cudaError_t status;
+    cudaError_t status_cudart;
     T **dptrpSOA = 0;
     T *dptrSOA[k];
     T *dptrAOS = 0;
@@ -95,7 +95,7 @@ TestAOStoSOA(
         for ( int j = 0; j < k; j++ ) {
             if ( hrefAOS[i*k+j] != hrefSOA[j][i] ) {
                 printf( "Mismatch at i==%d, k==%d (%d should be %d)\n", i, j, hrefSOA[j][i], hrefAOS[i*k+j] );
-                goto Error;
+                goto Error_cudart;
             }
         }
     }
@@ -113,7 +113,7 @@ TestAOStoSOA(
         ret = (double) N*cIterations*sizeof(T)*1000.0 / ms;
     }
 
-Error:
+Error_cudart:
     cudaEventDestroy( evStart );
     cudaEventDestroy( evStop );
     cudaFreeHost( hrefAOS );
@@ -131,7 +131,7 @@ main( int argc, char *argv[] )
 {
     int ret = 1;
     int iN = 32;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     cuda(SetDeviceFlags( cudaDeviceMapHost ) );
     cuda(Free(0) );
@@ -139,7 +139,7 @@ main( int argc, char *argv[] )
     #define TEST_VECTOR(fn) { \
         double bytesPerSecond = TestAOStoSOA<int, 3>( 1048576*iN, fn<int,3>, 10 ); \
         if ( 0.0 == bytesPerSecond ) \
-            goto Error; \
+            goto Error_cudart; \
         printf( "%s: %.2f Gbytes/s\n", #fn, bytesPerSecond/1e9 ); \
     }
 
@@ -147,6 +147,6 @@ main( int argc, char *argv[] )
     TEST_VECTOR( AOStoSOA_2 );
 
     ret = 0;
-Error:
+Error_cudart:
     return ret;
 }

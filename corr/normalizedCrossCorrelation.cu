@@ -105,7 +105,7 @@ CopyToTemplate(
       int OffsetX, int OffsetY
 )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     unsigned char pixels[maxTemplatePixels];
 
     int inx = 0;
@@ -146,8 +146,8 @@ CopyToTemplate(
 
     fcPixels = (float) cPixels;
     cuda(MemcpyToSymbol(g_cPixels, &fcPixels, sizeof(float)) );
-Error:
-    return status;
+Error_cudart:
+    return status_cudart;
 }
 
 int
@@ -300,7 +300,7 @@ TestCorrelation(
     const char *outputFilename = NULL
 )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     bool ret = false;
     size_t CorrPitch;
 
@@ -319,7 +319,7 @@ TestCorrelation(
     hSumISq = (int *) malloc( w*sizeof(int)*h );
     hSumIT = (int *) malloc( w*sizeof(int)*h );
     if ( NULL == hCorr || NULL == hSumI || NULL == hSumISq || NULL == hSumIT )
-        goto Error;
+        goto Error_cudart;
 
     cuda(MallocPitch( (void **) &dCorr, &CorrPitch, w*sizeof(float), h ) );
     cuda(MallocPitch( (void **) &dSumI, &CorrPitch, w*sizeof(int), h ) );
@@ -356,7 +356,7 @@ TestCorrelation(
                        w, h ) ) {
         //assert(0);
         printf( "Sums miscompare\n" );
-        goto Error;
+        goto Error_cudart;
     }
 
     cuda(Memcpy2D( hCorr, w*sizeof(float), dCorr, CorrPitch, w*sizeof(float), h, cudaMemcpyDeviceToHost ) );
@@ -415,8 +415,8 @@ TestCorrelation(
     if ( outputFilename ) {
         unsigned char *correlationValues = (unsigned char *) malloc( w*h );
         if ( ! correlationValues ) {
-            status = cudaErrorMemoryAllocation;
-            goto Error;
+            status_cudart = cudaErrorMemoryAllocation;
+            goto Error_cudart;
         }
         for ( int row = 0; row < h; row++ ) {
             for ( int col = 0; col < w; col++ ) {
@@ -428,15 +428,15 @@ TestCorrelation(
             }
         }
         if ( 0 != pgmSave( outputFilename, correlationValues, w, h ) ) {
-            status = cudaErrorUnknown;
-            goto Error;
+            status_cudart = cudaErrorUnknown;
+            goto Error_cudart;
         }
         free( correlationValues );
     }
 
     ret = true;
 
-Error:
+Error_cudart:
     cudaEventDestroy( start );
     cudaEventDestroy( stop );
     free( hCorr );
@@ -454,7 +454,7 @@ int
 main(int argc, char *argv[])
 {
     int ret = 1;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     unsigned char *hidata = NULL;
     unsigned char *didata = NULL;
@@ -517,17 +517,17 @@ main(int argc, char *argv[])
         if ( chCommandLineGet( &padWidth, "padWidth", argc, argv ) ) {
             if ( ! chCommandLineGet( &padHeight, "padHeight", argc, argv ) ) {
                 printf( "Must specify both --padWidth and --padHeight\n" );
-                goto Error;
+                goto Error_cudart;
             }
         }
         else {
             if ( chCommandLineGet( &padHeight, "padHeight", argc, argv ) ) {
                 printf( "Must specify both --padWidth and --padHeight\n" );
-                goto Error;
+                goto Error_cudart;
             }
         }
         if ( pgmLoad(inputFilename, &hidata, &HostPitch, &didata, &DevicePitch, &w, &h, padWidth, padHeight) )
-            goto Error;
+            goto Error_cudart;
     }
     chCommandLineGet( &xTemplate, "xTemplate", argc, argv );
     chCommandLineGet( &yTemplate, "yTemplate", argc, argv );
@@ -545,7 +545,7 @@ main(int argc, char *argv[])
          NULL == hoCorrCPUI ||
          NULL == hoCorrCPUISq ||
          NULL == hoCorrCPUIT )
-        goto Error;
+        goto Error_cudart;
 
     cuda(MallocArray( &pArrayImage, &desc, w, h ) );
     cuda(MallocArray( &pArrayTemplate, &desc, w, h ) );
@@ -653,7 +653,7 @@ main(int argc, char *argv[])
     TEST_VECTOR( corrTexTex, false, 100, outputFilename );
 
     ret = 0;
-Error:
+Error_cudart:
     free( hoCorrCPU );
     free( hoCorrCPUI );
     free( hoCorrCPUISq );

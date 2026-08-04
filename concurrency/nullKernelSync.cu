@@ -51,7 +51,7 @@ NullKernel()
 double
 usPerLaunch( int cIterations )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     double microseconds, ret;
     std::chrono::steady_clock::time_point start, stop;
 
@@ -67,7 +67,7 @@ usPerLaunch( int cIterations )
     microseconds = 1e6*std::chrono::duration<double>(stop - start).count();
     ret = microseconds / (float) cIterations;
 
-Error:
+Error_cudart:
     return ret;//return (status) ? 0.0 : ret;
 }
 

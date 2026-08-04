@@ -79,7 +79,7 @@ template<uint32_t sh>
 static double
 timeByThreads( uint32_t *p, size_t N )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     float elapsed_time;
     double ret = 0.0;
     cudaEvent_t start = 0, stop = 0;
@@ -94,7 +94,7 @@ timeByThreads( uint32_t *p, size_t N )
     cuda(EventElapsedTime( &elapsed_time, start, stop ));
     ret = N*1000.0/elapsed_time/1e9;
     printf( "%2d threads: %f Gops/s\n", 1<<sh, ret );
-Error:
+Error_cudart:
     cudaEventDestroy( stop );
     cudaEventDestroy( start );
     return ret;
@@ -103,7 +103,7 @@ Error:
 int
 main()
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     size_t N = 1024*1024*1024UL;
     uint32_t *p = 0;
 
@@ -120,6 +120,6 @@ main()
 
     cudaFree( p );
     return 0;
-Error:
+Error_cudart:
     return 1;
 }

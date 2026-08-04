@@ -125,7 +125,7 @@ BandwidthCopy( T *deviceOut, T *deviceIn0, T *deviceIn1,
     double elapsedTime;
     float ms;
     int cIterations;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     for ( int i = 0; i < N; i++ ) {
         int r = rand();
@@ -149,7 +149,7 @@ BandwidthCopy( T *deviceOut, T *deviceIn0, T *deviceIn1,
         for ( size_t i = 0; i < N-bOffsetDst-bOffsetSrc; i++ ) {
             if ( hostOut[i] != (hostIn0[i]^hostIn1[i]) ) {
                 printf( "Incorrect copy performed!\n" );
-                goto Error;
+                goto Error_cudart;
             }
         }
     }
@@ -171,7 +171,7 @@ BandwidthCopy( T *deviceOut, T *deviceIn0, T *deviceIn1,
     // gigabytes per second
     ret /= 1024.0*1048576.0;
 
-Error:
+Error_cudart:
     return ret;
 }
 
@@ -187,7 +187,7 @@ ReportRow( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
     T *hostOut = 0;
     cudaEvent_t evStart = 0;
     cudaEvent_t evStop = 0;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     int maxThreads = 0;
     double maxBW = 0.0;
@@ -199,13 +199,13 @@ ReportRow( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
 
     hostIn0 = new T[N];
     if ( ! hostIn0 )
-        goto Error;
+        goto Error_cudart;
     hostIn1 = new T[N];
     if ( ! hostIn1 )
-        goto Error;
+        goto Error_cudart;
     hostOut = new T[N];
     if ( ! hostOut )
-        goto Error;
+        goto Error_cudart;
 
     cuda(EventCreate( &evStart ) );
     cuda(EventCreate( &evStop ) );
@@ -223,7 +223,7 @@ ReportRow( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
         printf( "%.2f\t", bw );
     }
     printf( "%.2f\t%d\n", maxBW, maxThreads );
-Error:
+Error_cudart:
     delete[] hostIn0;
     delete[] hostIn1;
     delete[] hostOut;
@@ -268,7 +268,7 @@ Shmoo( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     int device = 0;
     int size = 16;
     if ( chCommandLineGet( &device, "device", argc, argv ) ) {
@@ -315,6 +315,6 @@ main( int argc, char *argv[] )
         }
     }
     return 0;
-Error:
+Error_cudart:
     return 1;
 }

@@ -30,7 +30,7 @@ streamCompact_odd_kernel(
     T *out,
     int *outCount,                    // total kept (written by the last tile)
     const T *in,
-    volatile scanStatus *status,      // one descriptor per tile (SCAN_X-initialized)
+    volatile scanStatus *status_cudart,      // one descriptor per tile (SCAN_X-initialized)
     uint32_t *tileCounter,            // one global counter, 0-initialized
     uint32_t numTiles,
     size_t N )
@@ -69,7 +69,7 @@ streamCompact_odd_kernel(
     // Cooperative look-back over the per-tile keep counts: s_base is the number
     // of elements kept by every earlier tile -- this tile's base output index.
     //
-    scanCoopLookback<int>( status, tile, aggregate, s_base );
+    scanCoopLookback<int>( status_cudart, tile, aggregate, s_base );
     __syncthreads();
 
     //
@@ -88,7 +88,7 @@ template<class T>
 void
 streamCompact_odd( T *out, int *outCount, const T *in, size_t N, int b )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     scanStatus *gStatus = 0;
     uint32_t *tileCounter = 0;
 
@@ -105,7 +105,7 @@ streamCompact_odd( T *out, int *outCount, const T *in, size_t N, int b )
     streamCompact_odd_kernel<T><<<numTiles, b, b * sizeof(int)>>>(
         out, outCount, in, gStatus, tileCounter, numTiles, N );
 
-Error:
+Error_cudart:
     cudaFree( gStatus );
     cudaFree( tileCounter );
 }

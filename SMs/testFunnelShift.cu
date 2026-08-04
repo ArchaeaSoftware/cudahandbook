@@ -108,7 +108,7 @@ DoFunnelShift( int *out, int lo, int hi, int shift, bool bRight, bool bClamp )
     int *hptr = 0;
     int *dptr = 0;
     int emulatedValue;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     cuda(HostAlloc( &hptr, 4*sizeof(int), cudaHostAllocMapped ) );
     cuda(HostGetDevicePointer( &dptr, hptr, 0 ) );
@@ -138,9 +138,9 @@ DoFunnelShift( int *out, int lo, int hi, int shift, bool bRight, bool bClamp )
     cuda(DeviceSynchronize() );
     printf( "d value: 0x%x (%d decimal)\n", emulatedValue, emulatedValue );
     *out = hptr[0];
-Error:
+Error_cudart:
     cudaFreeHost( hptr );
-    return status;
+    return status_cudart;
 }
 
 int
@@ -157,7 +157,7 @@ int
 main( int argc, char *argv[] )
 {
     int ret = 1;
-    cudaError_t status;
+    cudaError_t status_cudart;
     int out, lo, hi, shift, right, clamp;
 
     while (1) {
@@ -173,7 +173,7 @@ main( int argc, char *argv[] )
         CUDART_CHECK( DoFunnelShift( &out, lo, hi, shift, 0!=right, 0!=clamp ) );
         printf( "Result: 0x%x (%d decimal)\n", out, out );
     }
-Error:
-    printf( "Error %d (%s)\n", status, cudaGetErrorString( status ) );
+Error_cudart:
+    printf( "Error %d (%s)\n", status_cudart, cudaGetErrorString( status_cudart ) );
     return ret;
 }

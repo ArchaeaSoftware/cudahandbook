@@ -73,7 +73,7 @@ MallocSpeed( double *msPerAlloc, double *msPerFree,
              int cBlocks, int cThreads )
 {
     float etAlloc, etFree;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     cuda(EventRecord( evStart ) );
     AllocateBuffers<<<cBlocks,cThreads>>>( devicePointers, N );
@@ -92,8 +92,8 @@ MallocSpeed( double *msPerAlloc, double *msPerFree,
     *msPerAlloc = etAlloc / (double) (cBlocks*cThreads);
     *msPerFree = etFree / (double) (cBlocks*cThreads);
 
-Error:
-    return status;
+Error_cudart:
+    return status_cudart;
 }
 
 static const int g_threadCounts[] = { 32, 64, 128, 256, 512 };
@@ -108,7 +108,7 @@ static cudaError_t
 Sweep( void **devicePointers, size_t N,
        cudaEvent_t evStart, cudaEvent_t evStop )
 {
-    cudaError_t status = cudaSuccess;
+    cudaError_t status_cudart = cudaSuccess;
     double msAlloc, msFree;
 
     for ( int i = 0; i < g_cThreadConfigs; i++ ) {
@@ -120,10 +120,10 @@ Sweep( void **devicePointers, size_t N,
     }
     printf( "\n" );
     for ( int i = 0; i < g_cThreadConfigs; i++ ) {
-        status = MallocSpeed( &msAlloc, &msFree, devicePointers, N,
+        status_cudart = MallocSpeed( &msAlloc, &msFree, devicePointers, N,
                               evStart, evStop, g_cBlocks, g_threadCounts[i] );
-        if ( cudaSuccess != status )
-            return status;
+        if ( cudaSuccess != status_cudart )
+            return status_cudart;
         printf( "%.2f\t%.2f\t", msAlloc*1e3, msFree*1e3 );
     }
     printf( "\n\n" );
@@ -133,7 +133,7 @@ Sweep( void **devicePointers, size_t N,
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     void **devicePointers = 0;
     cudaEvent_t evStart = 0, evStop = 0;
     double msAlloc, msFree;
@@ -150,26 +150,26 @@ main( int argc, char *argv[] )
     cuda(Malloc( &devicePointers, maxPointers*sizeof(void *) ) );
 
     // 1 thread per block, 500 blocks, 1MB allocations.
-    status = MallocSpeed( &msAlloc, &msFree, devicePointers, (size_t) 1<<20,
+    status_cudart = MallocSpeed( &msAlloc, &msFree, devicePointers, (size_t) 1<<20,
                           evStart, evStop, 500, 1 );
-    if ( cudaSuccess != status ) goto Error;
+    if ( cudaSuccess != status_cudart ) goto Error_cudart;
     printf( "Microseconds per alloc/free (1 thread per block):\n" );
     printf( "alloc\tfree\n" );
     printf( "%.2f\t%.2f\t\n\n", msAlloc*1e3, msFree*1e3 );
 
     // 32-512 threads per block, 12K allocations.
     printf( "Microseconds per alloc/free (32-512 threads per block, 12K allocations):\n" );
-    status = Sweep( devicePointers, 12*1024, evStart, evStop );
-    if ( cudaSuccess != status ) goto Error;
+    status_cudart = Sweep( devicePointers, 12*1024, evStart, evStop );
+    if ( cudaSuccess != status_cudart ) goto Error_cudart;
 
     // 32-512 threads per block, 64-byte allocations.
     printf( "Microseconds per alloc/free (32-512 threads per block, 64-byte allocations):\n" );
-    status = Sweep( devicePointers, 64, evStart, evStop );
-    if ( cudaSuccess != status ) goto Error;
+    status_cudart = Sweep( devicePointers, 64, evStart, evStop );
+    if ( cudaSuccess != status_cudart ) goto Error_cudart;
 
-Error:
+Error_cudart:
     if ( devicePointers ) cudaFree( devicePointers );
     if ( evStart ) cudaEventDestroy( evStart );
     if ( evStop ) cudaEventDestroy( evStop );
-    return (cudaSuccess == status) ? 0 : 1;
+    return (cudaSuccess == status_cudart) ? 0 : 1;
 }

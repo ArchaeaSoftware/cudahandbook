@@ -124,7 +124,7 @@ template<class T>
 void
 scanReduceThenScan( T *out, const T *in, size_t N, int b )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     if ( N <= b ) {
         return scanWithBaseSums<T><<<1,b,b*sizeof(T)>>>( 
@@ -159,7 +159,7 @@ scanReduceThenScan( T *out, const T *in, size_t N, int b )
         in, 
         N, 
         numPartials );
- Error:
+ Error_cudart:
     cudaFree( gPartials );
 
 }

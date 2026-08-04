@@ -149,7 +149,7 @@ GPUhistogramPerThread4x32(
     int w, int h, 
     dim3 threads )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaEvent_t start = 0, stop = 0;
     int numthreads = threads.x*threads.y;
     int numblocks = bPeriodicMerge ? 256 : intDivideCeiling( w*h, numthreads*(255/4) );
@@ -164,7 +164,7 @@ GPUhistogramPerThread4x32(
     cuda(EventRecord( stop, 0 ) );
     cuda(DeviceSynchronize() );
     cuda(EventElapsedTime( ms, start, stop ) );
-Error:
+Error_cudart:
     cudaEventDestroy( start );
     cudaEventDestroy( stop );
     return;

@@ -156,7 +156,7 @@ AtomicsPerSecond( size_t N, int cBlocks, int cThreads )
     double ret = 0.0;
     double elapsedTime;
     float ms;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaEvent_t evStart = 0;
     cudaEvent_t evStop = 0;
 
@@ -169,7 +169,7 @@ AtomicsPerSecond( size_t N, int cBlocks, int cThreads )
     cuda(Malloc( &d_inputValues, N*sizeof(double) ) );
     h_inputValues = new double[N];
     if ( ! h_inputValues )
-        goto Error;
+        goto Error_cudart;
 
     sumInputValues = 0.0;
     for ( size_t i = 0; i < N; i++ ) {
@@ -222,7 +222,7 @@ AtomicsPerSecond( size_t N, int cBlocks, int cThreads )
 	// Return operations per second
     ret = (double) N / elapsedTime;
 
-Error:
+Error_cudart:
     cudaFree( d_spinLocks );
     cudaFree( d_sumInputValues );
     cudaFree( d_inputValues );
@@ -236,7 +236,7 @@ Error:
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     int device = 0;
     int size = 16;
 	cudaDeviceProp props;
@@ -254,7 +254,7 @@ main( int argc, char *argv[] )
     printf( "Spinlock acquire/release operations per second (in millions): %.2f", ops/1e6f );
 
     return 0;
-Error:
+Error_cudart:
 
 	return 1;
 }

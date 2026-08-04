@@ -66,7 +66,7 @@ chMemcpyPeerToPeer(
     const void *_src, CUcontext srcContext, int srcDevice,
     size_t N ) 
 {
-    CUresult status;
+    CUresult status_cuda;
     CUdeviceptr dst = (CUdeviceptr) (intptr_t) _dst;
     CUdeviceptr src = (CUdeviceptr) (intptr_t) _src;
     int stagingIndex = 0;
@@ -118,8 +118,8 @@ chMemcpyPeerToPeer(
     cu(CtxSynchronize() );
     cu(CtxPopCurrent( &dstContext ) );
     
-Error:
-    return status;
+Error_cuda:
+    return status_cuda;
 }
 
 bool
@@ -130,7 +130,7 @@ TestMemcpy(
     size_t dstOffset, size_t srcOffset, 
     size_t numInts )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     CUcontext srcContext, dstContext;
 
     memset( srcHost, 0, numInts );
@@ -154,7 +154,7 @@ TestMemcpy(
         }
     }
     return true;
-Error:
+Error_cudart:
     return false;
 }
 
@@ -163,7 +163,7 @@ main( int argc, char *argv[] )
 {
     int deviceCount;
 
-    cudaError_t status;
+    cudaError_t status_cudart;
     int *deviceInt[2];
     int *hostInt = 0;
     const size_t numInts = 8*1048576;
@@ -213,13 +213,13 @@ main( int argc, char *argv[] )
 
     cuda(SetDevice( 0 ) );
     if ( CUDA_SUCCESS != cuCtxGetCurrent( &dstContext ) )
-        goto Error;
+        goto Error_cudart;
     cuda(SetDevice( 1 ) );
     if ( CUDA_SUCCESS != cuCtxGetCurrent( &srcContext ) )
-        goto Error;
+        goto Error_cudart;
     if ( ! TestMemcpy( deviceInt[0], 0, deviceInt[1], 1, 
                        hostInt, testVector, 0, 0, numInts ) ) {
-        goto Error;
+        goto Error_cudart;
     }
 
     for ( int i = 0; i < cIterations; i++ ) {
@@ -228,7 +228,7 @@ main( int argc, char *argv[] )
         size_t intsThisIteration = 1 + rand() % (numInts-max(dstOffset,srcOffset)-1);
         if ( ! TestMemcpy( deviceInt[0], 0, deviceInt[1], 1, hostInt, testVector, dstOffset, srcOffset, intsThisIteration ) ) {
             //TestMemcpy( deviceInt, hostInt, testVector, dstOffset, srcOffset, intsThisIteration );
-            goto Error;
+            goto Error_cudart;
         }
     }
 
@@ -249,7 +249,7 @@ main( int argc, char *argv[] )
     cudaFree( deviceInt );
     cudaFreeHost( hostInt );
     return 0;
-Error:
+Error_cudart:
     printf( "Error\n" );
     return 1;
 }

@@ -49,7 +49,7 @@
 CUresult
 TestSAXPY( chCUDADevice *chDevice, size_t N, float alpha )
 {
-    CUresult status;
+    CUresult status_cuda;
     CUdeviceptr dptrOut = 0;
     CUdeviceptr dptrIn = 0;
     float *hostOut = 0;
@@ -74,8 +74,8 @@ TestSAXPY( chCUDADevice *chDevice, size_t N, float alpha )
         
         moduleSAXPY = chDevice->module( "saxpy.ptx" );
         if ( ! moduleSAXPY ) {
-            status = CUDA_ERROR_NOT_FOUND;
-            goto Error;
+            status_cuda = CUDA_ERROR_NOT_FOUND;
+            goto Error_cuda;
         }
         cu(ModuleGetFunction( &kernelSAXPY, moduleSAXPY, "saxpy" ) );
 
@@ -87,26 +87,26 @@ TestSAXPY( chCUDADevice *chDevice, size_t N, float alpha )
     cu(CtxSynchronize() );
     for ( size_t i = 0; i < N; i++ ) {
         if ( fabsf( hostOut[i] - alpha*hostIn[i] ) > 1e-5f ) {
-            status = CUDA_ERROR_UNKNOWN;
-            goto Error;
+            status_cuda = CUDA_ERROR_UNKNOWN;
+            goto Error_cuda;
         }
     }
-    status = CUDA_SUCCESS;
+    status_cuda = CUDA_SUCCESS;
     printf( "Well it worked!\n" );
 
-Error:
+Error_cuda:
     cuCtxPopCurrent( NULL );
     cuMemFreeHost( hostOut );
     cuMemFreeHost( hostIn );
     cuMemFree( dptrOut );
     cuMemFree( dptrIn );
-    return status;
+    return status_cuda;
 }
 
 int
 main( int argc, char *argv[] )
 {
-    CUresult status;
+    CUresult status_cuda;
 
     list<string> moduleList;
     moduleList.push_back( "saxpy.ptx" );
@@ -122,6 +122,6 @@ main( int argc, char *argv[] )
         CUDA_CHECK( TestSAXPY( chDevice, 16*1048576, 2.0 ) );
     }
     return 0;
-Error:
+Error_cuda:
     return 1;
 }

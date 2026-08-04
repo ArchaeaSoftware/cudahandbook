@@ -83,7 +83,7 @@ ComputeNBodyGravitation_GPU_AOS_const(
     size_t N
 )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaEvent_t evStart = 0, evStop = 0;
     float ms = 0.0;
     size_t bodiesLeft = N;
@@ -114,7 +114,7 @@ ComputeNBodyGravitation_GPU_AOS_const(
     cuda(EventRecord( evStop, NULL ) );
     cuda(DeviceSynchronize() );
     cuda(EventElapsedTime( &ms, evStart, evStop ) );
-Error:
+Error_cudart:
     cudaEventDestroy( evStop );
     cudaEventDestroy( evStart );
     return ms;

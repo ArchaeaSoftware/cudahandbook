@@ -45,19 +45,19 @@ chCUDADevice::loadModuleFromFile(
     CUjit_option *options,
     void **optionValues )
 {
-    CUresult status;
+    CUresult status_cuda;
     CUmodule module = 0;
     long int lenFile;
     FILE *file = fopen( fileName.c_str(), "rb" );
     char *fileContents = 0;
     if ( ! file ) {
-        status = CUDA_ERROR_NOT_FOUND;
-        goto Error;
+        status_cuda = CUDA_ERROR_NOT_FOUND;
+        goto Error_cuda;
     }
     if ( 0 != fseek( file, 0, SEEK_END ) ) {
         fclose( file );
-        status = CUDA_ERROR_UNKNOWN;
-        goto Error;
+        status_cuda = CUDA_ERROR_UNKNOWN;
+        goto Error_cuda;
     }
     lenFile = ftell( file );
     fileContents = (char *) malloc( lenFile+1 );
@@ -65,18 +65,18 @@ chCUDADevice::loadModuleFromFile(
         fseek( file, 0, SEEK_SET );
         if ( lenFile != fread( fileContents, 1, lenFile, file ) ) {
             fclose( file );
-            status = CUDA_ERROR_UNKNOWN;
-            goto Error;
+            status_cuda = CUDA_ERROR_UNKNOWN;
+            goto Error_cuda;
         }
         fileContents[lenFile] = '\0'; // NULL terminate the string
-        status = cuModuleLoadDataEx( &module, fileContents, numOptions, options, optionValues );
+        status_cuda = cuModuleLoadDataEx( &module, fileContents, numOptions, options, optionValues );
         free( fileContents );
-        if ( status != CUDA_SUCCESS )
-            goto Error;
+        if ( status_cuda != CUDA_SUCCESS )
+            goto Error_cuda;
         m_modules.insert( pair<string, CUmodule>(fileName, module) );
     }
-Error:
-    return status;
+Error_cuda:
+    return status_cuda;
 }
 
 CUresult
@@ -88,7 +88,7 @@ chCUDADevice::Initialize(
     CUjit_option *options,
     void **optionValues )
 {
-    CUresult status;
+    CUresult status_cuda;
     CUdevice device;
     CUcontext ctx = 0;
 
@@ -103,15 +103,15 @@ chCUDADevice::Initialize(
     m_device = device;
     m_context = ctx;
     return CUDA_SUCCESS;
-Error:
+Error_cuda:
     cuCtxDestroy( ctx );
-    return status;
+    return status_cuda;
 }
 
 CUresult
 chCUDAInitialize( list<string>& moduleList )
 {
-    CUresult status;
+    CUresult status_cuda;
     int cDevices;
     int cDevicesInitialized = 0;
     chCUDADevice *newDevice;
@@ -125,20 +125,20 @@ chCUDAInitialize( list<string>& moduleList )
 
         newDevice = new chCUDADevice;
         if ( ! newDevice ) {
-            status = CUDA_ERROR_OUT_OF_MEMORY;
-            goto Error;
+            status_cuda = CUDA_ERROR_OUT_OF_MEMORY;
+            goto Error_cuda;
         }
 
         CUDA_CHECK( newDevice->Initialize( i, moduleList ) );
         g_CUDAdevices.push_back( newDevice );
     }
     return CUDA_SUCCESS;
-Error:
+Error_cuda:
     while ( ! g_CUDAdevices.empty() ) {
         delete (*g_CUDAdevices.end());
         g_CUDAdevices.pop_back();
     }
     delete newDevice;
-    return status;
+    return status_cuda;
 }
 

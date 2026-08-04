@@ -73,7 +73,7 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
     cudaArray *texArray = 0;
 
     float2 *outHost = 0, *outDevice = 0;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaTextureObject_t tex = 0;
     int minGridSize, blockSize;
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<T>();
@@ -86,7 +86,7 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
         // default is to initialize with identity elements
         texContents = (T *) malloc( texN*sizeof(T) );
         if ( ! texContents )
-            goto Error;
+            goto Error_cudart;
         for ( int i = 0; i < texN; i++ ) {
             texContents[i] = (T) i;
         }
@@ -125,7 +125,7 @@ CreateAndPrintTex( T *initTex, size_t texN, size_t outN,
     }
     printf( "\n" );
 
-Error:
+Error_cudart:
     cudaDestroyTextureObject( tex );
     if ( ! initTex ) free( texContents );
     if ( texArray ) cudaFreeArray( texArray );
@@ -136,7 +136,7 @@ int
 main( int argc, char *argv[] )
 {
     int ret = 1;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cuda(SetDeviceFlags(cudaDeviceMapHost));
 
     //CreateAndPrintTex<float>( NULL, 8, 8, 0.0f, 1.0f, cudaFilterModePoint );
@@ -151,6 +151,6 @@ main( int argc, char *argv[] )
         CreateAndPrintTex<float>( texData, 10, 10, 1.5f, 0.1f, cudaFilterModeLinear );
     }
     ret = 0;
-Error:
+Error_cudart:
     return ret;
 }

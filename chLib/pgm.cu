@@ -56,39 +56,39 @@ pgmLoad(
     unsigned char *idata = NULL;
     unsigned char *ddata = NULL;
     size_t dPitch;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     fp = fopen( filename, "rb" );
     if ( fp == NULL) {
         fprintf( stderr, "Failed to open %s.\n", filename );
-        goto Error;
+        goto Error_cudart;
     }
 
     if (NULL == fgets(header, hsize, fp)) {
         fprintf(stderr, "Invalid PGM file.\n");
-        goto Error;
+        goto Error_cudart;
     }
 
     if ( strncmp(header, "P5", 2) ) {
         fprintf(stderr, "File is not a PGM image.\n");
-        goto Error;
+        goto Error_cudart;
     }
     if ( 1 != fscanf( fp, "%d", &w ) )
-        goto Error;
+        goto Error_cudart;
     if ( 1 != fscanf( fp, "%d", &h ) )
-        goto Error;
+        goto Error_cudart;
     if ( 1 != fscanf( fp, "%d", &maxval ) )
-        goto Error;
+        goto Error_cudart;
     if ( padWidth == 0 && padHeight == 0 ) {
         padWidth = w;
         padHeight = h;
     }
     idata = (unsigned char *) malloc( padWidth*padHeight );
     if ( ! idata )
-        goto Error;
+        goto Error_cudart;
     for ( int row = 0; row < h; row++ ) {
         if ( (size_t) w != fread( idata+row*padWidth, 1, w, fp ) )
-            goto Error;
+            goto Error_cudart;
     }
     cuda(MallocPitch( (void **) &ddata, &dPitch, padWidth, padHeight ) );
     *pWidth = padWidth;
@@ -100,7 +100,7 @@ pgmLoad(
     cuda(Memcpy2D( ddata, dPitch, idata, padWidth, padWidth, padHeight, cudaMemcpyHostToDevice ));
     fclose(fp);
     return 0;
-Error:
+Error_cudart:
     free( idata );
     cudaFree( ddata );
     if ( fp ) {
@@ -116,17 +116,17 @@ pgmSave(const char* filename, unsigned char *data, int w, int h)
     FILE *fp = fopen( filename, "wb" );
     if ( NULL == fp ) {
         fprintf( stderr, "Failed to open %s\n", filename );
-        goto Error;
+        goto Error_cudart;
     }
 
     fprintf( fp, "P5\n%d\n%d\n%d\n", w, h, 0xff );
     if ( w*h != fwrite(data, sizeof(unsigned char), w*h, fp) ) {
         fprintf( stderr, "Write failed\n" );
-        goto Error;
+        goto Error_cudart;
     }
 
     fclose(fp);
     ret = 0;
-Error:
+Error_cudart:
     return ret;
 }

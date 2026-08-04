@@ -69,7 +69,7 @@ ComputeGravitation_multiGPU_singlethread(
     size_t N
 )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     float ret = 0.0f;
 
@@ -149,15 +149,15 @@ ComputeGravitation_multiGPU_singlethread(
 
     if ( g_fGPUCrosscheckOutput ) {
         if ( 1 != fwrite( g_hostAOS_Force, 3*N*sizeof(float), 1, g_fGPUCrosscheckOutput ) )
-            goto Error;
+            goto Error_cudart;
     }
     if ( g_fGPUCrosscheckInput ) {
         if ( 1 != fread( g_hostAOS_Force_Golden, 3*N*sizeof(float), 1, g_fGPUCrosscheckInput ) )
-            goto Error;
+            goto Error_cudart;
     }
 
 
-Error:
+Error_cudart:
     for ( int i = 0; i < g_numGPUs; i++ ) {
         cudaFree( dptrPosMass[i] );
         cudaFree( dptrForce[i] );

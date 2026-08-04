@@ -122,13 +122,13 @@ chNUMApageAlignedAllocHost( void **pp, size_t bytes, int node )
     bytes += chNUMAgetPageSize();
     void *p = chNUMApageAlignedAlloc( bytes, node );
     if ( NULL == p )
-        goto Error;
+        goto Error_cudart;
     if ( cudaSuccess !=  cudaHostRegister( p, bytes, 0 ) )
-        goto Error;
+        goto Error_cudart;
     *((size_t *) p) = bytes;
     *pp = (void *) ((char *) p+chNUMAgetPageSize());
     return true;
-Error:
+Error_cudart:
     if ( p ) {
         cudaHostUnregister( p );
         chNUMApageAlignedFree( p, bytes );

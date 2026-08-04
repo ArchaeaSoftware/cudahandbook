@@ -162,7 +162,7 @@ ComputeGravitation_GPU_SOA_tiled(
     size_t N
 )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     dim3 blocks( N/nTile, N/32, 1 );
 
     cuda(Memset( forces[0], 0, N*sizeof(float) ) );
@@ -170,8 +170,8 @@ ComputeGravitation_GPU_SOA_tiled(
     cuda(Memset( forces[2], 0, N*sizeof(float) ) );
     ComputeNBodyGravitation_GPU_SOA_tiled<nTile><<<blocks,nTile>>>( forces[0], forces[1], forces[2], posMass, N, softeningSquared );
     cuda(DeviceSynchronize() );
-Error:
-    return status;
+Error_cudart:
+    return status_cudart;
 }
 
 __global__ void
@@ -207,7 +207,7 @@ ComputeGravitation_GPU_SOA_tiled(
     size_t N
 )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaEvent_t evStart = 0, evStop = 0;
     float ms = 0.0;
 
@@ -235,7 +235,7 @@ SOAtoAOS_GPU_3<<<300,256>>>( force, forces[0], forces[1], forces[2], N );
 
     cuda(DeviceSynchronize() );
     cuda(EventElapsedTime( &ms, evStart, evStop ) );
-Error:
+Error_cudart:
     cuda(EventDestroy( evStop ) );
     cuda(EventDestroy( evStart ) );
     return ms;

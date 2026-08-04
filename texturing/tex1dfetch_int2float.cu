@@ -91,7 +91,7 @@ CheckTexPromoteToFloat( size_t N )
 {
     T *inHost, *inDevice;
     float *foutHost, *foutDevice;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaTextureObject_t tex = 0;
     int minGridSize, blockSize;
 
@@ -131,7 +131,7 @@ CheckTexPromoteToFloat( size_t N )
         assert( foutHost[i] == TexPromoteToFloat( (T) i ) );
     }
     printf( "\n" );
-Error:
+Error_cudart:
     cudaDestroyTextureObject( tex );
     cudaFreeHost( inHost );
     cudaFreeHost( foutHost );
@@ -141,7 +141,7 @@ int
 main( int argc, char *argv[] )
 {
     int ret = 1;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     cuda(SetDeviceFlags(cudaDeviceMapHost));
     cuda(Free(0));
@@ -152,6 +152,6 @@ main( int argc, char *argv[] )
     CheckTexPromoteToFloat<unsigned short>( 65536 );
 
     ret = 0;
-Error:
+Error_cudart:
     return ret;
 }

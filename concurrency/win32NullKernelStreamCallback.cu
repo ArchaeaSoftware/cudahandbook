@@ -102,7 +102,7 @@ public:
 
     int getTotalCallbacks() const { return m_totalCallbacks; }
 
-    static void CUDART_CB countCallbacks( cudaStream_t stream, cudaError_t status, void *userData );
+    static void CUDART_CB countCallbacks( cudaStream_t stream, cudaError_t status_cudart, void *userData );
     BOOL Wait() { return WaitForSingleObject( m_hEvent, INFINITE ); }
 
     int CountProcessThreads( );
@@ -128,7 +128,7 @@ CStreamCallbacksStats::CountProcessThreads( )
     // Retrieve information about the first thread,
     // and exit if unsuccessful
     if( !Thread32First( hThreadSnap, &te32 ) ) 
-        goto Error;
+        goto Error_cudart;
     numThreads = 0;
     do {
         if( te32.th32OwnerProcessID == dwOwnerPID ) {
@@ -142,14 +142,14 @@ CStreamCallbacksStats::CountProcessThreads( )
     }
     LeaveCriticalSection( &m_cs );
     ret = numThreads;
-Error:
+Error_cudart:
     CloseHandle( hThreadSnap );
     return ret;
 }
 
 
 void CUDART_CB 
-CStreamCallbacksStats::countCallbacks( cudaStream_t stream, cudaError_t status, void *userData )
+CStreamCallbacksStats::countCallbacks( cudaStream_t stream, cudaError_t status_cudart, void *userData )
 {
     CStreamCallbacksStats *p = (CStreamCallbacksStats *) userData;
     const int intervalPeriod = 1000;
@@ -172,9 +172,9 @@ CStreamCallbacksStats::countCallbacks( cudaStream_t stream, cudaError_t status, 
         p->CountProcessThreads( );
     }
 
-    if ( cudaSuccess != status ) {
+    if ( cudaSuccess != status_cudart ) {
         // confirm that kernel that faulted is reported properly
-        printf( "status = %d\n", status );
+        printf( "status = %d\n", status_cudart );
         return;
     }
     if ( p->m_signalCount == InterlockedIncrement( (LONG *) &p->m_totalCallbacks ) ) {
@@ -186,7 +186,7 @@ CStreamCallbacksStats::countCallbacks( cudaStream_t stream, cudaError_t status, 
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     const int cIterations = 1000;
 
     CStreamCallbacksStats stats;
@@ -231,7 +231,7 @@ cuda(StreamAddCallback( NULL, CStreamCallbacksStats::countCallbacks, &stats, cud
     }
 
     return 0;
-Error:
-    printf( "CUDA error: %d (%s)\n", status, cudaGetErrorString( status ) );
+Error_cudart:
+    printf( "CUDA error: %d (%s)\n", status_cudart, cudaGetErrorString( status_cudart ) );
     return 1;
 }

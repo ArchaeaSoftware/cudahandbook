@@ -54,7 +54,7 @@ NullKernel( volatile int *p, bool write, int a=0, int b=1, int c=2, int d=3, int
 double
 usPerLaunch( int cIterations )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     double microseconds, ret;
     std::chrono::steady_clock::time_point start, stop;
 
@@ -70,8 +70,8 @@ usPerLaunch( int cIterations )
     microseconds = 1e6*std::chrono::duration<double>(stop - start).count();
     ret = microseconds / (float) cIterations;
 
-Error:
-    return (status) ? 0.0 : ret;
+Error_cudart:
+    return (status_cudart) ? 0.0 : ret;
 }
 
 int

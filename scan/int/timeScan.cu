@@ -77,7 +77,7 @@ TimeScan( void (*pfnScanGPU)(T *, const T *, size_t, int),
           int cIterations )
 {
     std::chrono::steady_clock::time_point start, stop;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     double ret = 0.0;
 
@@ -86,7 +86,7 @@ TimeScan( void (*pfnScanGPU)(T *, const T *, size_t, int),
     int *inCPU = (int *) malloc( N*sizeof(T) );
     int *outCPU = (int *) malloc( N*sizeof(T) );
     if ( 0==inCPU || 0==outCPU )
-        goto Error;
+        goto Error_cudart;
     cuda(Malloc( &inGPU, N*sizeof(T) ) );
     cuda(Malloc( &outGPU, N*sizeof(T) ) );
 
@@ -97,13 +97,13 @@ TimeScan( void (*pfnScanGPU)(T *, const T *, size_t, int),
         pfnScanGPU( outGPU, inGPU, N, numThreads );
     }
     if ( cudaSuccess != cudaDeviceSynchronize() )
-        goto Error;
+        goto Error_cudart;
     stop = std::chrono::steady_clock::now();
 
     // ints per second
     ret = (double) cIterations*N / std::chrono::duration<double>(stop - start).count();
     
-Error:
+Error_cudart:
     cudaFree( outGPU );
     cudaFree( inGPU );
     free( inCPU );

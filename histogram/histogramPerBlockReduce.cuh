@@ -93,7 +93,7 @@ GPUhistogramPerBlockReduce(
     int w, int h, 
     dim3 threads )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaEvent_t start = 0, stop = 0;
     
 
@@ -112,7 +112,7 @@ GPUhistogramPerBlockReduce(
     cuda(EventRecord( stop, 0 ) );
     cuda(DeviceSynchronize() );
     cuda(EventElapsedTime( ms, start, stop ) );
-Error:
+Error_cudart:
     cudaEventDestroy( start );
     cudaEventDestroy( stop );
     return;

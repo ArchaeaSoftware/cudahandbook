@@ -46,7 +46,7 @@ GPUhistogramNPP(
     int w, int h, 
     dim3 threads )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     Npp8u *pDeviceBuffer = 0;
     NppiSize oSizeROI = {w, h};
 
@@ -73,12 +73,12 @@ GPUhistogramNPP(
         (Npp32s *) pHist, 
         levelCount, 0, binCount,
         pDeviceBuffer ) )
-        goto Error;
+        goto Error_cudart;
     cuda(EventRecord( stop, 0 ) );
     cuda(DeviceSynchronize() );
     cuda(EventElapsedTime( ms, start, stop ) );
 
-Error:
+Error_cudart:
     cudaEventDestroy( start );
     cudaEventDestroy( stop );
     cudaFree( pDeviceBuffer );

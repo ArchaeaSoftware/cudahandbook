@@ -164,7 +164,7 @@ scan2Level( T *out, const T *in, size_t N, int b )
             out, 0, in, N, N );
     }
 
-    cudaError_t status;
+    cudaError_t status_cudart;
     T *gPartials = 0;
     cuda(GetSymbolAddress( (void **) &gPartials, g_globalPartials ));
 
@@ -213,7 +213,7 @@ scan2Level( T *out, const T *in, size_t N, int b )
             N, 
             elementsPerPartial );
     }
-Error:;
+Error_cudart:;
 }
 
 template<class T>

@@ -116,7 +116,7 @@ BandwidthWrites( size_t N, int cBlocks, int cThreads )
     double elapsedTime;
     float ms;
     int cIterations;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaEvent_t evStart = 0;
     cudaEvent_t evStop = 0;
 
@@ -142,7 +142,7 @@ BandwidthWrites( size_t N, int cBlocks, int cThreads )
     // gigabytes per second
     ret /= 1024.0*1048576.0;
 
-Error:
+Error_cudart:
     cudaEventDestroy( evStart );
     cudaEventDestroy( evStop );
     cudaFree( out );

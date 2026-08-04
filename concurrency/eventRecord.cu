@@ -54,12 +54,12 @@ template<int Flags>
 double
 usPerLaunch( int cIterations, int cEvents )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     double microseconds, ret;
     cudaEvent_t *events = new cudaEvent_t[cEvents];
     std::chrono::steady_clock::time_point start, stop;
 
-    if ( ! events ) goto Error;
+    if ( ! events ) goto Error_cudart;
     memset( events, 0, cEvents*sizeof(cudaEvent_t) );
     for ( int i = 0; i < cEvents; i++ ) {
         cuda(EventCreateWithFlags(  &events[i], (Flags & EVENTRECORD_BLOCKING) ? cudaEventBlockingSync : 0 ) );
@@ -79,14 +79,14 @@ usPerLaunch( int cIterations, int cEvents )
     if ( cEvents ) cIterations *= cEvents;
     ret = microseconds / (float) cIterations;
 
-Error:
+Error_cudart:
     if ( events ) {
         for ( int i = 0; i < cEvents; i++ ) {
             cudaEventDestroy( events[i] );
         }
     }
     delete[] events;
-    return (status) ? 0.0 : ret;
+    return (status_cudart) ? 0.0 : ret;
 }
 
 int

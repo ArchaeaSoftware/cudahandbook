@@ -116,7 +116,7 @@ BandwidthWrites( size_t N, int cBlocks, int cThreads )
     double elapsedTime;
     float ms;
     int cIterations;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaEvent_t evStart = 0;
     cudaEvent_t evStop = 0;
 
@@ -142,7 +142,7 @@ BandwidthWrites( size_t N, int cBlocks, int cThreads )
     // gigabytes per second
     ret /= 1024.0*1048576.0;
 
-Error:
+Error_cudart:
     cudaEventDestroy( evStart );
     cudaEventDestroy( evStop );
     cudaFree( out );
@@ -209,7 +209,7 @@ Shmoo( size_t N, size_t threadStart, size_t threadStop, size_t cBlocks )
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     int device = 0;
     int size = 16;
     if ( chCommandLineGet( &device, "device", argc, argv ) ) {
@@ -236,6 +236,6 @@ main( int argc, char *argv[] )
         Shmoo<myInt4,true>( (size_t) size*1048576, 32, 512, 150 );
     }
     return 0;
-Error:
+Error_cudart:
     return 1;
 }

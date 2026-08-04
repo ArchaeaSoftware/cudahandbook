@@ -157,7 +157,7 @@ corrShared4Dp4aSums(
 {
     int device;
     cudaDeviceProp props;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     cuda(GetDevice( &device ) );
     cuda(GetDeviceProperties( &props, device ) );
@@ -204,6 +204,6 @@ corrShared4Dp4aSums(
         cPixels, fDenomExp,
         sharedPitch,
         (float) xUL, (float) yUL, w, h );
-Error:
+Error_cudart:
     return;
 }

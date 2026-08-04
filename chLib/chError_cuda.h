@@ -183,73 +183,73 @@ chGetErrorString( CUresult status )
 
 #ifdef DEBUG
 #define CUDART_CHECK( fn ) do { \
-        (status) =  (fn); \
-        if ( cudaSuccess != (status) ) { \
+        (status_cudart) =  (fn); \
+        if ( cudaSuccess != (status_cudart) ) { \
             fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t" \
                 "%s returned 0x%x (%s)\n", \
-                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
-            goto Error; \
+                __LINE__, __FILE__, #fn, status_cudart, chGetErrorString(status_cudart) ); \
+            goto Error_cudart; \
         } \
     } while (0);
 
 #define cuda( fn ) do { \
-        (status) =  (cuda##fn); \
-        if ( cudaSuccess != (status) ) { \
+        (status_cudart) =  (cuda##fn); \
+        if ( cudaSuccess != (status_cudart) ) { \
             fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t" \
                 "%s returned 0x%x (%s)\n", \
-                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
-            goto Error; \
+                __LINE__, __FILE__, #fn, status_cudart, chGetErrorString(status_cudart) ); \
+            goto Error_cudart; \
         } \
     } while (0);
 
 #define cu( fn ) do { \
-        (status) =  (cuda##fn); \
-        if ( CUDA_SUCCESS != (status) ) { \
+        (status_cuda) =  (cu##fn); \
+        if ( CUDA_SUCCESS != (status_cuda) ) { \
             fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t%s "\
                 "returned 0x%x (%s)\n", \
-                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
-            goto Error; \
+                __LINE__, __FILE__, #fn, status_cuda, chGetErrorString(status_cuda) ); \
+            goto Error_cuda; \
         } \
     } while (0);
 
 #define CUDA_CHECK( fn ) do { \
-        (status) =  (fn); \
-        if ( CUDA_SUCCESS != (status) ) { \
+        (status_cuda) =  (fn); \
+        if ( CUDA_SUCCESS != (status_cuda) ) { \
             fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t%s "\
                 "returned 0x%x (%s)\n", \
-                __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
-            goto Error; \
+                __LINE__, __FILE__, #fn, status_cuda, chGetErrorString(status_cuda) ); \
+            goto Error_cuda; \
         } \
     } while (0);
 
 #else
 
 #define CUDART_CHECK( fn ) do { \
-    status = (fn); \
-    if ( cudaSuccess != (status) ) { \
-	    goto Error; \
+    status_cudart = (fn); \
+    if ( cudaSuccess != (status_cudart) ) { \
+	    goto Error_cudart; \
 	} \
     } while (0);
 
 #define cuda( fn ) do { \
-    status = (cuda##fn); \
-    if ( cudaSuccess != (status) ) { \
-	    goto Error; \
+    status_cudart = (cuda##fn); \
+    if ( cudaSuccess != (status_cudart) ) { \
+	    goto Error_cudart; \
 	} \
     } while (0);
 
 
 #define CUDA_CHECK( fn ) do { \
-        (status) =  (fn); \
-        if ( CUDA_SUCCESS != (status) ) { \
-            goto Error; \
+        (status_cuda) =  (fn); \
+        if ( CUDA_SUCCESS != (status_cuda) ) { \
+            goto Error_cuda; \
         } \
     } while (0);
 
 #define cu( fn ) do { \
-        (status) =  (cu##fn); \
-        if ( CUDA_SUCCESS != (status) ) { \
-            goto Error; \
+        (status_cuda) =  (cu##fn); \
+        if ( CUDA_SUCCESS != (status_cuda) ) { \
+            goto Error_cuda; \
         } \
     } while (0);
 
@@ -264,9 +264,9 @@ chGetErrorString( CUresult status )
 //
 #ifdef __NVRTC_H__
 #ifdef DEBUG
-#define nvrtc( fn ) do { (status) = (nvrtc##fn); if ( NVRTC_SUCCESS != (status) ) { fprintf( stderr, "NVRTC Failure (line %d of file %s): %s returned 0x%x (%s)\n", __LINE__, __FILE__, #fn, status, nvrtcGetErrorString((nvrtcResult) status) ); goto Error; } } while (0);
+#define nvrtc( fn ) do { (status_nvrtc) = (nvrtc##fn); if ( NVRTC_SUCCESS != (status_nvrtc) ) { fprintf( stderr, "NVRTC Failure (line %d of file %s): %s returned 0x%x (%s)\n", __LINE__, __FILE__, #fn, status_nvrtc, nvrtcGetErrorString((nvrtcResult) status_nvrtc) ); goto Error_nvrtc; } } while (0);
 #else
-#define nvrtc( fn ) do { (status) = (nvrtc##fn); if ( NVRTC_SUCCESS != (status) ) { goto Error; } } while (0);
+#define nvrtc( fn ) do { (status_nvrtc) = (nvrtc##fn); if ( NVRTC_SUCCESS != (status_nvrtc) ) { goto Error_nvrtc; } } while (0);
 #endif // DEBUG
 #endif // __NVRTC_H__
 

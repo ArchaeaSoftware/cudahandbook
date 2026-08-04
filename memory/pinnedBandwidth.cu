@@ -46,7 +46,7 @@ template< cudaMemcpyKind type >
 double
 Bandwidth( int iDevice, int cIterations, size_t N )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     double ret = 0.0;
     std::chrono::steady_clock::time_point start, stop;
@@ -62,7 +62,7 @@ Bandwidth( int iDevice, int cIterations, size_t N )
     cuda(DeviceSynchronize() );
     stop = std::chrono::steady_clock::now();
     ret = (cIterations*N) / std::chrono::duration<double>(stop - start).count();
-Error:
+Error_cudart:
     cudaFree( pDevice );
     cudaFreeHost( pHost );
     return ret;
@@ -71,7 +71,7 @@ Error:
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     int cIterations = 100;
     int cMB = 64;
     int deviceCount;
@@ -88,7 +88,7 @@ main( int argc, char *argv[] )
         printf( "%.2f\n", Bandwidth<cudaMemcpyDeviceToHost>( iDevice, cIterations, cMB*(size_t) 1048576 )/1e9 );
     }
     return 0;
-Error:
+Error_cudart:
     return 1;
 }
 

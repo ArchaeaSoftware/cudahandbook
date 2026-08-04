@@ -63,7 +63,7 @@ hipCreateGraphNullKernelLaunches( cudaGraph_t *graph, cudaGraphExec_t *graphInst
 cudaCreateGraphNullKernelLaunches( cudaGraph_t *graph, cudaGraphExec_t *graphInstance, cudaStream_t stream, int cIterations )
 #endif
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     cuda(StreamBeginCapture(stream, cudaStreamCaptureModeGlobal));
     for ( int i = 0; i < cIterations; ++i ) {
@@ -72,14 +72,14 @@ cudaCreateGraphNullKernelLaunches( cudaGraph_t *graph, cudaGraphExec_t *graphIns
     cuda(StreamEndCapture(stream, graph));
     cuda(GraphInstantiate(graphInstance, *graph, NULL, NULL, 0));
     return cudaSuccess;
-Error:
-    return status;
+Error_cudart:
+    return status_cudart;
 }
 
 double
 usPerLaunch( int cIterations )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     double microseconds, ret;
     cudaStream_t stream;
     cudaGraph_t graph;
@@ -101,8 +101,8 @@ usPerLaunch( int cIterations )
     microseconds = 1e6*std::chrono::duration<double>(stop - start).count();
     ret = microseconds / (float) i;
 
-Error:
-    return (status) ? 0.0 : ret;
+Error_cudart:
+    return (status_cudart) ? 0.0 : ret;
 }
 
 int

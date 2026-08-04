@@ -53,7 +53,7 @@ cudaError_t
 PrintShuffle( int offset, size_t cInts )
 {
     int *dptr = 0;
-    cudaError_t status;
+    cudaError_t status_cudart;
     int h[64];
     cuda(Malloc( &dptr, cInts*sizeof(int) ) );
     TestShuffle<<<1,cInts>>>( dptr, dptr, cInts );
@@ -63,9 +63,9 @@ PrintShuffle( int offset, size_t cInts )
         if (31==i%32) printf("\n");
     }
     printf( "\n" );
-Error:
+Error_cudart:
     cudaFree( dptr );
-    return status;
+    return status_cudart;
 }
 
 int
@@ -73,11 +73,11 @@ main( int argc, char *argv[] )
 {
     int ret = 1;
     int cInts = 64;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     CUDART_CHECK( PrintShuffle( 1, cInts ) );
     return 0;
-Error:
-    printf( "Error %d (%s)\n", status, cudaGetErrorString( status ) );
+Error_cudart:
+    printf( "Error %d (%s)\n", status_cudart, cudaGetErrorString( status_cudart ) );
     return ret;
 }

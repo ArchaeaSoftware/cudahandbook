@@ -50,8 +50,8 @@
 #include <thrust/count.h>
 
 // cuda(), cu(), and nvrtc() all come from chError.h (chError_cuda.h): on
-// failure each sets the enclosing function's `status` and jumps to its Error:
-// label. nvrtc() is available because <nvrtc.h> is included above chError.h.
+// failure each sets the enclosing function's status_<api> and jumps to its
+// Error_<api>: label. nvrtc() is available because <nvrtc.h> is included above.
 
 //
 // The pieces the developer supplies. Everything else in the kernel is
@@ -155,7 +155,7 @@ printSignature( const std::string &src )
 static std::string
 compilePTX( const std::string &src, int major, int minor )
 {
-    nvrtcResult status;
+    nvrtcResult status_nvrtc;
     nvrtcProgram prog = 0;
     std::string ptx;
     size_t ptxSize = 0, logSize = 0;
@@ -164,21 +164,21 @@ compilePTX( const std::string &src, int major, int minor )
     const char *opts[] = { arch };
 
     nvrtc( CreateProgram( &prog, src.c_str(), "reduce.cu", 0, NULL, NULL ) );
-    status = nvrtcCompileProgram( prog, 1, opts );
+    status_nvrtc = nvrtcCompileProgram( prog, 1, opts );
     nvrtcGetProgramLogSize( prog, &logSize );
     if ( logSize > 1 ) {
         std::string log( logSize, '\0' );
         nvrtcGetProgramLog( prog, &log[0] );
         printf( "%s\n", log.c_str() );
     }
-    if ( NVRTC_SUCCESS != status ) goto Error;
+    if ( NVRTC_SUCCESS != status_nvrtc ) goto Error_nvrtc;
 
     nvrtc( GetPTXSize( prog, &ptxSize ) );
     ptx.resize( ptxSize );
     nvrtc( GetPTX( prog, &ptx[0] ) );
     nvrtc( DestroyProgram( &prog ) );
     return ptx;
-Error:
+Error_nvrtc:
     if ( prog ) nvrtcDestroyProgram( &prog );
     return std::string();
 }
@@ -194,7 +194,8 @@ launchReduce( CUfunction fn, int grid, int block, int sharedBytes,
               void *d_out, void *d_partials, unsigned int *d_retire,
               void *d_ctx, void *d_in, unsigned long long *pN )
 {
-    int status;
+    cudaError_t status_cudart;
+    CUresult status_cuda;
     void *args[8]; int n = 0;
     args[n++] = &d_out;
     args[n++] = &d_partials;
@@ -205,8 +206,10 @@ launchReduce( CUfunction fn, int grid, int block, int sharedBytes,
     cu( LaunchKernel( fn, grid,1,1, block,1,1, sharedBytes, 0, args, 0 ) );
     cuda( DeviceSynchronize() );
     return 0;
-Error:
-    return status;
+Error_cudart:
+    return (int) status_cudart;
+Error_cuda:
+    return (int) status_cuda;
 }
 
 // host-side views + thrust functors for the compile-time comparison
@@ -221,7 +224,8 @@ main( int argc, char *argv[] )
 {
     // Declare everything up front so the error-check macros can goto Error
     // without jumping over an initialization.
-    int status;
+    cudaError_t status_cudart;
+    CUresult status_cuda;
     size_t N   = ( argc > 1 ) ? (size_t) atoll(argv[1]) : (16u << 20);
     int    thr = ( argc > 2 ) ? atoi(argv[2]) : 0;
     const int block = 256, grid = 1024;
@@ -276,11 +280,11 @@ main( int argc, char *argv[] )
         std::string src = buildSource( sumsq, /*globalCounter=*/false );
         printSignature( src );
         std::string ptx = compilePTX( src, major, minor );
-        if ( ptx.empty() ) goto Error;
+        if ( ptx.empty() ) goto Error_cudart;
         CUmodule mod; cu( ModuleLoadData(&mod, ptx.c_str()) );
         CUfunction fn; cu( ModuleGetFunction(&fn, mod, "reduce") );
         cuda( Memset(d_retire, 0, sizeof(unsigned)) );
-        if ( launchReduce( fn, grid, block, block*sizeof(Stats), d_out, d_partials, d_retire, 0, d_in, &Nll ) ) goto Error;
+        if ( launchReduce( fn, grid, block, block*sizeof(Stats), d_out, d_partials, d_retire, 0, d_in, &Nll ) ) goto Error_cudart;
         Stats o{}; cuda( Memcpy(&o, d_out, sizeof o, cudaMemcpyDeviceToHost) );
         printf( "   (B) counter as argument:      sum=%lld sumsq=%lld   %s\n", o.sum, o.sumsq, (o.sum==refSum&&o.sumsq==refSumsq)?"ok":"FAIL" );
         cu( ModuleUnload(mod) );
@@ -289,7 +293,7 @@ main( int argc, char *argv[] )
         std::string src = buildSource( sumsq, /*globalCounter=*/true );
         printSignature( src );
         std::string ptx = compilePTX( src, major, minor );
-        if ( ptx.empty() ) goto Error;
+        if ( ptx.empty() ) goto Error_cudart;
         CUmodule mod; cu( ModuleLoadData(&mod, ptx.c_str()) );
         CUfunction fn; cu( ModuleGetFunction(&fn, mod, "reduce") );
         CUdeviceptr g=0; size_t gb=0; cu( ModuleGetGlobal(&g, &gb, mod, "retirementCount") );
@@ -314,13 +318,13 @@ main( int argc, char *argv[] )
         std::string src = buildSource( count, /*globalCounter=*/false );
         printSignature( src );                                        // note the extra const Ctx* parameter
         std::string ptx = compilePTX( src, major, minor );
-        if ( ptx.empty() ) goto Error;
+        if ( ptx.empty() ) goto Error_cudart;
         CUmodule mod; cu( ModuleLoadData(&mod, ptx.c_str()) );
         CUfunction fn; cu( ModuleGetFunction(&fn, mod, "reduce") );
         Ctx *d_ctx=0; cuda( Malloc(&d_ctx, sizeof(Ctx)) );
         Ctx hc{ thr }; cuda( Memcpy(d_ctx, &hc, sizeof hc, cudaMemcpyHostToDevice) );  // the "capture"
         cuda( Memset(d_retire, 0, sizeof(unsigned)) );
-        if ( launchReduce( fn, grid, block, block*sizeof(long long), d_out, d_partials, d_retire, d_ctx, d_in, &Nll ) ) goto Error;
+        if ( launchReduce( fn, grid, block, block*sizeof(long long), d_out, d_partials, d_retire, d_ctx, d_in, &Nll ) ) goto Error_cudart;
         long long o=0; cuda( Memcpy(&o, d_out, sizeof o, cudaMemcpyDeviceToHost) );
         printf( "   NVRTC (context passed as arg):        count=%lld   %s\n", o, (o==refCount)?"ok":"FAIL" );
         cudaFree(d_ctx); cu( ModuleUnload(mod) );
@@ -333,7 +337,8 @@ main( int argc, char *argv[] )
 
     free(h_in); cudaFree(d_in); cudaFree(d_out); cudaFree(d_partials); cudaFree(d_retire);
     return 0;
-Error:
+Error_cudart:
+Error_cuda:
     free(h_in); cudaFree(d_in); cudaFree(d_out); cudaFree(d_partials); cudaFree(d_retire);
     return 1;
 }

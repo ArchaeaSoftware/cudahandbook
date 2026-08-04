@@ -60,7 +60,7 @@ template<bool bTouch>
 double
 usPerLaunch( int cIterations, size_t cPages=0 )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     double microseconds, ret;
     std::chrono::steady_clock::time_point start, stop;
     void *p = 0;
@@ -85,8 +85,8 @@ usPerLaunch( int cIterations, size_t cPages=0 )
     microseconds = 1e6*std::chrono::duration<double>(stop - start).count();
     ret = microseconds / (float) cIterations;
     cudaFree( p );
-Error:
-    return (status) ? 0.0 : ret;
+Error_cudart:
+    return (status_cudart) ? 0.0 : ret;
 }
 
 int

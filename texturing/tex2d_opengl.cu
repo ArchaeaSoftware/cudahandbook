@@ -70,20 +70,20 @@ LoadTexturePPM( const char * filename )
     // open texture data
     file = fopen( filename, "rb" );
     if ( file == NULL )
-        goto Error;
+        goto Error_cudart;
 
     if ( 'P' != fgetc( file ) )
-        goto Error;
+        goto Error_cudart;
     if ( '6' != fgetc( file ) )
-        goto Error;
+        goto Error_cudart;
     if ( 1 != fscanf( file, "%d", &width ) )
-        goto Error;
+        goto Error_cudart;
     if ( 1 != fscanf( file, "%d", &height ) )
-        goto Error;
+        goto Error_cudart;
     if ( 1 != fscanf( file, "%d", &maxval ) )
-        goto Error;
+        goto Error_cudart;
     if ( maxval != 0xff )
-        goto Error;
+        goto Error_cudart;
 
     {
         int ch;
@@ -95,15 +95,15 @@ LoadTexturePPM( const char * filename )
     // allocate buffer
     data = (char *) malloc( width * height * 3 );
     if ( ! data )
-        goto Error;
+        goto Error_cudart;
 
     // read texture data
     if ( 1 != fread( data, width * height * 3, 1, file ) )
-        goto Error;
+        goto Error_cudart;
 
     fclose( file );
     return data;
-Error:
+Error_cudart:
     if ( file ) {
         fclose( file );
     }
@@ -116,9 +116,9 @@ CreateAndPopulateArray( cudaArray **ret, char *base, int width, int height )
 {
     uchar4 *array4 = new uchar4[width*height];
     cudaChannelFormatDesc desc = cudaCreateChannelDesc<uchar4>();
-    cudaError_t status = cudaMallocArray( ret, &desc, width, height );
-    if ( cudaSuccess != status ) {
-        return status;
+    cudaError_t status_cudart = cudaMallocArray( ret, &desc, width, height );
+    if ( cudaSuccess != status_cudart ) {
+        return status_cudart;
     }
     for ( int row = 0; row < 256; row++ ) {
         char *baserow = base+(height-row-1)*3*width;
@@ -314,7 +314,7 @@ void keyCB(unsigned char key, int x, int y)	/* called on key press */
 void
 reshapeCB( int width, int height )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     if ( g_hostFrameBuffer ) {
         cudaFreeHost( g_hostFrameBuffer );
@@ -323,26 +323,26 @@ reshapeCB( int width, int height )
     g_width = width;
     g_height = height;
 
-    status = cudaHostAlloc( &g_hostFrameBuffer, g_width*sizeof(uchar4)*g_height, cudaHostAllocMapped );
-    if ( cudaSuccess != status ) {
-        goto Error;
+    status_cudart = cudaHostAlloc( &g_hostFrameBuffer, g_width*sizeof(uchar4)*g_height, cudaHostAllocMapped );
+    if ( cudaSuccess != status_cudart ) {
+        goto Error_cudart;
     }
-    status = cudaHostGetDevicePointer( &g_deviceFrameBuffer, g_hostFrameBuffer, 0 );
-    if ( cudaSuccess != status ) {
-        goto Error;
+    status_cudart = cudaHostGetDevicePointer( &g_deviceFrameBuffer, g_hostFrameBuffer, 0 );
+    if ( cudaSuccess != status_cudart ) {
+        goto Error_cudart;
     }
     glMatrixMode( GL_PROJECTION );
     glLoadIdentity();
     gluOrtho2D(0,width,0,height);
     glViewport(0,0,width,height);
     glutPostRedisplay();
-Error:;
+Error_cudart:;
 }
 
 int
 main(int argc, char *argv[])
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     int ret = 1;
 
     g_width = 512;
@@ -357,7 +357,7 @@ main(int argc, char *argv[])
     g_texture = LoadTexturePPM( "TextureDemoImage.ppm" );
     if ( ! g_texture ) {
         fprintf( stderr, "Could not load texture\n");
-        goto Error;
+        goto Error_cudart;
     }
 
     cuda(SetDeviceFlags( cudaDeviceMapHost ) );
@@ -374,6 +374,6 @@ main(int argc, char *argv[])
     // we never get here
 
     ret = 0;
-Error:
+Error_cudart:
     return ret;
 }

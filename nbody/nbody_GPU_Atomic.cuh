@@ -114,7 +114,7 @@ ComputeGravitation_GPU_Atomic(
     size_t N
 )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaEvent_t evStart = 0, evStop = 0;
     float ms = 0.0;
     cuda(EventCreate( &evStart ) );
@@ -125,7 +125,7 @@ ComputeGravitation_GPU_Atomic(
     cuda(EventRecord( evStop, NULL ) );
     cuda(DeviceSynchronize() );
     cuda(EventElapsedTime( &ms, evStart, evStop ) );
-Error:
+Error_cudart:
     cuda(EventDestroy( evStop ) );
     cuda(EventDestroy( evStart ) );
     return ms;

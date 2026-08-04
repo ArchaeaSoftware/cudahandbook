@@ -223,7 +223,7 @@ ComputeGravitation(
     nbodyAlgorithm_enum algorithm, 
     bool bCrossCheck )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     bool bSOA = false;
 
     // AOS -> SOA data structures in case we are measuring SOA performance
@@ -431,7 +431,7 @@ ComputeGravitation(
             }
         }
         if ( cDisagreements ) {
-            goto Error;
+            goto Error_cudart;
         }
     }
 
@@ -456,7 +456,7 @@ ComputeGravitation(
     if ( g_bGPUCrossCheck && g_fGPUCrosscheckInput ) {
         if ( memcmp( g_hostAOS_Force, g_hostAOS_Force_Golden, 3*g_N*sizeof(float) ) ) {
             printf( "GPU CROSSCHECK FAILURE: Disagreement with golden values\n" );
-            goto Error;
+            goto Error_cudart;
         }
     }
 
@@ -488,12 +488,12 @@ ComputeGravitation(
             printf( "Maximum sum of forces > threshold (%E > %E)\n",
                 *maxRelError,
                 g_ZeroThreshold );
-            goto Error;
+            goto Error_cudart;
         }
     }
 
     return true;
-Error:
+Error_cudart:
     return false;
 }
 
@@ -511,20 +511,20 @@ struct gpuInit_struct
 void
 initializeGPU( void *_p )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     gpuInit_struct *p = (gpuInit_struct *) _p;
     cuda(SetDevice( p->iGPU ) );
     cuda(SetDeviceFlags( cudaDeviceMapHost ) );
     cuda(Free(0) );
-Error:
-    p->status = status;    
+Error_cudart:
+    p->status = status_cudart;    
 }
 
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     // kiloparticles
     int kParticles = 4, kMaxIterations = 0;
 
@@ -547,8 +547,8 @@ main( int argc, char *argv[] )
         g_numCPUCores = std::thread::hardware_concurrency();
     }
 
-    status = cudaGetDeviceCount( &g_numGPUs );
-    g_bCUDAPresent = (cudaSuccess == status) && (g_numGPUs > 0);
+    status_cudart = cudaGetDeviceCount( &g_numGPUs );
+    g_bCUDAPresent = (cudaSuccess == status_cudart) && (g_numGPUs > 0);
     if ( g_bCUDAPresent ) {
         cudaDeviceProp prop;
         cuda(GetDeviceProperties( &prop, 0 ) );
@@ -590,67 +590,67 @@ main( int argc, char *argv[] )
         if ( chCommandLineGet( &szFilename, "gpu-crosscheck-input-file", argc, argv ) ) {
             if ( ! g_bGPUCrossCheck ) {
                 fprintf( stderr, "GPU crosscheck input file requires --gpu-crosscheck\n" );
-                goto Error;
+                goto Error_cudart;
             }
             g_fGPUCrosscheckInput = fopen( szFilename, "rb" );
             if ( ! g_fGPUCrosscheckInput ) {
                 fprintf( stderr, "Could not open %s for input\n", szFilename );
-                goto Error;
+                goto Error_cudart;
             }
             {
                 int version;
                 if ( 1 != fread( &version, sizeof(int), 1, g_fGPUCrosscheckInput ) ) {
                     fprintf( stderr, "Read of version failed\n" );
-                    goto Error;
+                    goto Error_cudart;
                 }
                 if ( version != NBODY_GOLDENFILE_VERSION ) {
                     fprintf( stderr, "File version mismatch - generate new golden files!\n" );
-                    goto Error;
+                    goto Error_cudart;
                 }
             }
             if ( 1 != fread( &g_N, sizeof(int), 1, g_fGPUCrosscheckInput ) ) {
                 fprintf( stderr, "Read of particle count failed\n" );
-                goto Error;
+                goto Error_cudart;
             }
             if ( 1 != fread( &kMaxIterations, sizeof(int), 1, g_fGPUCrosscheckInput ) ) {
                 fprintf( stderr, "Read of iteration count failed\n" );
-                goto Error;
+                goto Error_cudart;
             }
             printf( "%d iterations specified in input file\n", kMaxIterations );
         }
         if ( chCommandLineGet( &szFilename, "gpu-crosscheck-output-file", argc, argv  ) ) {
             if ( g_fGPUCrosscheckInput ) {
                 fprintf( stderr, "Crosscheck input and output files are mutually exclusive. Please specify only one.\n" );
-                goto Error;
+                goto Error_cudart;
             }            
             if ( ! g_bGPUCrossCheck ) {
                 fprintf( stderr, "GPU crosscheck output file requires --gpu-crosscheck\n" );
-                goto Error;
+                goto Error_cudart;
             }
             g_fGPUCrosscheckOutput = fopen( szFilename, "wb" );
             if ( ! g_fGPUCrosscheckOutput ) {
                 fprintf( stderr, "Could not open %s for output\n", szFilename );
-                goto Error;
+                goto Error_cudart;
             }
             if ( ! kMaxIterations ) {
                 fprintf( stderr, "Must specify --iterations when generating output file for GPU cross check.\n" );
-                goto Error;
+                goto Error_cudart;
             }
             {
                 int version = NBODY_GOLDENFILE_VERSION;
                 if ( 1 != fwrite( &version, sizeof(int), 1, g_fGPUCrosscheckOutput ) ) {
                     fprintf( stderr, "Write of version failed\n" );
-                    goto Error;
+                    goto Error_cudart;
                 }
             }
 
             if ( 1 != fwrite( &g_N, sizeof(int), 1, g_fGPUCrosscheckOutput ) ) {
                 fprintf( stderr, "Write of particle count failed\n" );
-                goto Error;
+                goto Error_cudart;
             }
             if ( 1 != fwrite( &kMaxIterations, sizeof(int), 1, g_fGPUCrosscheckOutput ) ) {
                 fprintf( stderr, "Write of iteration count failed\n" );
-                goto Error;
+                goto Error_cudart;
             }
         }
     }
@@ -726,7 +726,7 @@ main( int argc, char *argv[] )
             g_bCrossCheck = false;
             if ( g_numGPUs < 2 ) {
                 fprintf( stderr, "GPU cross check enabled, but <2 GPUs available\n" );
-                goto Error;
+                goto Error_cudart;
             }
             for ( int i = 0; i < g_numGPUs; i++ ) {
                 cuda(HostAlloc( (void **) (&g_hostAOS_gpuCrossCheckForce[i]), 3*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
@@ -862,11 +862,11 @@ main( int argc, char *argv[] )
     if ( g_fGPUCrosscheckOutput ) fclose( g_fGPUCrosscheckOutput );
 
     return 0;
-Error:
+Error_cudart:
     if ( g_fGPUCrosscheckInput ) fclose( g_fGPUCrosscheckInput );
     if ( g_fGPUCrosscheckOutput ) fclose( g_fGPUCrosscheckOutput );
-    if ( cudaSuccess != status ) {
-        printf( "CUDA Error: %s\n", cudaGetErrorString( status ) );
+    if ( cudaSuccess != status_cudart ) {
+        printf( "CUDA Error: %s\n", cudaGetErrorString( status_cudart ) );
     }
     return 1;
 }

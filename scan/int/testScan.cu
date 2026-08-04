@@ -99,14 +99,14 @@ TestScan( const char *szScanFunction,
           int numThreads )
 {
     bool ret = false;
-    cudaError_t status;
+    cudaError_t status_cudart;
     int *inGPU = 0;
     int *outGPU = 0;
     int *inCPU = (T *) malloc( N*sizeof(T) );
     int *outCPU = (int *) malloc( N*sizeof(T) );
     int *hostGPU = (int *) malloc( N*sizeof(T) );
     if ( 0==inCPU || 0==outCPU || 0==hostGPU )
-        goto Error;
+        goto Error_cudart;
 
     printf( "Testing %s (%d integers, %d threads/block)\n", 
         szScanFunction,
@@ -138,11 +138,11 @@ for ( int i = 0; i < N; i++ ) {
 #else
             assert(0);
 #endif
-            goto Error;
+            goto Error_cudart;
         }
     }
     ret = true;
-Error:
+Error_cudart:
     cudaFree( outGPU );
     cudaFree( inGPU );
     free( inCPU );
@@ -154,7 +154,7 @@ Error:
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     int maxThreads;
 
     cuda(SetDevice( 0 ) );
@@ -206,6 +206,6 @@ main( int argc, char *argv[] )
 
     }
     return 0;
-Error:
+Error_cudart:
     return 1;
 }

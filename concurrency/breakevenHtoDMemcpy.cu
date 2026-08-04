@@ -44,7 +44,7 @@
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     int *deviceInt = 0;
     int *hostInt = 0;
     const int cIterations = 100000;
@@ -84,7 +84,7 @@ main( int argc, char *argv[] )
     cudaFree( deviceInt );
     cudaFreeHost( hostInt );
     return 0;
-Error:
+Error_cudart:
     printf( "Error performing allocation\n" );
     return 1;
 }

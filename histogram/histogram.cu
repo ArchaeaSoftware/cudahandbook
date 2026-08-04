@@ -194,7 +194,7 @@ TestHistogram(
     const char *outputFilename = NULL
 )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     bool ret = false;
 
     // Histogram for 8-bit grayscale image (2^8=256)
@@ -212,7 +212,7 @@ TestHistogram(
 
     if ( bCompareHistograms( hHist, hrefHist, 256 ) ) {
         printf( "%s: Histograms miscompare\n", name );
-        goto Error;
+        goto Error_cudart;
     }
 
     for ( int i = 0; i < cIterations; i++ ) {
@@ -228,7 +228,7 @@ TestHistogram(
     if ( outputFilename ) {
         FILE *f = fopen( outputFilename, "w" );
         if ( ! f )
-            goto Error;
+            goto Error_cudart;
         for ( int i = 0; i < 256; i++ ) {
             fprintf( f, "%d\t", hHist[i] );
         }
@@ -238,7 +238,7 @@ TestHistogram(
 
     ret = true;
 
-Error:
+Error_cudart:
     cudaFree( dHist );
     return ret;
 }
@@ -247,7 +247,7 @@ int
 main(int argc, char *argv[])
 {
     int ret = 1;
-    cudaError_t status;
+    cudaError_t status_cudart;
     int device = 0;
 
     unsigned char *hidata = NULL;
@@ -307,13 +307,13 @@ main(int argc, char *argv[])
         if ( chCommandLineGet( &padWidth, "padWidth", argc, argv ) ) {
             if ( ! chCommandLineGet( &padHeight, "padHeight", argc, argv ) ) {
                 printf( "Must specify both --padWidth and --padHeight\n" );
-                goto Error;
+                goto Error_cudart;
             }
         }
         else {
             if ( chCommandLineGet( &padHeight, "padHeight", argc, argv ) ) {
                 printf( "Must specify both --padWidth and --padHeight\n" );
-                goto Error;
+                goto Error_cudart;
             }
         }
         if ( chCommandLineGet( &numvalues, "random", argc, argv ) ) {
@@ -321,12 +321,12 @@ main(int argc, char *argv[])
             if ( chCommandLineGet( &stride, "stride", argc, argv ) ) {
                 if ( numvalues*stride > 256 ) {
                     printf( "stride*random must be <= 256\n" );
-                    goto Error;
+                    goto Error_cudart;
                 }
             }
             if ( 0==padWidth || 0==padHeight ) {
                 printf( "--random requires --padWidth and padHeight (to specify input size)\n" );
-                goto Error;
+                goto Error_cudart;
             }
             printf( "%d pixels, random, %d values with stride %d\n",
                 padWidth*padHeight, numvalues, stride );
@@ -334,7 +334,7 @@ main(int argc, char *argv[])
             h = padWidth;
             hidata = (unsigned char *) malloc( w*h );
             if ( ! hidata )
-                goto Error;
+                goto Error_cudart;
 
             size_t dPitch;
             cuda(MallocPitch( &didata, &dPitch, padWidth, padHeight ) );
@@ -354,7 +354,7 @@ main(int argc, char *argv[])
         else {
             if ( pgmLoad( inputFilename, &hidata, &HostPitch, &didata, &DevicePitch, &w, &h, padWidth, padHeight) ) {
                 printf( "%s not found\n", inputFilename );
-                goto Error;
+                goto Error_cudart;
             }
             printf( "%d pixels, sourced from image file %s\n", w*h, inputFilename );
         }
@@ -403,7 +403,7 @@ main(int argc, char *argv[])
             cIterations, outfile ) ) { \
             printf( "Error\n" ); \
             ret = 1; \
-            goto Error; \
+            goto Error_cudart; \
         } \
         printf( "%s: %.2f Mpix/s\n", \
             #baseName, pixelsPerSecond/1e6 ); \
@@ -440,7 +440,7 @@ main(int argc, char *argv[])
 #endif
 
     ret = 0;
-Error:
+Error_cudart:
     free( hidata );
     cudaFree(didata);
 

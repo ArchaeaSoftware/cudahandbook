@@ -62,7 +62,7 @@ MeasureTimes(
     int nBlocks, 
     int nThreads )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     std::chrono::steady_clock::time_point chStart, chStop;
     float *dptrOut = 0, *hptrOut = 0;
     float *dptrY = 0, *hptrY = 0;
@@ -118,15 +118,15 @@ MeasureTimes(
 
     for ( size_t i = 0; i < N; i++ ) {
         if ( fabsf( hptrOut[i] - (alpha*hptrX[i]+hptrY[i]) ) > 1e-5f ) {
-            status = cudaErrorUnknown;
-            goto Error;
+            status_cudart = cudaErrorUnknown;
+            goto Error_cudart;
         }
     }
     cuda(EventElapsedTime( msHtoD, evStart, evHtoD ) );
     cuda(EventElapsedTime( msKernel, evHtoD, evKernel ) );
     cuda(EventElapsedTime( msDtoH, evKernel, evDtoH ) );
     cuda(EventElapsedTime( msTotal, evStart, evDtoH ) );
-Error:
+Error_cudart:
     cudaEventDestroy( evDtoH );
     cudaEventDestroy( evKernel );
     cudaEventDestroy( evHtoD );
@@ -137,7 +137,7 @@ Error:
     cudaFreeHost( hptrOut );
     cudaFreeHost( hptrX );
     cudaFreeHost( hptrY );
-    return status;
+    return status_cudart;
 }
 
 double
@@ -149,7 +149,7 @@ Bandwidth( float ms, double NumBytes )
 int
 main( int argc, char *argv[] )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     int N_Mfloats = 128;
     size_t N;
     int nBlocks = 1500;
@@ -177,12 +177,12 @@ main( int argc, char *argv[] )
         printf( "Total time (wall clock): %.2f ms (%.2f MB/s)\n", msWallClock, Bandwidth( msWallClock, 3*N*sizeof(float) ) );
     }
 
-Error:
-    if ( status == cudaErrorMemoryAllocation ) {
+Error_cudart:
+    if ( status_cudart == cudaErrorMemoryAllocation ) {
         printf( "Memory allocation failed\n" );
     }
-    else if ( cudaSuccess != status ) {
+    else if ( cudaSuccess != status_cudart ) {
         printf( "Failed\n" );
     }
-    return cudaSuccess != status;
+    return cudaSuccess != status_cudart;
 }

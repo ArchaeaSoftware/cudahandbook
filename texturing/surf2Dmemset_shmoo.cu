@@ -77,7 +77,7 @@ surf2DmemsetArray_time( float *ms, cudaArray *array, T value, int threadWidth, i
     cudaSurfaceObject_t surfObj = 0;
     cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
 
-    cudaError_t status;
+    cudaError_t status_cudart;
     
     resDesc.res.array.array = array;
     cuda(EventCreate(&start));
@@ -90,8 +90,8 @@ surf2DmemsetArray_time( float *ms, cudaArray *array, T value, int threadWidth, i
     // different size than T
     //
     if ( sizeof(T) != (chDesc.x + chDesc.y + chDesc.z + chDesc.w) / 8 ) {
-        status = cudaErrorInvalidValue;
-        goto Error;
+        status_cudart = cudaErrorInvalidValue;
+        goto Error_cudart;
     }
     cuda(EventRecord(start, 0));
     {
@@ -107,11 +107,11 @@ surf2DmemsetArray_time( float *ms, cudaArray *array, T value, int threadWidth, i
     cuda(EventRecord(stop, 0));
     cuda(DeviceSynchronize());
     cuda(EventElapsedTime(ms, start, stop));
-Error:
+Error_cudart:
     cudaDestroySurfaceObject(surfObj);
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
-    return status;
+    return status_cudart;
 }
 
 template<class T>
@@ -121,7 +121,7 @@ ShmooSurf2Dmemset(
 )
 {
     cudaArray *texArray = 0;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<T>();
     cudaDeviceProp props;
     dim3 blocks, threads;
@@ -164,7 +164,7 @@ ShmooSurf2Dmemset(
     printf( "Maximum bandwidth of %.2f G/s achieved with %d x %d blocks\n", 
         maxBandwidth, minThreadWidth, minThreadHeight );
 
-Error:
+Error_cudart:
     cudaFreeArray( texArray );
 }
 
@@ -172,19 +172,19 @@ int
 main( int argc, char *argv[] )
 {
     int ret = 1;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaDeviceProp prop;
 
     cuda(GetDeviceProperties(&prop, 0));
     if ( prop.major < 2 ) {
         printf( "This application requires SM 2.x (for surface load/store)\n" );
-        goto Error;
+        goto Error_cudart;
     }
     cuda(SetDeviceFlags(cudaDeviceMapHost));
     cuda(Free(0));
     ShmooSurf2Dmemset<float>( 8192, 8192 );
     ret = 0;
 
-Error:
+Error_cudart:
     return ret;
 }

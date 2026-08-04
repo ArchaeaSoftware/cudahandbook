@@ -69,7 +69,7 @@ checksumGPU()
 {
     int sum = 0;
     int host_checksumGPU[NUM_BLOCKS*NUM_THREADS];
-    cudaError_t status;
+    cudaError_t status_cudart;
     size_t i;
 
     cuda(MemcpyFromSymbol(host_checksumGPU, checksumGPU_array, 
@@ -78,7 +78,7 @@ checksumGPU()
         sum += host_checksumGPU[i];
     }
     return sum;
-Error:
+Error_cudart:
     return 0;
 }
 
@@ -153,7 +153,7 @@ TexChecksum( int *out, int c, size_t N,
              cudaTextureObject_t tex1, cudaTextureObject_t tex2,
              const cudaTextureObject_t *tex4 )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     bool ret = false;
     int zero[TOTAL_THREADS];
 
@@ -170,13 +170,13 @@ TexChecksum( int *out, int c, size_t N,
             TexChecksum4<<<NUM_BLOCKS,NUM_THREADS>>>( tex4[0], tex4[1], tex4[2], tex4[3], N / sizeof(int4) );
             break;
         default:
-            goto Error;
+            goto Error_cudart;
     }
     if ( cudaSuccess != cudaDeviceSynchronize() )
-        goto Error;
+        goto Error_cudart;
     *out = checksumGPU();
     ret = true;
-Error:
+Error_cudart:
     return ret;
 }
 
@@ -204,7 +204,7 @@ main( int argc, char *argv[] )
     char *deviceTex = 0;
     bool bAllocedHost = false;
 
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaDeviceProp props;
     int numMb;
     size_t numBytes;
@@ -228,12 +228,12 @@ main( int argc, char *argv[] )
     numBytes = (size_t) numMb << 20;
 
     // try for device memory first.
-    status = cudaMalloc( (void **) &deviceTex, numBytes);
-    if ( cudaSuccess == status ) {
+    status_cudart = cudaMalloc( (void **) &deviceTex, numBytes);
+    if ( cudaSuccess == status_cudart ) {
         hostTex = (int *) malloc( numBytes );
         if ( ! hostTex ) {
             printf( "malloc() failed\n" );
-            goto Error;
+            goto Error_cudart;
         }
     }
     else {
@@ -258,7 +258,7 @@ main( int argc, char *argv[] )
         texObj1 = CreateLinearTexObj( deviceTex, cudaCreateChannelDesc<int1>(), numBytes );
         if ( ! TexChecksum( &checksumGPU1, 1, numBytes, texObj1, 0, NULL ) ) {
             printf( "TexCheckSums failed (unsigned int)\n" );
-            goto Error;
+            goto Error_cudart;
         }
         printf( "    tex1 checksum: 0x%x\n", checksumGPU1 ); 
     }
@@ -269,7 +269,7 @@ main( int argc, char *argv[] )
         texObj2 = CreateLinearTexObj( deviceTex, cudaCreateChannelDesc<int2>(), numBytes );
         if ( ! TexChecksum( &checksumGPU2, 2, numBytes, 0, texObj2, NULL ) ) {
             printf( "TexCheckSums failed (int2)\n" );
-            goto Error;
+            goto Error_cudart;
         }
         printf( "    tex2 checksum: 0x%x\n", checksumGPU2 ); 
     }
@@ -305,13 +305,13 @@ main( int argc, char *argv[] )
         }
         if ( ! TexChecksum( &checksumGPU4, 4, numBytes, 0, 0, texObj4 ) ) {
             printf( "TexCheckSums failed (int4)\n" );
-            goto Error;
+            goto Error_cudart;
         }
     }
     printf( "    tex4 checksum: 0x%x\n", checksumGPU4 );
  
     ret = 0;
-Error:
+Error_cudart:
     cudaDestroyTextureObject( texObj1 );
     cudaDestroyTextureObject( texObj2 );
     for ( int k = 0; k < 4; k++ ) {

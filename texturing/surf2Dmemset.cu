@@ -115,15 +115,15 @@ surf2DmemsetArray( cudaArray *array, T value )
     CUarray drvArray = (CUarray) array;
     CUDA_ARRAY_DESCRIPTOR desc;
 
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaSurfaceObject_t surfObj = 0;
     int minGridSize, blockSize;
     cudaResourceDesc resDesc = { .resType = cudaResourceTypeArray };
     resDesc.res.array.array = array;
     cuda(CreateSurfaceObject( &surfObj, &resDesc ));
     if ( CUDA_SUCCESS != cuArrayGetDescriptor( &desc, drvArray ) ) {
-        status = cudaErrorInvalidValue;
-        goto Error;
+        status_cudart = cudaErrorInvalidValue;
+        goto Error_cudart;
     }
 
     //
@@ -131,8 +131,8 @@ surf2DmemsetArray( cudaArray *array, T value )
     // different size than T
     //
     if ( sizeof(T) != desc.NumChannels*CUarray_format_size(desc.Format) ) {
-        status = cudaErrorInvalidValue;
-        goto Error;
+        status_cudart = cudaErrorInvalidValue;
+        goto Error_cudart;
     }
     cuda(OccupancyMaxPotentialBlockSize( &minGridSize, &blockSize, surf2Dmemset_kernel<T> ));
     surf2Dmemset_kernel<<<minGridSize, blockSize>>>(
@@ -141,10 +141,10 @@ surf2DmemsetArray( cudaArray *array, T value )
         0, 0, // X and Y offset
         desc.Width, 
         desc.Height );
-    status = cudaDeviceSynchronize();
-Error:
+    status_cudart = cudaDeviceSynchronize();
+Error_cudart:
     cudaDestroySurfaceObject( surfObj );
-    return status;
+    return status_cudart;
 }
 
 template<class T>
@@ -160,7 +160,7 @@ CreateAndPrintTex(
 {
     cudaArray *texArray = 0;
     float4 *outHost = 0, *outDevice = 0;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaTextureObject_t tex = 0;
     size_t outPitch;
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<T>();
@@ -202,7 +202,7 @@ CreateAndPrintTex(
     }
     printf( "\n" );
 
-Error:
+Error_cudart:
     cudaDestroyTextureObject( tex );
     cudaFreeArray( texArray );
     cudaFreeHost( outHost );
@@ -212,7 +212,7 @@ int
 main( int argc, char *argv[] )
 {
     int ret = 1;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaDeviceProp prop;
     cudaTextureFilterMode filterMode = cudaFilterModePoint;
     cudaTextureAddressMode addressMode = cudaAddressModeClamp;
@@ -220,7 +220,7 @@ main( int argc, char *argv[] )
     cuda(GetDeviceProperties(&prop, 0));
     if ( prop.major < 2 ) {
         printf( "This application requires SM 2.x (for surface load/store)\n" );
-        goto Error;
+        goto Error_cudart;
     }
     cuda(SetDeviceFlags(cudaDeviceMapHost));
     cuda(Free(0));
@@ -241,6 +241,6 @@ main( int argc, char *argv[] )
     } while ( filterMode == cudaFilterModeLinear );
     ret = 0;
 
-Error:
+Error_cudart:
     return ret;
 }

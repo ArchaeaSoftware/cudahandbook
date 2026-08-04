@@ -172,12 +172,12 @@ class CGPUTestP2PLatency : public CGPUTestP2P {
 public:
 
     CGPUTestP2PLatency( cEnumCPUGPU dst, cEnumCPUGPU src, size_t cIterations, bool bUseEvents ) : CGPUTestP2P( dst, src, 4, bUseEvents, true ) { 
-        cudaError_t status;
+        cudaError_t status_cudart;
         m_cIterations = cIterations;
         cuda(Malloc( &m_dptrDstTimestamps, (cIterations+1)*sizeof(uint64_t) ) );
         cuda(Malloc( &m_dptrSrcTimestamps, (cIterations+1)*sizeof(uint64_t) ) );
         return;
-    Error: 
+    Error_cudart: 
         fprintf(stderr, "cudaMalloc failed\n" ); 
         exit(1);
     }
@@ -229,7 +229,7 @@ operator<<( ostream& os, const GPUPair& p )
 CGPULoadDriver::CGPULoadDriver( cEnumCPUGPU dstDevice, cEnumCPUGPU srcDevice, cEnumCPUGPU eventDevice, size_t cBytes, bool bLatencyTest ):
     m_dstDevice( dstDevice ), m_srcDevice( srcDevice ), m_eventDevice( eventDevice ), m_bLatencyTest(bLatencyTest)
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     m_evStart = m_evStop = 0;
 
@@ -240,7 +240,7 @@ CGPULoadDriver::CGPULoadDriver( cEnumCPUGPU dstDevice, cEnumCPUGPU srcDevice, cE
     cuda(EventCreate( &m_evStart ) );
     cuda(EventCreate( &m_evStop ) );
     return;
-Error:
+Error_cudart:
     cout << "Error creating CGPULoadDriver( " << dstDevice << ", " << srcDevice << endl;
     exit(1);
 }
@@ -267,7 +267,7 @@ makeLoadDriver( cEnumCPUGPU dst, cEnumCPUGPU src, size_t bytes, bool bUseEvents 
 CGPUTestP2P::CGPUTestP2P( cEnumCPUGPU dstDevice, cEnumCPUGPU srcDevice, size_t cBytes, bool bUseEvents, bool bLatencyTest ):
     CGPULoadDriver( dstDevice, srcDevice, srcDevice, cBytes, bLatencyTest )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     assert( dstDevice.bGPU() && srcDevice.bGPU() );
     m_bUseEvents = bUseEvents;
     cuda(SetDevice(m_dstDevice.getGPU() ) );
@@ -277,7 +277,7 @@ CGPUTestP2P::CGPUTestP2P( cEnumCPUGPU dstDevice, cEnumCPUGPU srcDevice, size_t c
     cuda(Malloc( &m_dptrSrc, g_cBytes ) );
     cuda(Memset( m_dptrSrc, 0, g_cBytes ) );
     return;
-Error:
+Error_cudart:
     cerr << "Error creating CGPUTestP2P " << dstDevice << ", " << srcDevice << endl;
     exit(1);
 }
@@ -285,7 +285,7 @@ Error:
 CGPUTestH2D::CGPUTestH2D( cEnumCPUGPU dstDevice, cEnumCPUGPU srcDevice, size_t cBytes, bool bUseEvents ):
     CGPULoadDriver( dstDevice, srcDevice, dstDevice, cBytes )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     assert( dstDevice.bGPU() && srcDevice.bCPU() );
     m_bUseEvents = bUseEvents;
     m_dptrDst = 0;
@@ -293,9 +293,9 @@ CGPUTestH2D::CGPUTestH2D( cEnumCPUGPU dstDevice, cEnumCPUGPU srcDevice, size_t c
     cuda(SetDevice(m_dstDevice.getGPU() ) );
     cuda(Malloc( &m_dptrDst, m_cBytes ) );
     if ( ! chNUMApageAlignedAllocHost( &m_pSrc, m_cBytes, dstDevice.getGPU() ) )
-        goto Error;
+        goto Error_cudart;
     return;
-Error:
+Error_cudart:
 cerr << "Error creating CGPUTestH2D " << dstDevice << ", " << srcDevice << endl;
     exit(1);
 }
@@ -303,7 +303,7 @@ cerr << "Error creating CGPUTestH2D " << dstDevice << ", " << srcDevice << endl;
 CGPUTestD2H::CGPUTestD2H( cEnumCPUGPU dstDevice, cEnumCPUGPU srcDevice, size_t cBytes, bool bUseEvents ):
     CGPULoadDriver( dstDevice, srcDevice, srcDevice, cBytes )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     assert( dstDevice.bCPU() && srcDevice.bGPU() );
     m_bUseEvents = bUseEvents;
     m_pDst = 0;
@@ -312,7 +312,7 @@ CGPUTestD2H::CGPUTestD2H( cEnumCPUGPU dstDevice, cEnumCPUGPU srcDevice, size_t c
     cuda(Malloc( &m_dptrSrc, g_cBytes ) );
     cuda(MallocHost( &m_pDst, g_cBytes ) );
     return;
-Error:
+Error_cudart:
     cerr << "Error creating CGPUTestD2H " << dstDevice << ", " << srcDevice << endl;
     exit(1);
 }
@@ -359,14 +359,14 @@ bool
 CGPUTestP2P::PerformMemcpys( )
 {
     bool bRet = false;
-    cudaError_t status;
+    cudaError_t status_cudart;
     for ( int j = 0; j < g_cIterations; j++ ) {
         cuda(MemcpyPeerAsync( m_dptrDst, m_dstDevice.getGPU(),
                                            m_dptrSrc, m_srcDevice.getGPU(),
                                            g_cBytes, NULL ) );
     }
     bRet = true;
-Error:
+Error_cudart:
     return bRet;
 }
 
@@ -417,7 +417,7 @@ bool
 CGPUTestP2PLatency::PerformMemcpys( )
 {
     bool bRet = false;
-    cudaError_t status;
+    cudaError_t status_cudart;
     int clockRate;
     double srcClockRate, dstClockRate;
     uint64_t *phostDst = (uint64_t *) malloc( (m_cIterations+1)*sizeof(uint64_t) );
@@ -479,7 +479,7 @@ CGPUTestP2PLatency::PerformMemcpys( )
     }
 
     bRet = true;
-Error:
+Error_cudart:
     return bRet;
 }
 
@@ -487,13 +487,13 @@ bool
 CGPUTestH2D::PerformMemcpys( )
 {
     bool bRet = false;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cuda(SetDevice( m_dstDevice.getGPU() ) );
     for ( int j = 0; j < g_cIterations; j++ ) {
         cuda(MemcpyAsync( m_dptrDst, m_pSrc, g_cBytes, cudaMemcpyHostToDevice ) );
     }
     bRet = true;
-Error:
+Error_cudart:
     return bRet;
 }
 
@@ -501,20 +501,20 @@ bool
 CGPUTestD2H::PerformMemcpys( )
 {
     bool bRet = false;
-    cudaError_t status;
+    cudaError_t status_cudart;
     cuda(SetDevice( m_srcDevice.getGPU() ) );
     for ( int j = 0; j < g_cIterations; j++ ) {
         cuda(MemcpyAsync( m_pDst, m_dptrSrc, g_cBytes, cudaMemcpyDeviceToHost ) );
     }
     bRet = true;
-Error:
+Error_cudart:
     return bRet;
 }
 
 bool
 CGPULoadDriver::TimeMemcpys( )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     bool bRet = false;
     bool bAcquiredMutex = false;
 
@@ -523,7 +523,7 @@ CGPULoadDriver::TimeMemcpys( )
         cuda(EventRecord( m_evStart, NULL ) );
     }
     if ( ! PerformMemcpys() )
-        goto Error;
+        goto Error_cudart;
     if ( m_bUseEvents ) {
         cuda(SetDevice( m_eventDevice.getGPU() ) );
         cuda(EventRecord( m_evStop, NULL ) );
@@ -549,7 +549,7 @@ CGPULoadDriver::TimeMemcpys( )
         cout << "    " << m_dstDevice << " <- " << m_srcDevice << ": " << MBpers << " MB/s (CUDA event)" << endl;
     }
     bRet = true;
-Error:
+Error_cudart:
     if ( bAcquiredMutex ) {
         g_mutexOutput.unlock();
     }
@@ -626,11 +626,11 @@ RunTest( vector<GPUPair> pairs, size_t cBytes, const char *szTestName )
     for ( int i = 0; i < pairs.size(); i++ ) {
         cout << "    " << pairs[i] << endl;
     }
-    if ( ! LaunchMemcpys_threaded( pairs, cBytes, true ) ) goto Error;
+    if ( ! LaunchMemcpys_threaded( pairs, cBytes, true ) ) goto Error_cudart;
 // the bool says whether to use events.
-//    if ( ! LaunchMemcpys_threaded( pairs, cBytes, false ) ) goto Error;
+//    if ( ! LaunchMemcpys_threaded( pairs, cBytes, false ) ) goto Error_cudart;
     return true;
-Error:
+Error_cudart:
     return false;
 }
 
@@ -704,7 +704,7 @@ main( int argc, char *argv[] )
 {
     int deviceCount;
 
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     printf( "Peer-to-peer memcpy... " ); fflush( stdout );
 
@@ -743,7 +743,7 @@ main( int argc, char *argv[] )
     }
 
     return 0;
-Error:
+Error_cudart:
     printf( "Error\n" );
     return 1;
 }

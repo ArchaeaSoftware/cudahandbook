@@ -60,7 +60,7 @@ TimeConcurrentMemcpyKernel(
     const chShmooRange& streamsRange, 
     int numBlocks )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     float ret = 0.0f;
     int *hostIn = 0;
     int *hostOut = 0;
@@ -83,7 +83,7 @@ TimeConcurrentMemcpyKernel(
     }
     streams = (cudaStream_t *) malloc( maxStreams*sizeof(cudaStream_t) );
     if ( ! streams )
-        goto Error;
+        goto Error_cudart;
     memset( streams, 0, maxStreams*sizeof(cudaStream_t) );
     for ( int i = 0; i < maxStreams; i++ ) {
         cuda(StreamCreate( &streams[i] ) );
@@ -166,7 +166,7 @@ TimeConcurrentMemcpyKernel(
 
     ret = true;
 
-Error:
+Error_cudart:
     for ( int i = 0; i < numEvents; i++ ) {
         cudaEventDestroy( events[i] );
     }

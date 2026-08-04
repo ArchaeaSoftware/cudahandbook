@@ -54,7 +54,7 @@ TimeConcurrentKernelMapped(
     const chShmooRange& streamsRange, 
     int numBlocks, int unrollFactor )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     bool ret = false;
     int *hostIn = 0;
     int *hostOut = 0;
@@ -77,7 +77,7 @@ TimeConcurrentKernelMapped(
     }
     streams = (cudaStream_t *) malloc( maxStreams*sizeof(cudaStream_t) );
     if ( ! streams )
-        goto Error;
+        goto Error_cudart;
     memset( streams, 0, maxStreams*sizeof(cudaStream_t) );
     for ( int i = 0; i < maxStreams; i++ ) {
         cuda(StreamCreate( &streams[i] ) );
@@ -150,7 +150,7 @@ TimeConcurrentKernelMapped(
 
     ret = true;
 
-Error:
+Error_cudart:
     for ( int i = 0; i < numEvents; i++ ) {
         cudaEventDestroy( events[i] );
     }

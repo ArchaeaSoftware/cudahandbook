@@ -61,11 +61,11 @@ typedef struct TimingResult_struct {
 double
 chEventBandwidth( cudaEvent_t start, cudaEvent_t stop, double cBytes )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     float ms;
     cuda(EventElapsedTime( &ms, start, stop ) );
     return cBytes * 1000.0f / ms;
-Error:
+Error_cudart:
     return 0.0;
 }
 
@@ -83,7 +83,7 @@ TimedReduction(
     int *partialSums = 0;
     cudaEvent_t start = 0;
     cudaEvent_t stop = 0;
-    cudaError_t status;
+    cudaError_t status_cudart;
 
     cuda(Malloc( &deviceAnswer, sizeof(int) ) );
     cuda(Malloc( &partialSums, cBlocks*sizeof(int) ) );
@@ -110,7 +110,7 @@ TimedReduction(
         powf(2.0f,30.0f);
 
     // fall through to free resources before returning
-Error:
+Error_cudart:
     cudaFree( deviceAnswer );
     cudaFree( partialSums );
     cudaEventDestroy( start );
@@ -124,7 +124,7 @@ Shmoo( TimingResult *timingResult,
        bool bPrint, bool bPrintMax,
        void (*pfnReduce)(int *out, int *intermediateSums, const int *in, size_t N, int cBlocks, int cThreads) )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     double maxBW = 0.0f;
     int maxThreads;
     int cBlocks = 1800;
@@ -152,14 +152,14 @@ Shmoo( TimingResult *timingResult,
         printf( "Max bandwidth of %.2f G/s attained by %d blocks "
             "of %d threads\n", maxBW, cBlocks, maxThreads );
     }
-Error:;
+Error_cudart:;
 }
 
 double
 usPerInvocation( int cIterations, size_t N,
     void (*pfnReduction)( int *out, int *partial, const int *in, size_t N, int numBlocks, int numThreads ) )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     int *smallArray = 0;
     int *partialSums = 0;
     double ret = 0.0f;
@@ -175,7 +175,7 @@ usPerInvocation( int cIterations, size_t N,
     stop = std::chrono::steady_clock::now();
     ret = std::chrono::duration<double>(stop - start).count();
     ret = (ret / (double) cIterations) * 1e6;
-Error:
+Error_cudart:
     (void) cudaFree( partialSums );
     (void) cudaFree( smallArray );
     return ret;
@@ -195,7 +195,7 @@ int
 main( int argc, char *argv[] )
 {
     cudaDeviceProp props;
-    cudaError_t status;
+    cudaError_t status_cudart;
     int *hostData = 0;
     int *deviceData = 0;
     int sum;
@@ -214,7 +214,7 @@ main( int argc, char *argv[] )
 
     hostData = (int *) malloc( cInts*sizeof(int) );
     if ( ! hostData )
-        goto Error;
+        goto Error_cudart;
     cuda(SetDevice( device ) );
     cuda(Malloc( &deviceData, cInts*sizeof(int) ) );
     cuda(GetDeviceProperties( &props, 0 ) );
@@ -276,7 +276,7 @@ main( int argc, char *argv[] )
     }
 
     return 0;
-Error:
+Error_cudart:
     free( hostData );
     if ( deviceData ) {
         cudaFree( deviceData );

@@ -300,14 +300,14 @@ ComputeGravitation_GPU_AOS_tiled_const(
     size_t N
 )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     dim3 blocks( N/nTile, N/32, 1 );
 
     cuda(Memset( force, 0, 3*N*sizeof(float) ) );
     ComputeNBodyGravitation_GPU_tiled_const<nTile><<<blocks,nTile>>>( force, posMass, N, softeningSquared );
     cuda(DeviceSynchronize() );
-Error:
-    return status;
+Error_cudart:
+    return status_cudart;
 }
 
 float
@@ -318,7 +318,7 @@ ComputeGravitation_GPU_AOS_tiled_const(
     size_t N
 )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaEvent_t evStart = 0, evStop = 0;
     float ms = 0.0;
     cuda(DeviceSetCacheConfig( cudaFuncCachePreferShared ) );
@@ -333,7 +333,7 @@ ComputeGravitation_GPU_AOS_tiled_const(
     cuda(EventRecord( evStop, NULL ) );
     cuda(DeviceSynchronize() );
     cuda(EventElapsedTime( &ms, evStart, evStop ) );
-Error:
+Error_cudart:
     cuda(EventDestroy( evStop ) );
     cuda(EventDestroy( evStart ) );
     return ms;

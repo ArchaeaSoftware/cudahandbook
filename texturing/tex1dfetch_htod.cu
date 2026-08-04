@@ -59,7 +59,7 @@ template<class T>
 float
 MeasureBandwidth( void *out, cudaTextureObject_t tex, size_t N, int blocks, int threads )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     std::chrono::steady_clock::time_point start, stop;
     double Bandwidth = 0.0f;
 
@@ -71,7 +71,7 @@ MeasureBandwidth( void *out, cudaTextureObject_t tex, size_t N, int blocks, int 
     stop = std::chrono::steady_clock::now();
 
     Bandwidth = ((double) N*sizeof(T) / std::chrono::duration<double>(stop - start).count())/1048576.0;
-Error:
+Error_cudart:
     return (float) Bandwidth;
 }
 
@@ -83,7 +83,7 @@ ComputeMaximumBandwidth( size_t N )
     T *inDevice = 0;
     T *outDevice = 0;
     T *outHost = 0;
-    cudaError_t status;
+    cudaError_t status_cudart;
     bool ret = false;
     float fMaxBandwidth = 0.0f;
     int cMaxBlocks = 0;
@@ -126,7 +126,7 @@ ComputeMaximumBandwidth( size_t N )
                 for ( int i = 0; i < N; i++ ) {
                     assert( outHost[i] == inHost[i] );
                     if ( outHost[i] != inHost[i] ) {
-                        goto Error;
+                        goto Error_cudart;
                     }
                 }
             }
@@ -134,7 +134,7 @@ ComputeMaximumBandwidth( size_t N )
     }
 
     ret = true;
-Error:
+Error_cudart:
     cudaDestroyTextureObject( tex );
     cudaFreeHost( inHost );
     cudaFree( outDevice );
@@ -146,7 +146,7 @@ int
 main( int argc, char *argv[] )
 {
     int ret = 1;
-    cudaError_t status;
+    cudaError_t status_cudart;
     float fMaxBW = 0.0f;
 
     cuda(SetDeviceFlags(cudaDeviceMapHost));
@@ -156,6 +156,6 @@ main( int argc, char *argv[] )
     printf( "Maximum bandwidth achieved: %.2f\n", fMaxBW );
 
     ret = 0;
-Error:
+Error_cudart:
     return ret;
 }

@@ -54,7 +54,7 @@ void
 PrintTex( float *host, size_t N )
 {
     CUdeviceptr device;
-    CUresult status;
+    CUresult status_cuda;
     memset( host, 0, N*sizeof(float) );
     cu(MemHostGetDevicePointer( &device, host, 0 ));
 
@@ -79,7 +79,7 @@ PrintTex( float *host, size_t N )
 */
     }
     printf( "\n" );
-Error:;
+Error_cuda:;
 }
 
 static CUresult
@@ -88,7 +88,7 @@ LoadPTXModule( CUmodule *mod, const char *filename )
     FILE *f = fopen( filename, "rb" );
     long size;
     void *p = 0;
-    CUresult status;
+    CUresult status_cuda;
     if ( ! f ) {
         return CUDA_ERROR_NOT_FOUND;
     }
@@ -100,15 +100,15 @@ LoadPTXModule( CUmodule *mod, const char *filename )
         return CUDA_ERROR_OUT_OF_MEMORY;
     }
     if ( 1 != fread( p, size, 1, f ) ) {
-        status = CUDA_ERROR_UNKNOWN;
-        goto Error;
+        status_cuda = CUDA_ERROR_UNKNOWN;
+        goto Error_cuda;
     }
     ((char *) p)[size] = '\0';
-    status = cuModuleLoadDataEx( mod, p, 0, NULL, NULL );
-Error:
+    status_cuda = cuModuleLoadDataEx( mod, p, 0, NULL, NULL );
+Error_cuda:
     fclose( f );
     free( p );
-    return status;
+    return status_cuda;
 }
 
 int
@@ -120,7 +120,7 @@ main( int argc, char *argv[] )
 
     float *foutHost;
     CUdeviceptr foutDevice;
-    CUresult status;
+    CUresult status_cuda;
 
     cu(Init(0));
     cu(DeviceGet(&g_device, 0));
@@ -145,6 +145,6 @@ main( int argc, char *argv[] )
     }
     PrintTex( foutHost, NUM_FLOATS );
 
-Error:
+Error_cuda:
     cuMemFree( p );
 }

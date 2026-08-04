@@ -77,17 +77,17 @@ scanPackStatus( uint32_t flag, int value )
 //
 template<class T>
 __device__ __forceinline__ void
-scanCoopLookback( volatile scanStatus *status, uint32_t tile, T aggregate, T &s_base )
+scanCoopLookback( volatile scanStatus *status_cudart, uint32_t tile, T aggregate, T &s_base )
 {
     if ( tile == 0 ) {
         if ( threadIdx.x == 0 ) {
-            atomicExch( (scanStatus *) &status[tile], scanPackStatus( SCAN_P, aggregate ) );
+            atomicExch( (scanStatus *) &status_cudart[tile], scanPackStatus( SCAN_P, aggregate ) );
             s_base = (T) 0;
         }
         return;
     }
     if ( threadIdx.x == 0 )
-        atomicExch( (scanStatus *) &status[tile], scanPackStatus( SCAN_A, aggregate ) );
+        atomicExch( (scanStatus *) &status_cudart[tile], scanPackStatus( SCAN_A, aggregate ) );
     if ( threadIdx.x < 32 ) {
         const int lane = threadIdx.x;
         T exclusive = (T) 0;
@@ -97,7 +97,7 @@ scanCoopLookback( volatile scanStatus *status, uint32_t tile, T aggregate, T &s_
             uint32_t flag; T val;
             do {
                 if ( pidx >= 0 ) {
-                    scanStatus d = atomicOr( (scanStatus *) &status[pidx], 0ull );
+                    scanStatus d = atomicOr( (scanStatus *) &status_cudart[pidx], 0ull );
                     flag = (uint32_t) ( d >> 32 );
                     val  = (T) (int) ( d & 0xffffffffu );
                 } else { flag = SCAN_P; val = (T) 0; }
@@ -114,7 +114,7 @@ scanCoopLookback( volatile scanStatus *status, uint32_t tile, T aggregate, T &s_
         }
         if ( lane == 0 ) {
             s_base = exclusive;
-            atomicExch( (scanStatus *) &status[tile],
+            atomicExch( (scanStatus *) &status_cudart[tile],
                         scanPackStatus( SCAN_P, exclusive + aggregate ) );
         }
     }
@@ -125,7 +125,7 @@ __global__ void
 scanDecoupledLookback_kernel(
     T *out,
     const T *in,
-    volatile scanStatus *status,  // one descriptor per tile (SCAN_X-initialized)
+    volatile scanStatus *status_cudart,  // one descriptor per tile (SCAN_X-initialized)
     uint32_t *tileCounter,          // one global counter, 0-initialized
     size_t N )
 {
@@ -167,7 +167,7 @@ scanDecoupledLookback_kernel(
     //
     if ( tile == 0 ) {
         if ( threadIdx.x == 0 ) {
-            atomicExch( (scanStatus *) &status[tile],
+            atomicExch( (scanStatus *) &status_cudart[tile],
                         scanPackStatus( SCAN_P, aggregate ) );
             s_exclusive = (T) 0;
         }
@@ -175,7 +175,7 @@ scanDecoupledLookback_kernel(
     else {
         // Advertise our aggregate so successors can make progress without us.
         if ( threadIdx.x == 0 )
-            atomicExch( (scanStatus *) &status[tile],
+            atomicExch( (scanStatus *) &status_cudart[tile],
                         scanPackStatus( SCAN_A, aggregate ) );
 
         if ( threadIdx.x < 32 ) {
@@ -190,7 +190,7 @@ scanDecoupledLookback_kernel(
                 T val;
                 do {                            // re-read the window until no lane sees X
                     if ( pidx >= 0 ) {
-                        scanStatus d = atomicOr( (scanStatus *) &status[pidx], 0ull );
+                        scanStatus d = atomicOr( (scanStatus *) &status_cudart[pidx], 0ull );
                         flag = (uint32_t) ( d >> 32 );
                         val  = (T) (int) ( d & 0xffffffffu );
                     } else {
@@ -216,7 +216,7 @@ scanDecoupledLookback_kernel(
             }
             if ( lane == 0 ) {
                 s_exclusive = exclusive;
-                atomicExch( (scanStatus *) &status[tile],
+                atomicExch( (scanStatus *) &status_cudart[tile],
                             scanPackStatus( SCAN_P, exclusive + aggregate ) );
             }
         }
@@ -235,7 +235,7 @@ template<class T>
 void
 scanDecoupledLookback( T *out, const T *in, size_t N, int b )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     scanStatus *gStatus = 0;
     uint32_t *tileCounter = 0;
 
@@ -252,7 +252,7 @@ scanDecoupledLookback( T *out, const T *in, size_t N, int b )
     scanDecoupledLookback_kernel<T><<<numTiles, b, b * sizeof(T)>>>(
         out, in, gStatus, tileCounter, N );
 
-Error:
+Error_cudart:
     cudaFree( gStatus );
     cudaFree( tileCounter );
 }

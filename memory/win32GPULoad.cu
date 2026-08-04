@@ -75,16 +75,16 @@ elapsedTimeCopyToGPU( void *dst, void *src, size_t bytes, int cIterations )
     {
         for ( int i = 0; i < cIterations; i++ ) {
             if ( cudaSuccess != cudaMemcpyAsync( dst, src, bytes, cudaMemcpyHostToDevice ) )
-                goto Error;
+                goto Error_cudart;
         }
     }
     if ( cudaSuccess != cudaDeviceSynchronize() )
-        goto Error;
+        goto Error_cudart;
     
     end = std::chrono::steady_clock::now();
 
     ret = std::chrono::duration<double>(end - start).count() / cIterations;
-Error:
+Error_cudart:
     return ret;
 }
 
@@ -98,16 +98,16 @@ elapsedTimeCopyFromGPU( void *dst, void *src, size_t bytes, int cIterations )
     {
         for ( int i = 0; i < cIterations; i++ ) {
             if ( cudaSuccess != cudaMemcpyAsync( dst, src, bytes, cudaMemcpyDeviceToHost ) )
-                goto Error;
+                goto Error_cudart;
         }
     }
     if ( cudaSuccess != cudaDeviceSynchronize() )
-        goto Error;
+        goto Error_cudart;
     
     end = std::chrono::steady_clock::now();
 
     ret = std::chrono::duration<double>(end - start).count() / cIterations;
-Error:
+Error_cudart:
     return ret;
 }
 
@@ -160,13 +160,13 @@ threadBandwidthToSocket( LPVOID _p )
 
     void *pHost = pageAlignedNumaAlloc( p->size, p->node );
     if ( ! pHost )
-        goto Error;
+        goto Error_cudart;
     if ( cudaSuccess != cudaSetDevice( p->device ) )
-        goto Error;
+        goto Error_cudart;
     if ( cudaSuccess != cudaHostRegister( pHost, p->size, 0 ) )
-        goto Error;
+        goto Error_cudart;
     if ( cudaSuccess != cudaMalloc( &pDevice, p->size ) )
-        goto Error;
+        goto Error_cudart;
 
     while ( ! globals.bExit ) {
         double et = p->copyToDevice ? 
@@ -174,7 +174,7 @@ threadBandwidthToSocket( LPVOID _p )
                 elapsedTimeCopyFromGPU( pHost, pDevice, p->size, g_cIterations );
         if ( 0.0 == et ) {
             printf( "Error during DMA\n" );
-            goto Error;
+            goto Error_cudart;
         }
         EnterCriticalSection( &globals.cs );
             globals.totalBytes += p->size;
@@ -182,7 +182,7 @@ threadBandwidthToSocket( LPVOID _p )
         LeaveCriticalSection( &globals.cs );
     }
     ret = 0;
-Error:
+Error_cudart:
     if ( pDevice ) cudaFree( pDevice );
     if ( pHost ) {
         cudaHostUnregister( pHost );
@@ -272,7 +272,7 @@ main( int argc, char *argv[] )
         }
         if ( ! hThread ) {
             globals.bExit = true;
-            goto Error;
+            goto Error_cudart;
         }
 
     }
@@ -299,6 +299,6 @@ main( int argc, char *argv[] )
     } while ( ! globals.bExit );
     ret = 0;
 
-Error:
+Error_cudart:
     return ret;
 }

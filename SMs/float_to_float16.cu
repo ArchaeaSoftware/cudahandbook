@@ -178,7 +178,7 @@ ConvertFloatToHalf( float f )
 int
 main()
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     unsigned short *convertedFloats = 0;
     unsigned short *deviceFloats = 0;
     int cDifferent = 0;
@@ -229,7 +229,7 @@ main()
     }
     printf( "Done: success\n" );
     return 0;
-Error:
+Error_cudart:
     printf( "Error\n" );
     return 1;
 }
