@@ -54,6 +54,10 @@ ComputeGravitation_SIMD_openmp(
     size_t N
 )
 {
+    // AVX processes eight bodies at a time; refuse a body count that is not
+    // a multiple of eight rather than silently dropping the remainder.
+    requireBodyCountForAVX( N );
+
     std::chrono::steady_clock::time_point start, end;
     start = std::chrono::steady_clock::now();
 

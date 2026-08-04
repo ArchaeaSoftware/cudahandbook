@@ -577,9 +577,15 @@ main( int argc, char *argv[] )
 
     chCommandLineGet( &kMaxIterations, "iterations", argc, argv);
 
-    // Round down to the nearest multiple of the CPU count (e.g. if we have
-    // a system with a CPU count that isn't a power of two, we need to round)
-    g_N -= g_N % g_numCPUCores;
+    // Round the body count down so it divides evenly among the worker threads
+    // (one per CPU core) and also fills whole 8-wide AVX vectors: round down to
+    // a multiple of lcm(8, number of cores). Scoped so the goto-based cuda()
+    // error macros elsewhere in main() don't jump past this initialization.
+    {
+        int granularity = g_numCPUCores;
+        while ( granularity % 8 != 0 ) granularity += g_numCPUCores;
+        g_N -= g_N % granularity;
+    }
 
     if ( chCommandLineGetBool( "gpu-crosscheck", argc, argv ) ) {
         g_bGPUCrossCheck = true;

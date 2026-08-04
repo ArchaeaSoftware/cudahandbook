@@ -34,6 +34,12 @@
  *
  */
 
+#pragma once
+
+#include <cstddef>
+#include <cstdio>
+#include <cstdlib>
+
 #if defined(__AVX__)
 
 #define HAVE_SIMD
@@ -42,7 +48,7 @@
 #define HAVE_SIMD_OPENMP
 #endif
 
-#elif defined(HAVE_ALTIVEC) || defined(HAVE_NEON)
+#elif defined(HAVE_ALTIVEC)
 
 #define HAVE_SIMD
 #ifdef _OPENMP
@@ -50,6 +56,21 @@
 #endif
 
 #endif
+
+//
+// The AVX kernels process eight bodies per iteration, so the body count must
+// be a multiple of eight. Refuse rather than silently dropping the remaining
+// one to seven bodies and returning incorrect forces.
+//
+static inline void
+requireBodyCountForAVX( size_t N )
+{
+    if ( N % 8 != 0 ) {
+        fprintf( stderr, "N-body: the AVX implementation requires the body "
+                         "count to be a multiple of 8, but N = %zu.\n", N );
+        exit( EXIT_FAILURE );
+    }
+}
 
 float
 ComputeGravitation_SIMD(
