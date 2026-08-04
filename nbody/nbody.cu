@@ -577,15 +577,11 @@ main( int argc, char *argv[] )
 
     chCommandLineGet( &kMaxIterations, "iterations", argc, argv);
 
-    // Round the body count down so it divides evenly among the worker threads
-    // (one per CPU core) and also fills whole 8-wide AVX vectors: round down to
-    // a multiple of lcm(8, number of cores). Scoped so the goto-based cuda()
-    // error macros elsewhere in main() don't jump past this initialization.
-    {
-        int granularity = g_numCPUCores;
-        while ( granularity % 8 != 0 ) granularity += g_numCPUCores;
-        g_N -= g_N % granularity;
-    }
+    // Round the body count down to a whole number of 8-wide AVX vectors. This
+    // is the AVX SIMD-width requirement only; it is unrelated to the core count
+    // -- the multithreaded path (Listing 14-9) divides whatever body count it
+    // is given among the cores and absorbs any remainder itself.
+    g_N -= g_N % 8;
 
     if ( chCommandLineGetBool( "gpu-crosscheck", argc, argv ) ) {
         g_bGPUCrossCheck = true;

@@ -113,7 +113,6 @@ ComputeGravitation_SIMD_threaded(
     {
         avxDelegation *pavx = new avxDelegation[g_numCPUCores];
         std::vector<std::thread> threads;
-        size_t bodiesPerCore = N / g_numCPUCores;
         for ( size_t i = 0; i < g_numCPUCores; i++ ) {
             pavx[i].hostPosSOA[0] = pos[0];
             pavx[i].hostPosSOA[1] = pos[1];
@@ -124,8 +123,14 @@ ComputeGravitation_SIMD_threaded(
             pavx[i].hostForceSOA[2] = force[2];
             pavx[i].softeningSquared = softeningSquared;
 
-            pavx[i].i = bodiesPerCore*i;
-            pavx[i].n = bodiesPerCore;
+            // Divide the bodies as evenly as possible among the cores. This
+            // split is independent of the AVX width: a core may be handed any
+            // number of bodies, so an uneven division just gives some cores one
+            // more body than others rather than dropping the remainder.
+            size_t begin = N *  i      / g_numCPUCores;
+            size_t end   = N * (i + 1) / g_numCPUCores;
+            pavx[i].i = begin;
+            pavx[i].n = end - begin;
             pavx[i].N = N;
 
             threads.emplace_back( avxWorkerThread, &pavx[i] );
