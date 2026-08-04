@@ -34,7 +34,7 @@
  *
  */
 
-#if defined(HAVE_SSE)
+#if defined(__AVX__)
 
 #define HAVE_SIMD
 #define HAVE_SIMD_THREADED

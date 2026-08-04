@@ -4,7 +4,7 @@
  *
  * Scalar CPU implementation of the O(N^2) N-body calculation.
  * This SOA (structure of arrays) formulation blazes the trail
- * for an SSE implementation.
+ * for an AVX implementation.
  *
  * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.

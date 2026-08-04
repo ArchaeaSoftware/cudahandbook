@@ -1,10 +1,10 @@
 /*
  *
- * nbody_CPU_SOA.h
+ * nbody_CPU_AVX_openmp.cpp
  *
- * Scalar CPU implementation of the O(N^2) N-body calculation.
- * This SOA (structure of arrays) formulation blazes the trail
- * for an AVX implementation.
+ * Multithreaded AVX CPU implementation of the O(N^2) N-body calculation.
+ * Uses SOA (structure of arrays) representation because it is a much
+ * better fit for AVX.
  *
  * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
@@ -35,16 +35,18 @@
  *
  */
 
-#ifndef NO_CUDA
-#define NO_CUDA
-#endif
-#include <chCUDA.h>
+#ifdef __AVX__
+#ifdef _OPENMP
+#include <immintrin.h>
+
 #include <chrono>
 
-#include "bodybodyInteraction.cuh"
+#include "nbody.h"
+#include "bodybodyInteraction_AVX.h"
+#include "nbody_CPU_SIMD.h"
 
 float
-ComputeGravitation_SOA(
+ComputeGravitation_SIMD_openmp(
     float *force[3],
     float *pos[4],
     float *mass,
@@ -53,46 +55,41 @@ ComputeGravitation_SOA(
 )
 {
     std::chrono::steady_clock::time_point start, end;
-    memset( force[0], 0, N*sizeof(float) );
-    memset( force[1], 0, N*sizeof(float) );
-    memset( force[2], 0, N*sizeof(float) );
     start = std::chrono::steady_clock::now();
-    for (size_t i = 0; i < N; i++)
+
+    const __m256 softening = _mm256_set1_ps( softeningSquared );
+
+#pragma omp parallel for
+    for (int i = 0; i < N; i++)
     {
-        float acc[3] = {0, 0, 0};
-        float myX = pos[0][i];
-        float myY = pos[1][i];
-        float myZ = pos[2][i];
+        __m256 ax = _mm256_setzero_ps();
+        __m256 ay = _mm256_setzero_ps();
+        __m256 az = _mm256_setzero_ps();
+        __m256 x0 = _mm256_set1_ps( pos[0][i] );
+        __m256 y0 = _mm256_set1_ps( pos[1][i] );
+        __m256 z0 = _mm256_set1_ps( pos[2][i] );
 
-        for ( size_t j = 0; j < i; j++ ) {
+        for ( int j = 0; j < N/8; j++ ) {
 
-            if ( j==i ) continue;
+            bodyBodyInteraction(
+                ax, ay, az,
+                x0, y0, z0,
+                _mm256_loadu_ps( pos[0] + 8*j ),
+                _mm256_loadu_ps( pos[1] + 8*j ),
+                _mm256_loadu_ps( pos[2] + 8*j ),
+                _mm256_loadu_ps( mass   + 8*j ),
+                softening );
 
-            float bodyX = pos[0][j];
-            float bodyY = pos[1][j];
-            float bodyZ = pos[2][j];
-            float bodyMass = mass[j];
-
-            float fx, fy, fz;
-            bodyBodyInteraction<float>(
-                &fx, &fy, &fz,
-                myX, myY, myZ,
-                bodyX, bodyY, bodyZ, bodyMass,
-                softeningSquared );
-
-            acc[0] += fx;
-            acc[1] += fy;
-            acc[2] += fz;
-
-            force[0][j] += -fx;
-            force[1][j] += -fy;
-            force[2][j] += -fz;
         }
-
-        force[0][i] += acc[0];
-        force[1][i] += acc[1];
-        force[2][i] += acc[2];
+        // Sum the eight partial forces accumulated in each YMM register
+        _mm_store_ss( &force[0][i], horizontal_sum_ps( ax ) );
+        _mm_store_ss( &force[1][i], horizontal_sum_ps( ay ) );
+        _mm_store_ss( &force[2][i], horizontal_sum_ps( az ) );
     }
+
     end = std::chrono::steady_clock::now();
+
     return (float) std::chrono::duration<double>(end - start).count() * 1000.0f;
 }
+#endif
+#endif

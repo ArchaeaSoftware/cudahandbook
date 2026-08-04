@@ -7,8 +7,8 @@
  * parallelizable, with lots of FLOPS per unit of external 
  * memory bandwidth required.
  *
- * Build with: nvcc -I ../chLib nbody.cu nbody_CPU_SSE.cpp nbody_CPU_AOS.cpp nbody_CPU_AOS_tiled.cpp nbody_CPU_SSE_threaded.cpp nbody_CPU_SOA.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu
- *   On Linux: nvcc -I ../chLib nbody.cu nbody_CPU_SSE.cpp nbody_CPU_AOS.cpp nbody_CPU_AOS_tiled.cpp nbody_CPU_SSE_threaded.cpp nbody_CPU_SOA.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu -lcudart_static -ldl -lrt
+ * Build with: nvcc -Xcompiler -mavx -I ../chLib nbody.cu nbody_CPU_AVX.cpp nbody_CPU_AOS.cpp nbody_CPU_AOS_tiled.cpp nbody_CPU_AVX_threaded.cpp nbody_CPU_SOA.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu
+ *   On Linux: nvcc -Xcompiler -mavx -I ../chLib nbody.cu nbody_CPU_AVX.cpp nbody_CPU_AOS.cpp nbody_CPU_AOS_tiled.cpp nbody_CPU_AVX_threaded.cpp nbody_CPU_SOA.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu -lcudart_static -ldl -lrt
  * Requires: No minimum SM requirement.  If SM 3.x is not available,
  * this application quietly replaces the shuffle and fast-atomic
  * implementations with the shared memory implementation.
@@ -568,7 +568,7 @@ main( int argc, char *argv[] )
     if ( g_bNoCPU ) {
         g_bCrossCheck = false;
     }
-    if ( g_bCrossCheck && chCommandLineGetBool( "nosse", argc, argv ) ) {
+    if ( g_bCrossCheck && chCommandLineGetBool( "nosimd", argc, argv ) ) {
         g_bUseSIMDForCrossCheck = false;
     }
 

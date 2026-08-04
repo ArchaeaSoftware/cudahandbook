@@ -36,7 +36,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
-add_executable(nbody nbody.cu nbody_CPU_SSE.cpp nbody_CPU_AOS.cpp nbody_CPU_AOS_tiled.cpp nbody_CPU_SSE_threaded.cpp nbody_CPU_SOA.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu )
+add_executable(nbody nbody.cu nbody_CPU_AVX.cpp nbody_CPU_AOS.cpp nbody_CPU_AOS_tiled.cpp nbody_CPU_AVX_threaded.cpp nbody_CPU_SOA.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu )
+
+# AVX has been a baseline x86 instruction set since Sandy Bridge (2011); enabling
+# it here defines __AVX__, which turns on the SIMD path in nbody_CPU_SIMD.h.
+target_compile_options(nbody PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-mavx>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-mavx>)
 
 include_directories( chLib )
 
