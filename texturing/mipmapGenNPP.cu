@@ -59,7 +59,7 @@
 // resized to half its width and height to form the next, and written straight
 // into the array -- one level at a time, so at most one scratch image beyond
 // the level being written is ever allocated. NPP errors are surfaced as
-// cudaErrorUnknown. Copy this function as-is.
+// cudaErrorUnknown; the CUDA calls use the book's cuda() macro (Section A.6).
 //
 // eInterpolation selects the resampling filter, since the right filter for
 // mipmap generation is application-dependent: NPPI_INTER_SUPER area-averages,
@@ -72,51 +72,47 @@ GenerateMipmapsNPP( cudaMipmappedArray_t mipArray,
                     int width, int height, int numLevels,
                     int eInterpolation )
 {
-    cudaError_t status;
+    cudaError_t status_cudart;
     cudaArray_t levelArray;
     const Npp32f *src = baseImage;   // finer level: resize from here
     size_t srcPitch = basePitch;
     int srcW = width, srcH = height;
-    Npp32f *scratch = 0;             // rolling buffer (NULL while src == baseImage)
+    Npp32f *scratch = 0, *dst = 0;   // rolling scratch buffers
 
     // Level 0 is the base image itself.
-    if ( (status = cudaGetMipmappedArrayLevel( &levelArray, mipArray, 0 )) != cudaSuccess ||
-         (status = cudaMemcpy2DToArray( levelArray, 0, 0, baseImage, basePitch,
-                       width*sizeof(Npp32f), height, cudaMemcpyDeviceToDevice )) != cudaSuccess )
-        return status;
+    cuda(GetMipmappedArrayLevel( &levelArray, mipArray, 0 ));
+    cuda(Memcpy2DToArray( levelArray, 0, 0, baseImage, basePitch,
+                          width*sizeof(Npp32f), height, cudaMemcpyDeviceToDevice ));
 
     for ( int level = 1; level < numLevels; level++ ) {
         int dstW = ( srcW > 1 ) ? srcW/2 : 1;
         int dstH = ( srcH > 1 ) ? srcH/2 : 1;
         NppiSize srcSize = { srcW, srcH }, dstSize = { dstW, dstH };
         NppiRect srcRect = { 0, 0, srcW, srcH }, dstRect = { 0, 0, dstW, dstH };
-        Npp32f *dst;
         size_t dstPitch;
 
-        if ( (status = cudaMallocPitch( (void **) &dst, &dstPitch,
-                           dstW*sizeof(Npp32f), dstH )) != cudaSuccess )
-            break;
+        cuda(MallocPitch( (void **) &dst, &dstPitch, dstW*sizeof(Npp32f), dstH ));
         if ( nppiResize_32f_C1R( src, (int) srcPitch, srcSize, srcRect,
                                  dst, (int) dstPitch, dstSize, dstRect,
                                  eInterpolation ) != NPP_SUCCESS ) {
-            cudaFree( dst );
-            status = cudaErrorUnknown;
-            break;
+            status_cudart = cudaErrorUnknown;
+            goto Error_cudart;
         }
-        if ( (status = cudaGetMipmappedArrayLevel( &levelArray, mipArray, level )) != cudaSuccess ||
-             (status = cudaMemcpy2DToArray( levelArray, 0, 0, dst, dstPitch,
-                           dstW*sizeof(Npp32f), dstH, cudaMemcpyDeviceToDevice )) != cudaSuccess ) {
-            cudaFree( dst );
-            break;
-        }
+        cuda(GetMipmappedArrayLevel( &levelArray, mipArray, level ));
+        cuda(Memcpy2DToArray( levelArray, 0, 0, dst, dstPitch,
+                              dstW*sizeof(Npp32f), dstH, cudaMemcpyDeviceToDevice ));
 
         cudaFree( scratch );   // release the previous level (NULL on level 1)
         scratch = dst;         // this level becomes the source for the next
-        src = dst; srcPitch = dstPitch; srcW = dstW; srcH = dstH;
+        dst = 0;
+        src = scratch; srcPitch = dstPitch; srcW = dstW; srcH = dstH;
     }
 
+    status_cudart = cudaSuccess;
+Error_cudart:
+    cudaFree( dst );
     cudaFree( scratch );
-    return status;
+    return status_cudart;
 }
 
 int
