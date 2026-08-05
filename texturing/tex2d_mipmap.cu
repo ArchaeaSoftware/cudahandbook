@@ -68,7 +68,7 @@ main( int argc, char *argv[] )
     cudaError_t status_cudart;
     cudaMipmappedArray_t mipArray = 0;
     cudaTextureObject_t tex = 0;
-    float *devLOD = 0, *devOut = 0;
+    float *devLOD = 0, *devOut = 0, *hostLevel = 0;
 
     const unsigned int baseDim = 8;     // 8x8 base image
     const unsigned int numLevels = 4;   // levels 8x8, 4x4, 2x2, 1x1
@@ -84,20 +84,20 @@ main( int argc, char *argv[] )
 
     cuda(MallocMipmappedArray( &mipArray, &channelDesc, extent, numLevels, 0 ));
 
-    // Fill each mip level with a constant equal to its level index.
+    // Fill each mip level with a constant equal to its level index. Level 0
+    // is the largest, so allocate one staging buffer up front and reuse it.
+    hostLevel = (float *) malloc( baseDim*baseDim*sizeof(float) );
+    if ( ! hostLevel )
+        goto Error_cudart;
     for ( unsigned int level = 0; level < numLevels; level++ ) {
         cudaArray_t levelArray;
         unsigned int dim = baseDim >> level;   // 8, 4, 2, 1
-        float *h = (float *) malloc( dim*dim*sizeof(float) );
-        if ( ! h )
-            goto Error_cudart;
         for ( unsigned int i = 0; i < dim*dim; i++ )
-            h[i] = (float) level;
+            hostLevel[i] = (float) level;
         cuda(GetMipmappedArrayLevel( &levelArray, mipArray, level ));
-        cuda(Memcpy2DToArray( levelArray, 0, 0, h,
+        cuda(Memcpy2DToArray( levelArray, 0, 0, hostLevel,
                               dim*sizeof(float), dim*sizeof(float), dim,
                               cudaMemcpyHostToDevice ));
-        free( h );
     }
 
     // A mipmapped texture requires normalized coordinates. Linear filtering
@@ -145,5 +145,6 @@ Error_cudart:
     cudaFreeMipmappedArray( mipArray );
     cudaFree( devLOD );
     cudaFree( devOut );
+    free( hostLevel );
     return ret;
 }
