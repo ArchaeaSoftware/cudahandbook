@@ -141,7 +141,6 @@ main( int argc, char *argv[] )
     cuda(Memcpy( devDir, hostDir, numFaces*sizeof(float4), cudaMemcpyHostToDevice ));
 
     SampleFaces<<<1, numFaces>>>( devOut, tex, devDir, numFaces );
-    cuda(DeviceSynchronize());
     cuda(Memcpy( hostOut, devOut, numFaces*sizeof(float), cudaMemcpyDeviceToHost ));
 
     printf( "%ux%u cubemap, each face filled with its index.\n\n", faceDim, faceDim );

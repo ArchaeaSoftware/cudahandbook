@@ -122,7 +122,6 @@ main( int argc, char *argv[] )
     cuda(Memcpy( devLOD, hostLOD, nLOD*sizeof(float), cudaMemcpyHostToDevice ));
 
     SampleLODs<<<1, nLOD>>>( devOut, tex, devLOD, nLOD );
-    cuda(DeviceSynchronize());
     cuda(Memcpy( hostOut, devOut, nLOD*sizeof(float), cudaMemcpyDeviceToHost ));
 
     printf( "%ux%u mipmapped texture, %u levels; "
