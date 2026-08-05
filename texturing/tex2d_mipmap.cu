@@ -53,8 +53,10 @@
 extern "C" __global__ void
 SampleLODs( float *out, cudaTextureObject_t tex, const float *lod, int n )
 {
-    int i = blockIdx.x*blockDim.x + threadIdx.x;
-    if ( i < n ) {
+    for ( int i = blockIdx.x*blockDim.x + threadIdx.x;
+              i < n;
+              i += blockDim.x*gridDim.x )
+    {
         out[i] = tex2DLod<float>( tex, 0.5f, 0.5f, lod[i] );
     }
 }
