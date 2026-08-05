@@ -8,10 +8,9 @@
  *
  * CUDA ships no mipmap-generation utility (unlike glGenerateMipmap), so the
  * levels are the application's job. GenerateMipmapsNPP() below is a drop-in
- * function you can copy verbatim: it resizes the base image to half its width
- * and height per level with nppiResize_32f_C1R (an area/supersampling filter),
- * writing each level in turn so that only one scratch image is resident beyond
- * the level being generated.
+ * function you can copy verbatim: it area-resamples each level straight from
+ * the base image with nppiResize_32f_C1R (an area/supersampling filter) into a
+ * single scratch buffer that is allocated once, ahead of the loop.
  *
  * Build with: nvcc -I ../chLib mipmapGenNPP.cu -lnppig -lnppc
  * Requires: No minimum SM requirement.
@@ -55,11 +54,15 @@
 
 //
 // Populate a single-channel float mipmapped array from a base image held in
-// pitched device memory. Level 0 is the base image; each finer level is
-// resized to half its width and height to form the next, and written straight
-// into the array -- one level at a time, so at most one scratch image beyond
-// the level being written is ever allocated. NPP errors are surfaced as
-// cudaErrorUnknown; the CUDA calls use the book's cuda() macro (Section A.6).
+// pitched device memory. Level 0 is the base image; every finer level is
+// area-resampled straight from the base to its own dimensions and written into
+// the array. Because the source is always the base, it never aliases the
+// destination, so a single scratch buffer -- allocated once, ahead of the loop
+// -- satisfies NPP's no-in-place requirement. Each level is written with a
+// tightly packed pitch of its own width; the copy APIs accept any pitch, so
+// cudaMallocPitch's padding is only a performance hint we don't need here.
+// NPP errors are surfaced as cudaErrorUnknown; the CUDA calls use the book's
+// cuda() macro (Section A.6).
 //
 // eInterpolation selects the resampling filter, since the right filter for
 // mipmap generation is application-dependent: NPPI_INTER_SUPER area-averages,
@@ -74,43 +77,46 @@ GenerateMipmapsNPP( cudaMipmappedArray_t mipArray,
 {
     cudaError_t status_cudart;
     cudaArray_t levelArray;
-    const Npp32f *src = baseImage;   // finer level: resize from here
-    size_t srcPitch = basePitch;
-    int srcW = width, srcH = height;
-    Npp32f *scratch = 0, *dst = 0;   // rolling scratch buffers
+    NppiSize srcSize = { width, height };
+    NppiRect srcRect = { 0, 0, width, height };
+    Npp32f *scratch = 0;
 
     // Level 0 is the base image itself.
     cuda(GetMipmappedArrayLevel( &levelArray, mipArray, 0 ));
     cuda(Memcpy2DToArray( levelArray, 0, 0, baseImage, basePitch,
                           width*sizeof(Npp32f), height, cudaMemcpyDeviceToDevice ));
 
-    for ( int level = 1; level < numLevels; level++ ) {
-        int dstW = ( srcW > 1 ) ? srcW/2 : 1;
-        int dstH = ( srcH > 1 ) ? srcH/2 : 1;
-        NppiSize srcSize = { srcW, srcH }, dstSize = { dstW, dstH };
-        NppiRect srcRect = { 0, 0, srcW, srcH }, dstRect = { 0, 0, dstW, dstH };
-        size_t dstPitch;
+    // One scratch buffer, sized for the largest level we resize into (level 1).
+    // Every finer level is smaller, so it reuses the top of this buffer.
+    if ( numLevels > 1 ) {
+        int w1 = ( width > 1 ) ? width/2 : 1, h1 = ( height > 1 ) ? height/2 : 1;
+        cuda(Malloc( (void **) &scratch, w1*(size_t) h1*sizeof(Npp32f) ));
+    }
 
-        cuda(MallocPitch( (void **) &dst, &dstPitch, dstW*sizeof(Npp32f), dstH ));
-        if ( nppiResize_32f_C1R( src, (int) srcPitch, srcSize, srcRect,
-                                 dst, (int) dstPitch, dstSize, dstRect,
-                                 eInterpolation ) != NPP_SUCCESS ) {
+    for ( int level = 1; level < numLevels; level++ ) {
+        int dstW = ( width  >> level ) ? ( width  >> level ) : 1;
+        int dstH = ( height >> level ) ? ( height >> level ) : 1;
+        size_t dstPitch = dstW*sizeof(Npp32f);
+        NppiSize dstSize = { dstW, dstH };
+        NppiRect dstRect = { 0, 0, dstW, dstH };
+        NppStatus statusNPP;
+
+        statusNPP = nppiResize_32f_C1R( baseImage, (int) basePitch, srcSize, srcRect,
+                                        scratch, (int) dstPitch, dstSize, dstRect,
+                                        eInterpolation );
+        if ( NPP_SUCCESS != statusNPP ) {
+            fprintf( stderr, "nppiResize failed generating level %d: NPP status %d\n",
+                     level, (int) statusNPP );
             status_cudart = cudaErrorUnknown;
             goto Error_cudart;
         }
         cuda(GetMipmappedArrayLevel( &levelArray, mipArray, level ));
-        cuda(Memcpy2DToArray( levelArray, 0, 0, dst, dstPitch,
+        cuda(Memcpy2DToArray( levelArray, 0, 0, scratch, dstPitch,
                               dstW*sizeof(Npp32f), dstH, cudaMemcpyDeviceToDevice ));
-
-        cudaFree( scratch );   // release the previous level (NULL on level 1)
-        scratch = dst;         // this level becomes the source for the next
-        dst = 0;
-        src = scratch; srcPitch = dstPitch; srcW = dstW; srcH = dstH;
     }
 
     status_cudart = cudaSuccess;
 Error_cudart:
-    cudaFree( dst );
     cudaFree( scratch );
     return status_cudart;
 }
@@ -134,8 +140,11 @@ main( int argc, char *argv[] )
 
     // Build a pitched device-memory base image: value = x + y.
     host = (float *) malloc( baseDim*baseDim*sizeof(float) );
-    if ( ! host )
+    if ( ! host ) {
+        fprintf( stderr, "Out of memory allocating the %dx%d host buffer.\n",
+                 baseDim, baseDim );
         goto Error_cudart;
+    }
     for ( int y = 0; y < baseDim; y++ )
         for ( int x = 0; x < baseDim; x++ )
             host[y*baseDim+x] = (float)(x + y);
@@ -169,12 +178,14 @@ main( int argc, char *argv[] )
     {
         float apex = host[0];               // last read back was the 1x1 apex
         float mean = (float) (baseDim - 1); // mean of x+y over 0..baseDim-1
-        printf( "\napex = %.3f, base image mean = %.3f -- %s\n",
-                (double) apex, (double) mean,
-                (fabsf( apex - mean ) < 1e-3f) ? "match (the area filter preserves the mean)"
-                                               : "MISMATCH" );
-        if ( fabsf( apex - mean ) >= 1e-3f )
+        printf( "\napex = %.3f, base image mean = %.3f\n", (double) apex, (double) mean );
+        if ( fabsf( apex - mean ) >= 1e-3f ) {
+            fprintf( stderr, "Verification failed: an area filter preserves the mean, "
+                     "so the 1x1 apex (%.3f) should equal the base mean (%.3f).\n",
+                     (double) apex, (double) mean );
             goto Error_cudart;
+        }
+        printf( "The area filter preserves the mean, as expected.\n" );
     }
 
     ret = 0;
