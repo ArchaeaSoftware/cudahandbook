@@ -50,6 +50,7 @@ add_subdirectory( microbench )
 add_subdirectory( nbody )
 add_subdirectory( reduction )
 add_subdirectory( scan )
+add_subdirectory( gemm )
 add_subdirectory( SMs )
 add_subdirectory( streaming )
 # The texturing (and corr) samples use the CUDA texture/surface object
