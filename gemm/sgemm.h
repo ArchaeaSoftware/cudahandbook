@@ -6,12 +6,18 @@
  * The CUDA Handbook, 2nd ed., Chapter 17 (Matrix Multiplication).
  *
  * Each numbered sample (sgemm1Naive .. sgemm6WmmaAsync) defines one kernel
- * and calls into this harness to allocate the problem, fill A and B, time
- * the kernel over several launches, and check the result against a strict-
- * FP32 cuBLAS reference. reportCublas() then prints cuBLAS FP32 and TF32
- * rows so each stage shows its own gap to the vendor library.
+ * and drives these helpers to allocate the problem, fill A and B, time the
+ * kernel over several launches, and check the result against a strict-FP32
+ * cuBLAS reference. sgemmReportCublas() then prints cuBLAS FP32 and TF32 rows
+ * so each stage shows its own gap to the vendor library.
  *
  * The matrices are row-major: C(MxN) = A(MxK) * B(KxN).
+ *
+ * Error handling follows the book's house convention: the cuda() and cublas()
+ * paste-macros from <chError.h> goto Error_cudart / Error_cublas, and
+ * CUDART_CHECK() propagates a helper's cudaError_t to the caller's cleanup
+ * block. <cublas_v2.h> is included before <chError.h> so the cublas() macro
+ * is defined.
  *
  * Copyright (c) 2025-2026, Archaea Software, LLC.
  * All rights reserved.
@@ -45,117 +51,180 @@
 #ifndef __SGEMM_H__
 #define __SGEMM_H__
 
-#include <cstdio>
-#include <cstdlib>
-#include <cmath>
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
 #include <functional>
+
 #include <cuda_runtime.h>
-#include <cublas_v2.h>
+#include <cublas_v2.h>     // before chError.h so the cublas() macro is defined
+#include <chError.h>
 
-#define CK(x) do { cudaError_t e_=(x); if (e_) { \
-    printf( "CUDA error %s @ %s:%d\n", cudaGetErrorString(e_), __FILE__, __LINE__ ); \
-    exit(1); } } while (0)
-
-//
-// Test harness for one SGEMM stage. init() sizes the problem from argv
-// (defaults 4096 2048 4096), fills A and B with small exact-in-float values,
-// and computes a strict-FP32 cuBLAS reference into dRef. report() times a
-// kernel launch and prints its throughput and worst-case error versus dRef.
-//
-struct SgemmHarness {
+struct SgemmProblem {
     int M, N, K, iters;
-    float *dA, *dB, *dC, *dRef;   // device: A(MxK), B(KxN), C/result and reference (MxN)
+    float *dA, *dB, *dC, *dRef;   // device: A(MxK), B(KxN), result and FP32 reference (MxN)
     float *hRef, *hOut;           // host staging for the error check
     cublasHandle_t cb;
-
-    // row-major C(MxN) = A(MxK)*B(KxN) is column-major C^T = B^T A^T, so hand
-    // cuBLAS (B, A) with swapped extents and it writes row-major C for free.
-    void cublasCompute( float *out ) {
-        const float one = 1.f, zero = 0.f;
-        cublasSgemm( cb, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K,
-                     &one, dB, N, dA, K, &zero, out, N );
-    }
-
-    void init( int argc, char **argv ) {
-        M     = ( argc > 1 ) ? atoi( argv[1] ) : 4096;
-        N     = ( argc > 2 ) ? atoi( argv[2] ) : 2048;
-        K     = ( argc > 3 ) ? atoi( argv[3] ) : 4096;
-        iters = 50;
-
-        size_t eA = (size_t) M*K, eB = (size_t) K*N, eC = (size_t) M*N;
-        CK( cudaMalloc( &dA,   eA*sizeof(float) ) );
-        CK( cudaMalloc( &dB,   eB*sizeof(float) ) );
-        CK( cudaMalloc( &dC,   eC*sizeof(float) ) );
-        CK( cudaMalloc( &dRef, eC*sizeof(float) ) );
-        hRef = (float *) malloc( eC*sizeof(float) );
-        hOut = (float *) malloc( eC*sizeof(float) );
-
-        float *h = (float *) malloc( (eA > eB ? eA : eB)*sizeof(float) );
-        for ( size_t i = 0; i < eA; i++ ) h[i] = (float) ((int)(i%13) - 6) * 0.125f;
-        CK( cudaMemcpy( dA, h, eA*sizeof(float), cudaMemcpyHostToDevice ) );
-        for ( size_t i = 0; i < eB; i++ ) h[i] = (float) ((int)(i%7) - 3) * 0.25f;
-        CK( cudaMemcpy( dB, h, eB*sizeof(float), cudaMemcpyHostToDevice ) );
-        free( h );
-
-        cublasCreate( &cb );
-        cublasSetMathMode( cb, CUBLAS_PEDANTIC_MATH );   // strict FP32 reference
-        cublasCompute( dRef );
-        CK( cudaDeviceSynchronize() );
-
-        cudaDeviceProp p;
-        cudaGetDeviceProperties( &p, 0 );
-        printf( "%s  sm_%d%d   C(%dx%d) = A(%dx%d) * B(%dx%d)   (%.1f GFLOP/call, iters=%d)\n\n",
-                p.name, p.major, p.minor, M, N, M, K, K, N, 2.0*M*N*K/1e9, iters );
-        printf( "  %-33s %10s %10s %9s\n", "stage", "ms", "GFLOP/s", "max err" );
-    }
-
-    double gflops( float ms ) const { return 2.0*M*N*K / (ms/1e3) / 1e9; }
-
-    // Mean milliseconds over `iters` launches, after one warm-up.
-    float time( std::function<void()> fn ) {
-        cudaEvent_t a, b;
-        cudaEventCreate( &a ); cudaEventCreate( &b );
-        fn(); CK( cudaDeviceSynchronize() );
-        cudaEventRecord( a );
-        for ( int i = 0; i < iters; i++ ) fn();
-        cudaEventRecord( b ); cudaEventSynchronize( b );
-        float ms = 0; cudaEventElapsedTime( &ms, a, b );
-        cudaEventDestroy( a ); cudaEventDestroy( b );
-        return ms / iters;
-    }
-
-    // Worst-case absolute difference of the last dC versus the FP32 reference.
-    double maxerr() {
-        size_t eC = (size_t) M*N;
-        cudaMemcpy( hRef, dRef, eC*sizeof(float), cudaMemcpyDeviceToHost );
-        cudaMemcpy( hOut, dC,   eC*sizeof(float), cudaMemcpyDeviceToHost );
-        double m = 0;
-        for ( size_t i = 0; i < eC; i++ ) {
-            double d = fabs( (double) hRef[i] - hOut[i] );
-            if ( d > m ) m = d;
-        }
-        return m;
-    }
-
-    void report( const char *name, std::function<void()> launch ) {
-        float ms = time( launch );
-        launch(); CK( cudaDeviceSynchronize() );      // one clean pass for the error check
-        printf( "  %-33s %10.3f %10.1f %9.2e\n", name, ms, gflops(ms), maxerr() );
-    }
-
-    // cuBLAS reference rows: FP32 (default) and TF32 Tensor Core math.
-    void reportCublas() {
-        cublasSetMathMode( cb, CUBLAS_DEFAULT_MATH );
-        report( "cuBLAS Sgemm (FP32, default)", [&]{ cublasCompute( dC ); } );
-        cublasSetMathMode( cb, CUBLAS_TF32_TENSOR_OP_MATH );
-        report( "cuBLAS Sgemm (TF32)",          [&]{ cublasCompute( dC ); } );
-    }
-
-    void teardown() {
-        cublasDestroy( cb );
-        cudaFree( dA ); cudaFree( dB ); cudaFree( dC ); cudaFree( dRef );
-        free( hRef ); free( hOut );
-    }
 };
+
+//
+// Row-major C(MxN) = A(MxK)*B(KxN) is column-major C^T = B^T A^T, so hand cuBLAS
+// (B, A) with swapped extents and it writes row-major C for free.
+//
+static inline cublasStatus_t
+sgemmCublas( const SgemmProblem *pb, float *out )
+{
+    const float one = 1.f, zero = 0.f;
+    return cublasSgemm( pb->cb, CUBLAS_OP_N, CUBLAS_OP_N, pb->N, pb->M, pb->K,
+                        &one, pb->dB, pb->N, pb->dA, pb->K, &zero, out, pb->N );
+}
+
+//
+// Size the problem from argv (defaults 4096 2048 4096), allocate, fill A and B
+// with small exact-in-float values, create the cuBLAS handle, and compute the
+// strict-FP32 reference into dRef. Prints the table header on success.
+//
+static cudaError_t
+sgemmSetup( SgemmProblem *pb, int argc, char **argv )
+{
+    cudaError_t    status_cudart;
+    cublasStatus_t status_cublas;
+    cudaDeviceProp prop;
+    float *h = NULL;
+    size_t eA, eB, eC, i;
+
+    pb->cb = NULL;
+    pb->dA = pb->dB = pb->dC = pb->dRef = NULL;
+    pb->hRef = pb->hOut = NULL;
+    pb->M = ( argc > 1 ) ? atoi( argv[1] ) : 4096;
+    pb->N = ( argc > 2 ) ? atoi( argv[2] ) : 2048;
+    pb->K = ( argc > 3 ) ? atoi( argv[3] ) : 4096;
+    pb->iters = 50;
+
+    eA = (size_t) pb->M*pb->K;
+    eB = (size_t) pb->K*pb->N;
+    eC = (size_t) pb->M*pb->N;
+    cuda( Malloc( &pb->dA,   eA*sizeof(float) ) );
+    cuda( Malloc( &pb->dB,   eB*sizeof(float) ) );
+    cuda( Malloc( &pb->dC,   eC*sizeof(float) ) );
+    cuda( Malloc( &pb->dRef, eC*sizeof(float) ) );
+    pb->hRef = (float *) malloc( eC*sizeof(float) );
+    pb->hOut = (float *) malloc( eC*sizeof(float) );
+    h = (float *) malloc( (eA > eB ? eA : eB)*sizeof(float) );
+    if ( ! pb->hRef || ! pb->hOut || ! h ) {
+        status_cudart = cudaErrorMemoryAllocation;
+        goto Error_cudart;
+    }
+
+    for ( i = 0; i < eA; i++ ) h[i] = (float) ((int)(i%13) - 6) * 0.125f;
+    cuda( Memcpy( pb->dA, h, eA*sizeof(float), cudaMemcpyHostToDevice ) );
+    for ( i = 0; i < eB; i++ ) h[i] = (float) ((int)(i%7) - 3) * 0.25f;
+    cuda( Memcpy( pb->dB, h, eB*sizeof(float), cudaMemcpyHostToDevice ) );
+    free( h ); h = NULL;
+
+    cublas( Create( &pb->cb ) );
+    cublas( SetMathMode( pb->cb, CUBLAS_PEDANTIC_MATH ) );   // strict FP32 reference
+    status_cublas = sgemmCublas( pb, pb->dRef );
+    if ( CUBLAS_STATUS_SUCCESS != status_cublas ) goto Error_cublas;
+    cuda( DeviceSynchronize() );
+
+    cuda( GetDeviceProperties( &prop, 0 ) );
+    printf( "%s  sm_%d%d   C(%dx%d) = A(%dx%d) * B(%dx%d)   (%.1f GFLOP/call, iters=%d)\n\n",
+            prop.name, prop.major, prop.minor, pb->M, pb->N, pb->M, pb->K, pb->K, pb->N,
+            2.0*pb->M*pb->N*pb->K/1e9, pb->iters );
+    printf( "  %-33s %10s %10s %9s\n", "stage", "ms", "GFLOP/s", "max err" );
+    return cudaSuccess;
+
+Error_cublas:
+    fprintf( stderr, "cuBLAS setup failure (line %d): status %d\n",
+             __LINE__, (int) status_cublas );
+    free( h );
+    return cudaErrorUnknown;
+Error_cudart:
+    free( h );
+    return status_cudart;
+}
+
+//
+// Time `launch` over pb->iters launches (after one warm-up), run one clean
+// pass, and check pb->dC against the FP32 reference; print the
+// "name  ms  GFLOP/s  max err" row.
+//
+static cudaError_t
+sgemmReport( SgemmProblem *pb, const char *name, std::function<void()> launch )
+{
+    cudaError_t status_cudart;
+    cudaEvent_t evStart = NULL, evStop = NULL;
+    float ms = 0;
+    double maxerr = 0;
+    size_t eC = (size_t) pb->M*pb->N, i;
+
+    cuda( EventCreate( &evStart ) );
+    cuda( EventCreate( &evStop ) );
+
+    launch();                                   // warm-up
+    cuda( GetLastError() );                     // catch an invalid launch configuration
+    cuda( DeviceSynchronize() );
+
+    cuda( EventRecord( evStart, 0 ) );
+    for ( i = 0; i < (size_t) pb->iters; i++ ) launch();
+    cuda( EventRecord( evStop, 0 ) );
+    cuda( EventSynchronize( evStop ) );
+    cuda( EventElapsedTime( &ms, evStart, evStop ) );
+    ms /= pb->iters;
+
+    launch();                                   // one clean pass for the error check
+    cuda( DeviceSynchronize() );
+    cuda( Memcpy( pb->hRef, pb->dRef, eC*sizeof(float), cudaMemcpyDeviceToHost ) );
+    cuda( Memcpy( pb->hOut, pb->dC,   eC*sizeof(float), cudaMemcpyDeviceToHost ) );
+    for ( i = 0; i < eC; i++ ) {
+        double d = fabs( (double) pb->hRef[i] - pb->hOut[i] );
+        if ( d > maxerr ) maxerr = d;
+    }
+    printf( "  %-33s %10.3f %10.1f %9.2e\n", name, ms,
+            2.0*pb->M*pb->N*pb->K/(ms/1e3)/1e9, maxerr );
+
+    cudaEventDestroy( evStart );
+    cudaEventDestroy( evStop );
+    return cudaSuccess;
+
+Error_cudart:
+    if ( evStart ) cudaEventDestroy( evStart );
+    if ( evStop )  cudaEventDestroy( evStop );
+    return status_cudart;
+}
+
+//
+// cuBLAS reference rows: FP32 (default) and TF32 Tensor Core math.
+//
+static cudaError_t
+sgemmReportCublas( SgemmProblem *pb )
+{
+    cudaError_t    status_cudart;
+    cublasStatus_t status_cublas;
+
+    cublas( SetMathMode( pb->cb, CUBLAS_DEFAULT_MATH ) );
+    CUDART_CHECK( sgemmReport( pb, "cuBLAS Sgemm (FP32, default)",
+                               [&]{ sgemmCublas( pb, pb->dC ); } ) );
+    cublas( SetMathMode( pb->cb, CUBLAS_TF32_TENSOR_OP_MATH ) );
+    CUDART_CHECK( sgemmReport( pb, "cuBLAS Sgemm (TF32)",
+                               [&]{ sgemmCublas( pb, pb->dC ); } ) );
+    return cudaSuccess;
+
+Error_cublas:
+    fprintf( stderr, "cuBLAS math-mode failure (line %d): status %d\n",
+             __LINE__, (int) status_cublas );
+    return cudaErrorUnknown;
+Error_cudart:
+    return status_cudart;
+}
+
+static void
+sgemmTeardown( SgemmProblem *pb )
+{
+    if ( pb->cb ) cublasDestroy( pb->cb );
+    cudaFree( pb->dA ); cudaFree( pb->dB ); cudaFree( pb->dC ); cudaFree( pb->dRef );
+    free( pb->hRef ); free( pb->hOut );
+}
 
 #endif // __SGEMM_H__

@@ -9,7 +9,7 @@
  * __shared__, no __syncthreads() -- lifts throughput several times over the
  * naive kernel, leaning on the L1/L2 caches to serve the neighboring threads.
  *
- * Build with: nvcc -O3 -arch=sm_80 sgemm2Cache.cu -lcublas
+ * Build with: nvcc -O3 -arch=sm_80 -I ../chLib sgemm2Cache.cu -lcublas
  *
  * Copyright (c) 2025-2026, Archaea Software, LLC.
  * All rights reserved.
@@ -75,18 +75,23 @@ sgemm_cache( int M, int N, int K, const float *A, const float *B, float *C )
 int
 main( int argc, char **argv )
 {
-    SgemmHarness h;
-    h.init( argc, argv );
+    cudaError_t status_cudart;
+    SgemmProblem pb;
+    int ret = 1;
+    const int TM = 8, TN = 8;   // 16x16 threads each computing an 8x8 microtile
 
-    // 16x16 threads each computing an 8x8 microtile => a 128x128 tile per block.
-    const int TM = 8, TN = 8;
-    dim3 block( 16, 16 );
-    dim3 grid( (h.N + 16*TN - 1)/(16*TN), (h.M + 16*TM - 1)/(16*TM) );
-    h.report( "cache-blocked (8x8)", [&]{
-        sgemm_cache<TM,TN><<<grid, block>>>( h.M, h.N, h.K, h.dA, h.dB, h.dC );
-    } );
+    CUDART_CHECK( sgemmSetup( &pb, argc, argv ) );
+    {
+        dim3 block( 16, 16 );
+        dim3 grid( (pb.N + 16*TN - 1)/(16*TN), (pb.M + 16*TM - 1)/(16*TM) );
+        CUDART_CHECK( sgemmReport( &pb, "cache-blocked (8x8)", [&]{
+            sgemm_cache<TM,TN><<<grid, block>>>( pb.M, pb.N, pb.K, pb.dA, pb.dB, pb.dC );
+        } ) );
+    }
+    CUDART_CHECK( sgemmReportCublas( &pb ) );
+    ret = 0;
 
-    h.reportCublas();
-    h.teardown();
-    return 0;
+Error_cudart:
+    sgemmTeardown( &pb );
+    return ret;
 }

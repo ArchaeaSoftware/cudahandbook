@@ -36,6 +36,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
+# <chError.h> and friends live in chLib/. The top-level build adds this
+# globally; name it here too so the directory also builds standalone.
+include_directories( ${CMAKE_CURRENT_SOURCE_DIR}/../chLib )
+
 # The SGEMM optimization journey of Chapter 17, one executable per stage.
 # Stages 5 and 6 use TF32 Tensor Cores and cp.async, which require sm_80+.
 add_executable( sgemm1Naive     sgemm1Naive.cu )

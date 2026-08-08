@@ -10,7 +10,7 @@
  * trails the register-blocked cache kernel of stage 2, which is the point:
  * shared memory alone is not the lever; reuse per thread is (see stage 4).
  *
- * Build with: nvcc -O3 -arch=sm_80 sgemm3Tiled.cu -lcublas
+ * Build with: nvcc -O3 -arch=sm_80 -I ../chLib sgemm3Tiled.cu -lcublas
  *
  * Copyright (c) 2025-2026, Archaea Software, LLC.
  * All rights reserved.
@@ -78,17 +78,23 @@ sgemm_tiled( int M, int N, int K, const float *A, const float *B, float *C )
 int
 main( int argc, char **argv )
 {
-    SgemmHarness h;
-    h.init( argc, argv );
-
+    cudaError_t status_cudart;
+    SgemmProblem pb;
+    int ret = 1;
     const int BM = 32, BN = 32, BK = 32;
-    dim3 block( BN, BM );
-    dim3 grid( (h.N + BN - 1)/BN, (h.M + BM - 1)/BM );
-    h.report( "shared tiled (32x32x32)", [&]{
-        sgemm_tiled<BM,BN,BK><<<grid, block>>>( h.M, h.N, h.K, h.dA, h.dB, h.dC );
-    } );
 
-    h.reportCublas();
-    h.teardown();
-    return 0;
+    CUDART_CHECK( sgemmSetup( &pb, argc, argv ) );
+    {
+        dim3 block( BN, BM );
+        dim3 grid( (pb.N + BN - 1)/BN, (pb.M + BM - 1)/BM );
+        CUDART_CHECK( sgemmReport( &pb, "shared tiled (32x32x32)", [&]{
+            sgemm_tiled<BM,BN,BK><<<grid, block>>>( pb.M, pb.N, pb.K, pb.dA, pb.dB, pb.dC );
+        } ) );
+    }
+    CUDART_CHECK( sgemmReportCublas( &pb ) );
+    ret = 0;
+
+Error_cudart:
+    sgemmTeardown( &pb );
+    return ret;
 }

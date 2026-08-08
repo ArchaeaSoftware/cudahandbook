@@ -11,7 +11,7 @@
  * synchronous; overlapping it is stage 6's job.
  *
  * Requires an Ampere-or-later GPU (sm_80+) for TF32 Tensor Cores.
- * Build with: nvcc -O3 -arch=sm_80 sgemm5Wmma.cu -lcublas
+ * Build with: nvcc -O3 -arch=sm_80 -I ../chLib sgemm5Wmma.cu -lcublas
  *
  * Copyright (c) 2025-2026, Archaea Software, LLC.
  * All rights reserved.
@@ -100,18 +100,24 @@ sgemm_wmma( int M, int N, int K, const float *A, const float *B, float *C )
 int
 main( int argc, char **argv )
 {
-    SgemmHarness h;
-    h.init( argc, argv );
-
+    cudaError_t status_cudart;
+    SgemmProblem pb;
+    int ret = 1;
     // 128x64 block tile, 32-deep slabs, 2x2 warps => 128 threads.
     const int BM = 128, BN = 64, BK = 32, WM = 2, WN = 2;
-    dim3 block( WM*WN*32 );
-    dim3 grid( (h.N + BN - 1)/BN, (h.M + BM - 1)/BM );
-    h.report( "WMMA / TF32 Tensor Cores (128x64)", [&]{
-        sgemm_wmma<BM,BN,BK,WM,WN><<<grid, block>>>( h.M, h.N, h.K, h.dA, h.dB, h.dC );
-    } );
 
-    h.reportCublas();
-    h.teardown();
-    return 0;
+    CUDART_CHECK( sgemmSetup( &pb, argc, argv ) );
+    {
+        dim3 block( WM*WN*32 );
+        dim3 grid( (pb.N + BN - 1)/BN, (pb.M + BM - 1)/BM );
+        CUDART_CHECK( sgemmReport( &pb, "WMMA / TF32 Tensor Cores (128x64)", [&]{
+            sgemm_wmma<BM,BN,BK,WM,WN><<<grid, block>>>( pb.M, pb.N, pb.K, pb.dA, pb.dB, pb.dC );
+        } ) );
+    }
+    CUDART_CHECK( sgemmReportCublas( &pb ) );
+    ret = 0;
+
+Error_cudart:
+    sgemmTeardown( &pb );
+    return ret;
 }

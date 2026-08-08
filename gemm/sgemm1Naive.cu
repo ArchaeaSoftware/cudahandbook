@@ -8,7 +8,7 @@
  * with no reuse. It is correct and simple, and every later stage exists to
  * recover the arithmetic intensity this version throws away.
  *
- * Build with: nvcc -O3 -arch=sm_80 sgemm1Naive.cu -lcublas
+ * Build with: nvcc -O3 -arch=sm_80 -I ../chLib sgemm1Naive.cu -lcublas
  *
  * Copyright (c) 2025-2026, Archaea Software, LLC.
  * All rights reserved.
@@ -60,16 +60,22 @@ sgemm_naive( int M, int N, int K, const float *A, const float *B, float *C )
 int
 main( int argc, char **argv )
 {
-    SgemmHarness h;
-    h.init( argc, argv );
+    cudaError_t status_cudart;
+    SgemmProblem pb;
+    int ret = 1;
 
-    dim3 block( 16, 16 );
-    dim3 grid( (h.N + 15)/16, (h.M + 15)/16 );
-    h.report( "naive", [&]{
-        sgemm_naive<<<grid, block>>>( h.M, h.N, h.K, h.dA, h.dB, h.dC );
-    } );
+    CUDART_CHECK( sgemmSetup( &pb, argc, argv ) );
+    {
+        dim3 block( 16, 16 );
+        dim3 grid( (pb.N + 15)/16, (pb.M + 15)/16 );
+        CUDART_CHECK( sgemmReport( &pb, "naive", [&]{
+            sgemm_naive<<<grid, block>>>( pb.M, pb.N, pb.K, pb.dA, pb.dB, pb.dC );
+        } ) );
+    }
+    CUDART_CHECK( sgemmReportCublas( &pb ) );
+    ret = 0;
 
-    h.reportCublas();
-    h.teardown();
-    return 0;
+Error_cudart:
+    sgemmTeardown( &pb );
+    return ret;
 }

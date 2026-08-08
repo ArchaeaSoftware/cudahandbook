@@ -10,7 +10,7 @@
  * with stage 2's per-thread reuse and is the fastest of the FP32 kernels --
  * the payoff of raising reuse, not of shared memory by itself.
  *
- * Build with: nvcc -O3 -arch=sm_80 sgemm4RegBlock.cu -lcublas
+ * Build with: nvcc -O3 -arch=sm_80 -I ../chLib sgemm4RegBlock.cu -lcublas
  *
  * Copyright (c) 2025-2026, Archaea Software, LLC.
  * All rights reserved.
@@ -101,18 +101,24 @@ sgemm_regblock( int M, int N, int K, const float *A, const float *B, float *C )
 int
 main( int argc, char **argv )
 {
-    SgemmHarness h;
-    h.init( argc, argv );
-
+    cudaError_t status_cudart;
+    SgemmProblem pb;
+    int ret = 1;
     // 128x64 block tile, 8-deep K-steps, 8x8 microtiles => 128 threads.
     const int BM = 128, BN = 64, BK = 8, TM = 8, TN = 8;
-    dim3 block( (BM/TM)*(BN/TN) );
-    dim3 grid( (h.N + BN - 1)/BN, (h.M + BM - 1)/BM );
-    h.report( "register-blocked (128x64)", [&]{
-        sgemm_regblock<BM,BN,BK,TM,TN><<<grid, block>>>( h.M, h.N, h.K, h.dA, h.dB, h.dC );
-    } );
 
-    h.reportCublas();
-    h.teardown();
-    return 0;
+    CUDART_CHECK( sgemmSetup( &pb, argc, argv ) );
+    {
+        dim3 block( (BM/TM)*(BN/TN) );
+        dim3 grid( (pb.N + BN - 1)/BN, (pb.M + BM - 1)/BM );
+        CUDART_CHECK( sgemmReport( &pb, "register-blocked (128x64)", [&]{
+            sgemm_regblock<BM,BN,BK,TM,TN><<<grid, block>>>( pb.M, pb.N, pb.K, pb.dA, pb.dB, pb.dC );
+        } ) );
+    }
+    CUDART_CHECK( sgemmReportCublas( &pb ) );
+    ret = 0;
+
+Error_cudart:
+    sgemmTeardown( &pb );
+    return ret;
 }
