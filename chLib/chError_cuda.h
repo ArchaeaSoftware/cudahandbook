@@ -270,6 +270,21 @@ chGetErrorString( CUresult status )
 #endif // DEBUG
 #endif // __NVRTC_H__
 
+//
+// cublas() echoes nvrtc() for the cuBLAS library. It is defined only when
+// <cublas_v2.h> has been included before <chError.h>, so code that does not
+// use cuBLAS need not depend on it. Uses suffix-named status/label
+// (status_cublas / Error_cublas) so one function can mix runtime, driver,
+// NVRTC, and cuBLAS checks.
+//
+#ifdef CUBLAS_V2_H_
+#ifdef DEBUG
+#define cublas( fn ) do { (status_cublas) = (cublas##fn); if ( CUBLAS_STATUS_SUCCESS != (status_cublas) ) { fprintf( stderr, "cuBLAS Failure (line %d of file %s): %s returned 0x%x (%s)\n", __LINE__, __FILE__, #fn, status_cublas, cublasGetStatusString((cublasStatus_t) status_cublas) ); goto Error_cublas; } } while (0);
+#else
+#define cublas( fn ) do { (status_cublas) = (cublas##fn); if ( CUBLAS_STATUS_SUCCESS != (status_cublas) ) { goto Error_cublas; } } while (0);
+#endif // DEBUG
+#endif // CUBLAS_V2_H_
+
 #endif
 
 #endif // __CHERROR_CUDA_H__
