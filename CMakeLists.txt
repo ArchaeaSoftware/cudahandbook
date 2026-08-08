@@ -132,6 +132,7 @@ set_target_properties(
     globalWrite
     mallocSpeed
     mallocAsyncSpeed
+    scopedAtomicSpeed
     reportClocks
 
     # reduction
