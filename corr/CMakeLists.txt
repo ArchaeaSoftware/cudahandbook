@@ -44,3 +44,6 @@ add_executable( corrBankTC corrBankTC.cu )
 
 target_link_libraries(corrBankTC chLib cublas)
 
+add_executable( integralImage integralImage.cu )
+
+target_link_libraries( integralImage chLib )
