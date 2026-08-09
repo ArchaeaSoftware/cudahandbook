@@ -21,6 +21,11 @@
  * correlates perfectly (coefficient == 1) at its own location -- the sample's
  * correctness check.
  *
+ * The per-pixel denominator sums (SumI, SumISq) come from an int64 summed-area
+ * table (integral image): a separable row-then-column inclusive scan, box sums
+ * via the 4-corner rule in O(1)/pixel. int64 keeps them exact -- a 512x512 8-bit
+ * squared-sum already overflows int32.
+ *
  * Requires an INT8-Tensor-Core GPU (sm_75+). Reference cuBLAS, not custom.
  * Build with: nvcc -O3 -arch=sm_75 -I ../chLib corrBankTC.cu ../chLib/pgm.cu -lcublas
  *
@@ -113,6 +118,52 @@ sumI_sq( const unsigned char *A, int M, int *SumI, int *SumISq )
     }
 }
 
+// ---- int64 summed-area table (integral image) for the denominator ----
+// Separable build: an inclusive scan per row, then per column. The parallelism
+// is across the H rows / W columns, so each scan is a plain sequential loop --
+// no in-row parallel prefix sum needed at this scale. int64 => exact box sums.
+// Zero border: sat[(y+1)*(W+1)+(x+1)] = sum_{a<=x, b<=y} f(a,b).
+__global__ void
+satRowScan( const unsigned char *img, int W, int H, long long *sat, long long *satSq )
+{
+    for ( int y = blockIdx.x*blockDim.x + threadIdx.x; y < H; y += gridDim.x*blockDim.x ) {
+        long long acc = 0, accSq = 0;
+        long long *rs  = sat   + (long long)(y+1)*(W+1);
+        long long *rsq = satSq + (long long)(y+1)*(W+1);
+        for ( int x = 0; x < W; x++ ) {
+            int v = img[y*W + x];
+            acc += v; accSq += (long long)v*v;
+            rs[x+1] = acc; rsq[x+1] = accSq;
+        }
+    }
+}
+
+__global__ void
+satColScan( int W, int H, long long *sat, long long *satSq )
+{
+    for ( int c = blockIdx.x*blockDim.x + threadIdx.x + 1; c <= W; c += gridDim.x*blockDim.x ) {
+        long long acc = 0, accSq = 0;
+        for ( int y = 1; y <= H; y++ ) {
+            long long *p = sat   + (long long)y*(W+1) + c;
+            long long *q = satSq + (long long)y*(W+1) + c;
+            acc += *p; accSq += *q; *p = acc; *q = accSq;
+        }
+    }
+}
+
+// SumI, SumISq per output pixel via the 4-corner rule: O(1)/pixel, size-independent.
+__global__ void
+satSums( const long long *sat, const long long *satSq, int W, int outW, int M,
+         int *SumI, int *SumISq )
+{
+    for ( int p = blockIdx.x*blockDim.x + threadIdx.x; p < M; p += gridDim.x*blockDim.x ) {
+        int x0 = p % outW, y0 = p / outW, x1 = x0 + T, y1 = y0 + T;   // window [x0,x1)x[y0,y1)
+        long long a = (long long)y0*(W+1), b = (long long)y1*(W+1);
+        SumI[p]   = (int)( sat[b+x1]   - sat[a+x1]   - sat[b+x0]   + sat[a+x0] );
+        SumISq[p] = (int)( satSq[b+x1] - satSq[a+x1] - satSq[b+x0] + satSq[a+x0] );
+    }
+}
+
 // Reconstruct SumIT from the signed GEMM and produce the NCC coefficient.
 __global__ void
 combine( const int *rawIT, const int *SumI, const int *SumISq,
@@ -140,6 +191,7 @@ main( int argc, char *argv[] )
     float msTC = 0.f, msB = 0.f;
     long mism = 0, maxd = 0;
     double worstSelf = 1.0;
+    long satBad = 0;
     int *hITb = NULL;
 
     const char *inputFilename = (argc > 1) ? argv[1] : "coins.pgm";
@@ -151,9 +203,12 @@ main( int argc, char *argv[] )
     signed char   *dAS = NULL,  *dBankS = NULL;
     int *dRawIT = NULL, *dITb = NULL, *dSumI = NULL, *dSumISq = NULL, *dSumT = NULL, *dSumTSq = NULL;
     float *dCorr = NULL;
+    long long *dSAT = NULL, *dSATsq = NULL;
+    int *dSumIchk = NULL, *dSumISqchk = NULL;
     unsigned char *hBank = NULL; signed char *hBankS = NULL;
     int *hSumT = NULL, *hSumTSq = NULL, *tpx = NULL, *tpy = NULL;
     float *hCorr = NULL; int *hRawITh = NULL, *hSumIh = NULL;
+    int *hIsq_sat = NULL, *hI_win = NULL, *hIsq_win = NULL;
     cublasHandle_t cb = NULL;
     cudaEvent_t e0 = NULL, e1 = NULL;
 
@@ -207,6 +262,10 @@ main( int argc, char *argv[] )
     cuda( Malloc( &dSumT,  NT*sizeof(int) ) );
     cuda( Malloc( &dSumTSq,NT*sizeof(int) ) );
     cuda( Malloc( &dCorr,  (size_t)M*NT*sizeof(float) ) );
+    cuda( Malloc( &dSAT,    (size_t)(H+1)*(W+1)*sizeof(long long) ) );
+    cuda( Malloc( &dSATsq,  (size_t)(H+1)*(W+1)*sizeof(long long) ) );
+    cuda( Malloc( &dSumIchk,   (size_t)M*sizeof(int) ) );
+    cuda( Malloc( &dSumISqchk, (size_t)M*sizeof(int) ) );
     cuda( Memcpy( dImg,   hImg,   (size_t)W*H,   cudaMemcpyHostToDevice ) );
     cuda( Memcpy( dBank,  hBank,  (size_t)Kg*NT, cudaMemcpyHostToDevice ) );
     cuda( Memcpy( dBankS, hBankS, (size_t)Kg*NT, cudaMemcpyHostToDevice ) );
@@ -214,7 +273,14 @@ main( int argc, char *argv[] )
     cuda( Memcpy( dSumTSq,hSumTSq,NT*sizeof(int),cudaMemcpyHostToDevice ) );
 
     im2col<<<1024,256>>>( dImg, W, outW, M, dA, dAS );  cuda( GetLastError() );
-    sumI_sq<<<(M+255)/256,256>>>( dA, M, dSumI, dSumISq );  cuda( GetLastError() );
+    // Denominator sums via the int64 integral image (O(1)/pixel).
+    cuda( Memset( dSAT,   0, (size_t)(H+1)*(W+1)*sizeof(long long) ) );
+    cuda( Memset( dSATsq, 0, (size_t)(H+1)*(W+1)*sizeof(long long) ) );
+    satRowScan<<<(H+255)/256,256>>>( dImg, W, H, dSAT, dSATsq );  cuda( GetLastError() );
+    satColScan<<<(W+255)/256,256>>>( W, H, dSAT, dSATsq );        cuda( GetLastError() );
+    satSums<<<(M+255)/256,256>>>( dSAT, dSATsq, W, outW, M, dSumI, dSumISq );  cuda( GetLastError() );
+    // Cross-check the integral-image sums against the direct window loop.
+    sumI_sq<<<(M+255)/256,256>>>( dA, M, dSumIchk, dSumISqchk );  cuda( GetLastError() );
     cuda( DeviceSynchronize() );
 
     cublas( Create( &cb ) );
@@ -267,6 +333,15 @@ main( int argc, char *argv[] )
         double c = hCorr[p*NT + t];
         if ( c < worstSelf ) worstSelf = c;
     }
+    // (c) integral-image sums exactly match the direct window loop.
+    hIsq_sat = (int *) malloc( (size_t)M*sizeof(int) );
+    hI_win   = (int *) malloc( (size_t)M*sizeof(int) );
+    hIsq_win = (int *) malloc( (size_t)M*sizeof(int) );
+    cuda( Memcpy( hIsq_sat, dSumISq,    (size_t)M*sizeof(int), cudaMemcpyDeviceToHost ) );
+    cuda( Memcpy( hI_win,   dSumIchk,   (size_t)M*sizeof(int), cudaMemcpyDeviceToHost ) );
+    cuda( Memcpy( hIsq_win, dSumISqchk, (size_t)M*sizeof(int), cudaMemcpyDeviceToHost ) );
+    for ( int p = 0; p < M; p++ )
+        if ( hSumIh[p] != hI_win[p] || hIsq_sat[p] != hIsq_win[p] ) satBad++;
 
     {
         cudaDeviceProp prop; cuda( GetDeviceProperties( &prop, 0 ) );
@@ -279,6 +354,7 @@ main( int argc, char *argv[] )
         printf( "\n  speedup: %.1fx\n", msB/msTC );
         printf( "  SumIT vs baseline: %ld mismatches (maxdiff %ld)\n", mism, maxd );
         printf( "  worst self-correlation coefficient: %.5f (want ~1.0)\n", worstSelf );
+        printf( "  integral-image sums vs window loop: %ld mismatches\n", satBad );
     }
     ret = 0;
 
@@ -290,5 +366,6 @@ Error_cudart:
     cudaFree( dImg ); cudaFree( dA ); cudaFree( dAS ); cudaFree( dBank ); cudaFree( dBankS );
     cudaFree( dRawIT ); cudaFree( dITb ); cudaFree( dSumI ); cudaFree( dSumISq );
     cudaFree( dSumT ); cudaFree( dSumTSq ); cudaFree( dCorr );
+    cudaFree( dSAT ); cudaFree( dSATsq ); cudaFree( dSumIchk ); cudaFree( dSumISqchk );
     return ret;
 }
