@@ -37,5 +37,6 @@ set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 add_executable( radixSort radixSort.cu )
+set_target_properties( radixSort PROPERTIES CUDA_ARCHITECTURES 80-virtual )
 
 include_directories( chLib )
