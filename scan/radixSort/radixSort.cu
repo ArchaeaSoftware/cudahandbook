@@ -311,34 +311,34 @@ shiftToExclusive( int *outExcl, const int *incl, size_t n )
     if ( i < n ) outExcl[i] = (i>0) ? incl[i-1] : 0;
 }
 
-static void devScanExclusive( int *out, const int *in, size_t n, int *scratch );
+static void devScanExclusive( int *out, const int *in, size_t n, int *scratch, cudaStream_t stream );
 
 // Inclusive scan of in[0..M) -> out[0..M).  scratch holds working buffers.
 static void
-devScanInclusive( int *out, const int *in, size_t M, int *scratch )
+devScanInclusive( int *out, const int *in, size_t M, int *scratch, cudaStream_t stream )
 {
     int nb = (int)((M + RADIX_TILE - 1) / RADIX_TILE);
     if ( nb == 1 ) {
-        scanBlocksWithBase<<<1, RADIX_TILE>>>( out, in, 0, M );
+        scanBlocksWithBase<<<1, RADIX_TILE, 0, stream>>>( out, in, 0, M );
         return;
     }
     int *blockSums     = scratch;          // nb
     int *blockSumsExcl = scratch + nb;     // nb
     int *rest          = scratch + 2*nb;
-    reduceBlocks<<<nb, RADIX_TILE>>>( blockSums, in, M );
-    devScanExclusive( blockSumsExcl, blockSums, nb, rest );
-    scanBlocksWithBase<<<nb, RADIX_TILE>>>( out, in, blockSumsExcl, M );
+    reduceBlocks<<<nb, RADIX_TILE, 0, stream>>>( blockSums, in, M );
+    devScanExclusive( blockSumsExcl, blockSums, nb, rest, stream );
+    scanBlocksWithBase<<<nb, RADIX_TILE, 0, stream>>>( out, in, blockSumsExcl, M );
 }
 
 // Exclusive scan of in[0..n) -> out[0..n).
 static void
-devScanExclusive( int *out, const int *in, size_t n, int *scratch )
+devScanExclusive( int *out, const int *in, size_t n, int *scratch, cudaStream_t stream )
 {
     int *incl = scratch;                   // n
     int *rest = scratch + n;
-    devScanInclusive( incl, in, n, rest );
+    devScanInclusive( incl, in, n, rest, stream );
     int gb = (int)((n + RADIX_TILE - 1) / RADIX_TILE);
-    shiftToExclusive<<<gb, RADIX_TILE>>>( out, incl, n );
+    shiftToExclusive<<<gb, RADIX_TILE, 0, stream>>>( out, incl, n );
 }
 
 //
@@ -434,7 +434,7 @@ static void
 RadixSortGPU(
     uint32_t *dOut, uint32_t *dIn, uint32_t *dSorted,
     int *dBlockHist, int *dScanIncl, int *dScratch,
-    size_t N, int numTiles )
+    size_t N, int numTiles, cudaStream_t stream = 0 )
 {
     const int NUM_DIGITS = 1 << b;
     const int numPasses  = 32 / b;
@@ -443,15 +443,15 @@ RadixSortGPU(
     uint32_t *src = dIn, *dst = dOut;
     for ( int pass = 0; pass < numPasses; pass++ ) {
         int shift = pass * b;
-        RadixLocalSort<b><<<numTiles, RADIX_TILE>>>(
+        RadixLocalSort<b><<<numTiles, RADIX_TILE, 0, stream>>>(
             dSorted, dBlockHist, src, N, shift, numTiles );
-        devScanInclusive( dScanIncl, dBlockHist, M, dScratch );
-        RadixScatter<b><<<numTiles, RADIX_TILE>>>(
+        devScanInclusive( dScanIncl, dBlockHist, M, dScratch, stream );
+        RadixScatter<b><<<numTiles, RADIX_TILE, 0, stream>>>(
             dst, dSorted, dScanIncl, dBlockHist, N, shift, numTiles );
         uint32_t *t = src; src = dst; dst = t;
     }
     if ( src != dOut )
-        cudaMemcpy( dOut, src, N*sizeof(uint32_t), cudaMemcpyDeviceToDevice );
+        cudaMemcpyAsync( dOut, src, N*sizeof(uint32_t), cudaMemcpyDeviceToDevice, stream );
 }
 
 template<int b>
@@ -492,6 +492,94 @@ Error_cudart:
     cudaFree(dIn); cudaFree(dOut); cudaFree(dSorted);
     cudaFree(dHist); cudaFree(dScan); cudaFree(dScratch);
     return ret;
+}
+
+//
+// Time the fully GPU-resident sort launched directly versus captured once
+// into a CUDA graph and replayed. The sort is a fixed sequence of kernel
+// launches, so it captures cleanly; a graph collapses the whole sequence
+// into one cudaGraphLaunch(). Graphs help when per-launch CPU overhead is
+// large relative to the kernel work -- small N -- not when the kernels
+// dominate. Both timings exclude the per-iteration input reset.
+//
+template<int b>
+static void
+benchGraph( size_t N )
+{
+    const int NUM_DIGITS = 1 << b;
+    int numTiles  = (int)((N + RADIX_TILE - 1) / RADIX_TILE);
+    size_t M      = (size_t) numTiles * NUM_DIGITS;
+    size_t padded = (size_t) numTiles * RADIX_TILE;
+    const int nTrials = 50;
+
+    std::vector<uint32_t> in( N ), ref( N ), got( N );
+    for ( size_t i = 0; i < N; i++ )
+        ref[i] = in[i] = ((uint32_t) rand()) | ((uint32_t) rand() << 16);
+    std::sort( ref.begin(), ref.end() );
+
+    uint32_t *dOrig=0,*dIn=0,*dOut=0,*dSorted=0; int *dHist=0,*dScan=0,*dScr=0;
+    cudaMalloc( &dOrig,   N*sizeof(uint32_t) );
+    cudaMalloc( &dIn,     N*sizeof(uint32_t) );
+    cudaMalloc( &dOut,    N*sizeof(uint32_t) );
+    cudaMalloc( &dSorted, padded*sizeof(uint32_t) );
+    cudaMalloc( &dHist,   M*sizeof(int) );
+    cudaMalloc( &dScan,   M*sizeof(int) );
+    cudaMalloc( &dScr,    (M+4096)*sizeof(int) );
+    cudaMemcpy( dOrig, in.data(), N*sizeof(uint32_t), cudaMemcpyHostToDevice );
+
+    cudaStream_t stream; cudaStreamCreate( &stream );
+    cudaEvent_t e0, e1; cudaEventCreate( &e0 ); cudaEventCreate( &e1 );
+
+    // Direct: the host loop issues every kernel launch itself.
+    float msDirect = 1e30f;
+    for ( int t = 0; t < nTrials; t++ ) {
+        cudaMemcpyAsync( dIn, dOrig, N*sizeof(uint32_t), cudaMemcpyDeviceToDevice, stream );
+        cudaEventRecord( e0, stream );
+        RadixSortGPU<b>( dOut, dIn, dSorted, dHist, dScan, dScr, N, numTiles, stream );
+        cudaEventRecord( e1, stream );
+        cudaEventSynchronize( e1 );
+        float ms; cudaEventElapsedTime( &ms, e0, e1 );
+        if ( ms < msDirect ) msDirect = ms;
+    }
+    cudaMemcpy( got.data(), dOut, N*sizeof(uint32_t), cudaMemcpyDeviceToHost );
+    bool okDirect = std::equal( got.begin(), got.end(), ref.begin() );
+
+    // Capture the identical sequence once.
+    cudaMemcpyAsync( dIn, dOrig, N*sizeof(uint32_t), cudaMemcpyDeviceToDevice, stream );
+    cudaGraph_t graph; cudaGraphExec_t exec;
+    cudaStreamBeginCapture( stream, cudaStreamCaptureModeGlobal );
+    RadixSortGPU<b>( dOut, dIn, dSorted, dHist, dScan, dScr, N, numTiles, stream );
+    cudaError_t capErr = cudaStreamEndCapture( stream, &graph );
+    if ( capErr != cudaSuccess ) {
+        printf( "  b=%d N=%zu: capture failed (%s)\n", b, (size_t) N,
+                cudaGetErrorString( capErr ) );
+        return;
+    }
+    size_t nNodes = 0; cudaGraphGetNodes( graph, 0, &nNodes );
+    cudaGraphInstantiate( &exec, graph, 0 );
+
+    // Replay: one cudaGraphLaunch() stands in for the whole sequence.
+    float msGraph = 1e30f;
+    for ( int t = 0; t < nTrials; t++ ) {
+        cudaMemcpyAsync( dIn, dOrig, N*sizeof(uint32_t), cudaMemcpyDeviceToDevice, stream );
+        cudaEventRecord( e0, stream );
+        cudaGraphLaunch( exec, stream );
+        cudaEventRecord( e1, stream );
+        cudaEventSynchronize( e1 );
+        float ms; cudaEventElapsedTime( &ms, e0, e1 );
+        if ( ms < msGraph ) msGraph = ms;
+    }
+    cudaMemcpy( got.data(), dOut, N*sizeof(uint32_t), cudaMemcpyDeviceToHost );
+    bool okGraph = std::equal( got.begin(), got.end(), ref.begin() );
+
+    printf( "  b=%d  N=%8zu  %3zu nodes   direct %8.3f ms   graph %8.3f ms   %5.2fx%s%s\n",
+            b, (size_t) N, nNodes, msDirect, msGraph, msDirect/msGraph,
+            okDirect?"":" [DIRECT WRONG]", okGraph?"":" [GRAPH WRONG]" );
+
+    cudaGraphExecDestroy( exec ); cudaGraphDestroy( graph );
+    cudaEventDestroy( e0 ); cudaEventDestroy( e1 ); cudaStreamDestroy( stream );
+    cudaFree(dOrig); cudaFree(dIn); cudaFree(dOut); cudaFree(dSorted);
+    cudaFree(dHist); cudaFree(dScan); cudaFree(dScr);
 }
 
 int
@@ -540,4 +628,29 @@ main()
     GPU_TEST( 4, N );
     GPU_TEST( 8, N );
     GPU_TEST( 4, 100003 );    // exercise a partial final tile
+
+    //
+    // Throughput as a function of the radix b (bits/digit -> 32/b passes),
+    // at three sizes, to find the best b.
+    //
+    printf( "\nThroughput by radix b:\n" );
+    printf( "-- N = 1048576 --\n" );
+    GPU_TEST( 1, 1048576 ); GPU_TEST( 2, 1048576 );
+    GPU_TEST( 4, 1048576 ); GPU_TEST( 8, 1048576 );
+    printf( "-- N = 65536 --\n" );
+    GPU_TEST( 1, 65536 ); GPU_TEST( 2, 65536 );
+    GPU_TEST( 4, 65536 ); GPU_TEST( 8, 65536 );
+
+    //
+    // Does capturing the sort into a CUDA graph pay off? Sweep N from large
+    // (kernel-bound) to small (launch-overhead-bound).
+    //
+    printf( "\nCUDA graph capture vs. direct launch (best of 50):\n" );
+    benchGraph<4>( 16*1048576 );
+    benchGraph<4>( 1048576 );
+    benchGraph<4>( 65536 );
+    benchGraph<4>( 4096 );
+    benchGraph<4>( 1024 );
+    benchGraph<8>( 65536 );
+    benchGraph<8>( 1024 );
 }
