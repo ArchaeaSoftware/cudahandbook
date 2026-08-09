@@ -18,8 +18,8 @@
  * which folds into the coefficient combine (it already has SumI and SumT).
  *
  * The template bank is extracted from coins.pgm itself, so each template
- * correlates perfectly (coefficient == 1) at its own location -- the sample's
- * correctness check.
+ * correlates perfectly (coefficient == 1) at its own location, and the sample
+ * finds each template's correlation peak to confirm it is detected there.
  *
  * The per-pixel denominator sums (SumI, SumISq) come from an int64_t summed-area
  * table (integral image): a separable row-then-column inclusive scan, box sums
@@ -165,6 +165,31 @@ satSums( const int64_t *sat, const int64_t *satSq, int W, int outW, int M,
     }
 }
 
+// Template matching: for each template, find the pixel of maximum NCC
+// coefficient -- one block per template, max-with-index reduction over pixels.
+__global__ void
+findPeaks( const float *Corr, int M, int *bestIdx, float *bestScore )
+{
+    int t = blockIdx.x;
+    __shared__ float sval[256];
+    __shared__ int   sidx[256];
+    float bv = -2.f; int bi = 0;
+    for ( int p = threadIdx.x; p < M; p += blockDim.x ) {
+        float c = Corr[(size_t)p*NT + t];
+        if ( c > bv ) { bv = c; bi = p; }
+    }
+    sval[threadIdx.x] = bv; sidx[threadIdx.x] = bi;
+    __syncthreads();
+    for ( int stride = blockDim.x/2; stride > 0; stride >>= 1 ) {
+        if ( threadIdx.x < stride && sval[threadIdx.x+stride] > sval[threadIdx.x] ) {
+            sval[threadIdx.x] = sval[threadIdx.x+stride];
+            sidx[threadIdx.x] = sidx[threadIdx.x+stride];
+        }
+        __syncthreads();
+    }
+    if ( threadIdx.x == 0 ) { bestScore[t] = sval[0]; bestIdx[t] = sidx[0]; }
+}
+
 // Reconstruct SumIT from the signed GEMM and produce the NCC coefficient.
 __global__ void
 combine( const int *rawIT, const int *SumI, const int *SumISq,
@@ -193,6 +218,8 @@ main( int argc, char *argv[] )
     int64_t mism = 0, maxd = 0;
     double worstSelf = 1.0;
     int64_t satBad = 0;
+    int mislocated = 0;
+    double worstPeak = 1.0;
     int *hITb = NULL;
 
     const char *inputFilename = (argc > 1) ? argv[1] : "coins.pgm";
@@ -206,6 +233,8 @@ main( int argc, char *argv[] )
     float *dCorr = NULL;
     int64_t *dSAT = NULL, *dSATsq = NULL;
     int *dSumIchk = NULL, *dSumISqchk = NULL;
+    int *dBestIdx = NULL, *hBestIdx = NULL;
+    float *dBestScore = NULL, *hBestScore = NULL;
     uint8_t *hBank = NULL; int8_t *hBankS = NULL;
     int *hSumT = NULL, *hSumTSq = NULL, *tpx = NULL, *tpy = NULL;
     float *hCorr = NULL; int *hRawITh = NULL, *hSumIh = NULL;
@@ -267,6 +296,8 @@ main( int argc, char *argv[] )
     cuda( Malloc( &dSATsq,  (size_t)(H+1)*(W+1)*sizeof(int64_t) ) );
     cuda( Malloc( &dSumIchk,   (size_t)M*sizeof(int) ) );
     cuda( Malloc( &dSumISqchk, (size_t)M*sizeof(int) ) );
+    cuda( Malloc( &dBestIdx,   NT*sizeof(int) ) );
+    cuda( Malloc( &dBestScore, NT*sizeof(float) ) );
     cuda( Memcpy( dImg,   hImg,   (size_t)W*H,   cudaMemcpyHostToDevice ) );
     cuda( Memcpy( dBank,  hBank,  (size_t)Kg*NT, cudaMemcpyHostToDevice ) );
     cuda( Memcpy( dBankS, hBankS, (size_t)Kg*NT, cudaMemcpyHostToDevice ) );
@@ -311,6 +342,8 @@ main( int argc, char *argv[] )
 
     combine<<<(M*NT+255)/256,256>>>( dRawIT, dSumI, dSumISq, dSumT, dSumTSq, Kg, M, dCorr );
     cuda( GetLastError() ); cuda( DeviceSynchronize() );
+    findPeaks<<<NT,256>>>( dCorr, M, dBestIdx, dBestScore );
+    cuda( GetLastError() ); cuda( DeviceSynchronize() );
 
     // ---- validation ----
     hCorr    = (float *) malloc( (size_t)M*NT*sizeof(float) );
@@ -343,6 +376,16 @@ main( int argc, char *argv[] )
     cuda( Memcpy( hIsq_win, dSumISqchk, (size_t)M*sizeof(int), cudaMemcpyDeviceToHost ) );
     for ( int p = 0; p < M; p++ )
         if ( hSumIh[p] != hI_win[p] || hIsq_sat[p] != hIsq_win[p] ) satBad++;
+    // (d) template matching: each template's peak is at its planted location.
+    hBestIdx   = (int *)   malloc( NT*sizeof(int) );
+    hBestScore = (float *) malloc( NT*sizeof(float) );
+    cuda( Memcpy( hBestIdx,   dBestIdx,   NT*sizeof(int),   cudaMemcpyDeviceToHost ) );
+    cuda( Memcpy( hBestScore, dBestScore, NT*sizeof(float), cudaMemcpyDeviceToHost ) );
+    for ( int t = 0; t < NT; t++ ) {
+        int x = hBestIdx[t] % outW, y = hBestIdx[t] / outW;
+        if ( x != tpx[t] || y != tpy[t] ) mislocated++;
+        if ( hBestScore[t] < worstPeak ) worstPeak = hBestScore[t];
+    }
 
     {
         cudaDeviceProp prop; cuda( GetDeviceProperties( &prop, 0 ) );
@@ -356,6 +399,8 @@ main( int argc, char *argv[] )
         printf( "  SumIT vs baseline: %lld mismatches (maxdiff %lld)\n", (long long)mism, (long long)maxd );
         printf( "  worst self-correlation coefficient: %.5f (want ~1.0)\n", worstSelf );
         printf( "  integral-image sums vs window loop: %lld mismatches\n", (long long)satBad );
+        printf( "  template matching: %d/%d templates located at planted position (worst peak %.5f)\n",
+                NT - mislocated, NT, worstPeak );
     }
     ret = 0;
 
@@ -368,5 +413,6 @@ Error_cudart:
     cudaFree( dRawIT ); cudaFree( dITb ); cudaFree( dSumI ); cudaFree( dSumISq );
     cudaFree( dSumT ); cudaFree( dSumTSq ); cudaFree( dCorr );
     cudaFree( dSAT ); cudaFree( dSATsq ); cudaFree( dSumIchk ); cudaFree( dSumISqchk );
+    cudaFree( dBestIdx ); cudaFree( dBestScore );
     return ret;
 }
