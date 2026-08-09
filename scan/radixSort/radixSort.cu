@@ -2,10 +2,14 @@
  *
  * radixSort.cu
  *
- * Microdemo and microbenchmark of Radix Sort.  CPU only for now.
+ * Microdemo and microbenchmark of Radix Sort. Two implementations: a
+ * host-scan reference (GPU histogram, host scan and scatter) that shows
+ * the algorithm, and a fully GPU-resident stable LSD radix sort (per-tile
+ * local sort, device-wide scan, scatter) that keeps all three phases on
+ * the GPU. See Chapter 16, "Histograms and Radix Sort."
  *
  * Build with: nvcc -I ../chLib <options> radixSort.cu
- * Requires: No minimum SM requirement.
+ * Requires: SM 2.0 or higher (global/shared atomics).
  *
  * Copyright (c) 2011-2026, Archaea Software, LLC.
  * All rights reserved.
@@ -460,6 +464,7 @@ TestSortGPU( float *et, size_t N )
     size_t padded  = (size_t) numTiles * RADIX_TILE;
     bool ret = false;
     cudaError_t status_cudart;
+    std::chrono::steady_clock::time_point start, stop;
 
     std::vector<uint32_t> in( N ), ref( N ), got( N );
     for ( size_t i = 0; i < N; i++ )
@@ -475,7 +480,6 @@ TestSortGPU( float *et, size_t N )
     cuda(Malloc( &dScratch, (M+4096)*sizeof(int) ));
     cuda(Memcpy( dIn, in.data(), N*sizeof(uint32_t), cudaMemcpyHostToDevice ));
 
-    std::chrono::steady_clock::time_point start, stop;
     start = std::chrono::steady_clock::now();
     RadixSortGPU<b>( dOut, dIn, dSorted, dHist, dScan, dScratch, N, numTiles );
     cuda(DeviceSynchronize());
