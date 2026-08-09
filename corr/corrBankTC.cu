@@ -199,10 +199,17 @@ combine( const int *rawIT, const int *SumI, const int *SumISq,
               idx += (size_t)gridDim.x*blockDim.x ) {
         int p = idx / NT, t = idx % NT;
         int64_t SumIT = (int64_t)rawIT[idx] + 128*SumI[p] + 128*SumT[t] - 128*128*cPix;
-        double num  = (double)cPix*SumIT - (double)SumI[p]*SumT[t];
-        double dvar = ((double)cPix*SumISq[p] - (double)SumI[p]*SumI[p]) *
-                      ((double)cPix*SumTSq[t] - (double)SumT[t]*SumT[t]);
-        Corr[idx] = (dvar > 0.0) ? (float)(num / sqrt(dvar)) : 0.f;
+        // Numerator and the two variances are exact in int64 -- and int64 is
+        // integer math, NOT the fp64 path that GeForce parts throttle. Doing
+        // the subtractions in int64 also avoids the float cancellation a
+        // straight-fp32 combine would suffer on low-variance windows. Only the
+        // final ratio is fp32 (rsqrtf of each variance -- also sidesteps the
+        // vI*vT product, which overflows for large templates).
+        int64_t num = (int64_t)cPix*SumIT      - (int64_t)SumI[p]*SumT[t];
+        int64_t vI  = (int64_t)cPix*SumISq[p]  - (int64_t)SumI[p]*SumI[p];
+        int64_t vT  = (int64_t)cPix*SumTSq[t]  - (int64_t)SumT[t]*SumT[t];
+        Corr[idx] = (vI > 0 && vT > 0)
+                  ? (float)num * rsqrtf((float)vI) * rsqrtf((float)vT) : 0.f;
     }
 }
 
