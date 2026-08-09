@@ -40,3 +40,7 @@ add_executable( normalizedCrossCorrelation normalizedCrossCorrelation.cu )
 
 target_link_libraries(normalizedCrossCorrelation chLib)
 
+add_executable( corrBankTC corrBankTC.cu )
+
+target_link_libraries(corrBankTC chLib cublas)
+
