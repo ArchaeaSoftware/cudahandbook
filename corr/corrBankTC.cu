@@ -21,9 +21,9 @@
  * correlates perfectly (coefficient == 1) at its own location -- the sample's
  * correctness check.
  *
- * The per-pixel denominator sums (SumI, SumISq) come from an int64 summed-area
+ * The per-pixel denominator sums (SumI, SumISq) come from an int64_t summed-area
  * table (integral image): a separable row-then-column inclusive scan, box sums
- * via the 4-corner rule in O(1)/pixel. int64 keeps them exact -- a 512x512 8-bit
+ * via the 4-corner rule in O(1)/pixel. int64_t keeps them exact -- a 512x512 8-bit
  * squared-sum already overflows int32.
  *
  * Requires an INT8-Tensor-Core GPU (sm_75+). Reference cuBLAS, not custom.
@@ -61,6 +61,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <cstdint>
 
 #include <cublas_v2.h>       // before chError.h so the cublas() macro is defined
 #include <chError.h>
@@ -73,79 +74,79 @@ static const int Kg = T*T;
 // im2col of the packed WxH image into A[M x Kg] (unsigned, for the baseline and
 // the sums) and As[M x Kg] (signed, = pixel-128, for the INT8 Tensor Cores).
 __global__ void
-im2col( const unsigned char *img, int W, int outW, int M,
-        unsigned char *A, signed char *As )
+im2col( const uint8_t *img, int W, int outW, int M,
+        uint8_t *A, int8_t *As )
 {
-    for ( long idx = blockIdx.x*(long)blockDim.x + threadIdx.x; idx < (long)M*Kg;
-              idx += (long)gridDim.x*blockDim.x ) {
+    for ( size_t idx = blockIdx.x*(size_t)blockDim.x + threadIdx.x; idx < (size_t)M*Kg;
+              idx += (size_t)gridDim.x*blockDim.x ) {
         int p = idx / Kg, w = idx % Kg;
         int px = p % outW, py = p / outW;
         int wx = w % T,    wy = w / T;
-        unsigned char v = img[(py+wy)*W + (px+wx)];
-        A[idx] = v;  As[idx] = (signed char)((int)v - 128);
+        uint8_t v = img[(py+wy)*W + (px+wx)];
+        A[idx] = v;  As[idx] = (int8_t)((int)v - 128);
     }
 }
 
 // Non-Tensor-Core baseline: one thread per pixel, reuse the window across templates.
 __global__ void
-sumIT_baseline( const unsigned char *A, const unsigned char *B, int M, int *C )
+sumIT_baseline( const uint8_t *A, const uint8_t *B, int M, int *C )
 {
     for ( int p = blockIdx.x*blockDim.x + threadIdx.x; p < M; p += gridDim.x*blockDim.x ) {
         int acc[NT];
         #pragma unroll
         for ( int t = 0; t < NT; t++ ) acc[t] = 0;
-        const unsigned char *arow = A + (long)p*Kg;
+        const uint8_t *arow = A + (size_t)p*Kg;
         for ( int w = 0; w < Kg; w++ ) {
             int iv = arow[w];
-            const unsigned char *brow = B + (long)w*NT;
+            const uint8_t *brow = B + (size_t)w*NT;
             #pragma unroll
             for ( int t = 0; t < NT; t++ ) acc[t] += iv * brow[t];
         }
-        int *crow = C + (long)p*NT;
+        int *crow = C + (size_t)p*NT;
         #pragma unroll
         for ( int t = 0; t < NT; t++ ) crow[t] = acc[t];
     }
 }
 
 __global__ void
-sumI_sq( const unsigned char *A, int M, int *SumI, int *SumISq )
+sumI_sq( const uint8_t *A, int M, int *SumI, int *SumISq )
 {
     for ( int p = blockIdx.x*blockDim.x + threadIdx.x; p < M; p += gridDim.x*blockDim.x ) {
-        const unsigned char *arow = A + (long)p*Kg;
+        const uint8_t *arow = A + (size_t)p*Kg;
         int s = 0, sq = 0;
         for ( int w = 0; w < Kg; w++ ) { int v = arow[w]; s += v; sq += v*v; }
         SumI[p] = s; SumISq[p] = sq;
     }
 }
 
-// ---- int64 summed-area table (integral image) for the denominator ----
+// ---- int64_t summed-area table (integral image) for the denominator ----
 // Separable build: an inclusive scan per row, then per column. The parallelism
 // is across the H rows / W columns, so each scan is a plain sequential loop --
-// no in-row parallel prefix sum needed at this scale. int64 => exact box sums.
+// no in-row parallel prefix sum needed at this scale. int64_t => exact box sums.
 // Zero border: sat[(y+1)*(W+1)+(x+1)] = sum_{a<=x, b<=y} f(a,b).
 __global__ void
-satRowScan( const unsigned char *img, int W, int H, long long *sat, long long *satSq )
+satRowScan( const uint8_t *img, int W, int H, int64_t *sat, int64_t *satSq )
 {
     for ( int y = blockIdx.x*blockDim.x + threadIdx.x; y < H; y += gridDim.x*blockDim.x ) {
-        long long acc = 0, accSq = 0;
-        long long *rs  = sat   + (long long)(y+1)*(W+1);
-        long long *rsq = satSq + (long long)(y+1)*(W+1);
+        int64_t acc = 0, accSq = 0;
+        int64_t *rs  = sat   + (int64_t)(y+1)*(W+1);
+        int64_t *rsq = satSq + (int64_t)(y+1)*(W+1);
         for ( int x = 0; x < W; x++ ) {
             int v = img[y*W + x];
-            acc += v; accSq += (long long)v*v;
+            acc += v; accSq += (int64_t)v*v;
             rs[x+1] = acc; rsq[x+1] = accSq;
         }
     }
 }
 
 __global__ void
-satColScan( int W, int H, long long *sat, long long *satSq )
+satColScan( int W, int H, int64_t *sat, int64_t *satSq )
 {
     for ( int c = blockIdx.x*blockDim.x + threadIdx.x + 1; c <= W; c += gridDim.x*blockDim.x ) {
-        long long acc = 0, accSq = 0;
+        int64_t acc = 0, accSq = 0;
         for ( int y = 1; y <= H; y++ ) {
-            long long *p = sat   + (long long)y*(W+1) + c;
-            long long *q = satSq + (long long)y*(W+1) + c;
+            int64_t *p = sat   + (int64_t)y*(W+1) + c;
+            int64_t *q = satSq + (int64_t)y*(W+1) + c;
             acc += *p; accSq += *q; *p = acc; *q = accSq;
         }
     }
@@ -153,12 +154,12 @@ satColScan( int W, int H, long long *sat, long long *satSq )
 
 // SumI, SumISq per output pixel via the 4-corner rule: O(1)/pixel, size-independent.
 __global__ void
-satSums( const long long *sat, const long long *satSq, int W, int outW, int M,
+satSums( const int64_t *sat, const int64_t *satSq, int W, int outW, int M,
          int *SumI, int *SumISq )
 {
     for ( int p = blockIdx.x*blockDim.x + threadIdx.x; p < M; p += gridDim.x*blockDim.x ) {
         int x0 = p % outW, y0 = p / outW, x1 = x0 + T, y1 = y0 + T;   // window [x0,x1)x[y0,y1)
-        long long a = (long long)y0*(W+1), b = (long long)y1*(W+1);
+        int64_t a = (int64_t)y0*(W+1), b = (int64_t)y1*(W+1);
         SumI[p]   = (int)( sat[b+x1]   - sat[a+x1]   - sat[b+x0]   + sat[a+x0] );
         SumISq[p] = (int)( satSq[b+x1] - satSq[a+x1] - satSq[b+x0] + satSq[a+x0] );
     }
@@ -169,10 +170,10 @@ __global__ void
 combine( const int *rawIT, const int *SumI, const int *SumISq,
          const int *SumT, const int *SumTSq, int cPix, int M, float *Corr )
 {
-    for ( long idx = blockIdx.x*(long)blockDim.x + threadIdx.x; idx < (long)M*NT;
-              idx += (long)gridDim.x*blockDim.x ) {
+    for ( size_t idx = blockIdx.x*(size_t)blockDim.x + threadIdx.x; idx < (size_t)M*NT;
+              idx += (size_t)gridDim.x*blockDim.x ) {
         int p = idx / NT, t = idx % NT;
-        long SumIT = (long)rawIT[idx] + 128L*SumI[p] + 128L*SumT[t] - 128L*128*cPix;
+        int64_t SumIT = (int64_t)rawIT[idx] + 128*SumI[p] + 128*SumT[t] - 128*128*cPix;
         double num  = (double)cPix*SumIT - (double)SumI[p]*SumT[t];
         double dvar = ((double)cPix*SumISq[p] - (double)SumI[p]*SumI[p]) *
                       ((double)cPix*SumTSq[t] - (double)SumT[t]*SumT[t]);
@@ -189,23 +190,23 @@ main( int argc, char *argv[] )
     int alpha = 1, beta = 0;
     const int iters = 50;
     float msTC = 0.f, msB = 0.f;
-    long mism = 0, maxd = 0;
+    int64_t mism = 0, maxd = 0;
     double worstSelf = 1.0;
-    long satBad = 0;
+    int64_t satBad = 0;
     int *hITb = NULL;
 
     const char *inputFilename = (argc > 1) ? argv[1] : "coins.pgm";
-    unsigned char *hRaw = NULL, *dRaw = NULL, *hImg = NULL;
+    uint8_t *hRaw = NULL, *dRaw = NULL, *hImg = NULL;
     unsigned int   sysPitch = 0, devPitch = 0;
     int W = 0, H = 0;
 
-    unsigned char *dImg = NULL, *dA = NULL, *dBank = NULL;
-    signed char   *dAS = NULL,  *dBankS = NULL;
+    uint8_t *dImg = NULL, *dA = NULL, *dBank = NULL;
+    int8_t   *dAS = NULL,  *dBankS = NULL;
     int *dRawIT = NULL, *dITb = NULL, *dSumI = NULL, *dSumISq = NULL, *dSumT = NULL, *dSumTSq = NULL;
     float *dCorr = NULL;
-    long long *dSAT = NULL, *dSATsq = NULL;
+    int64_t *dSAT = NULL, *dSATsq = NULL;
     int *dSumIchk = NULL, *dSumISqchk = NULL;
-    unsigned char *hBank = NULL; signed char *hBankS = NULL;
+    uint8_t *hBank = NULL; int8_t *hBankS = NULL;
     int *hSumT = NULL, *hSumTSq = NULL, *tpx = NULL, *tpy = NULL;
     float *hCorr = NULL; int *hRawITh = NULL, *hSumIh = NULL;
     int *hIsq_sat = NULL, *hI_win = NULL, *hIsq_win = NULL;
@@ -219,13 +220,13 @@ main( int argc, char *argv[] )
     const int outW = W - T + 1, outH = H - T + 1, M = outW*outH;
 
     // Pack the (possibly pitched) host image into a dense WxH buffer.
-    hImg = (unsigned char *) malloc( (size_t)W*H );
+    hImg = (uint8_t *) malloc( (size_t)W*H );
     for ( int y = 0; y < H; y++ )
         for ( int x = 0; x < W; x++ ) hImg[y*W+x] = hRaw[y*sysPitch + x];
 
     // Build the bank: NT templates on a grid of locations in the image.
-    hBank   = (unsigned char *) malloc( (size_t)Kg*NT );
-    hBankS  = (signed char   *) malloc( (size_t)Kg*NT );
+    hBank   = (uint8_t *) malloc( (size_t)Kg*NT );
+    hBankS  = (int8_t   *) malloc( (size_t)Kg*NT );
     hSumT   = (int *) malloc( NT*sizeof(int) );
     hSumTSq = (int *) malloc( NT*sizeof(int) );
     tpx     = (int *) malloc( NT*sizeof(int) );
@@ -241,9 +242,9 @@ main( int argc, char *argv[] )
             int st = 0, stsq = 0;
             for ( int wy = 0; wy < T; wy++ )
                 for ( int wx = 0; wx < T; wx++ ) {
-                    unsigned char v = hImg[(tpy[t]+wy)*W + (tpx[t]+wx)];
+                    uint8_t v = hImg[(tpy[t]+wy)*W + (tpx[t]+wx)];
                     hBank[(wy*T+wx)*NT + t] = v;
-                    hBankS[(wy*T+wx)*NT + t] = (signed char)((int)v - 128);
+                    hBankS[(wy*T+wx)*NT + t] = (int8_t)((int)v - 128);
                     st += v; stsq += v*v;
                 }
             hSumT[t] = st; hSumTSq[t] = stsq;
@@ -262,8 +263,8 @@ main( int argc, char *argv[] )
     cuda( Malloc( &dSumT,  NT*sizeof(int) ) );
     cuda( Malloc( &dSumTSq,NT*sizeof(int) ) );
     cuda( Malloc( &dCorr,  (size_t)M*NT*sizeof(float) ) );
-    cuda( Malloc( &dSAT,    (size_t)(H+1)*(W+1)*sizeof(long long) ) );
-    cuda( Malloc( &dSATsq,  (size_t)(H+1)*(W+1)*sizeof(long long) ) );
+    cuda( Malloc( &dSAT,    (size_t)(H+1)*(W+1)*sizeof(int64_t) ) );
+    cuda( Malloc( &dSATsq,  (size_t)(H+1)*(W+1)*sizeof(int64_t) ) );
     cuda( Malloc( &dSumIchk,   (size_t)M*sizeof(int) ) );
     cuda( Malloc( &dSumISqchk, (size_t)M*sizeof(int) ) );
     cuda( Memcpy( dImg,   hImg,   (size_t)W*H,   cudaMemcpyHostToDevice ) );
@@ -273,9 +274,9 @@ main( int argc, char *argv[] )
     cuda( Memcpy( dSumTSq,hSumTSq,NT*sizeof(int),cudaMemcpyHostToDevice ) );
 
     im2col<<<1024,256>>>( dImg, W, outW, M, dA, dAS );  cuda( GetLastError() );
-    // Denominator sums via the int64 integral image (O(1)/pixel).
-    cuda( Memset( dSAT,   0, (size_t)(H+1)*(W+1)*sizeof(long long) ) );
-    cuda( Memset( dSATsq, 0, (size_t)(H+1)*(W+1)*sizeof(long long) ) );
+    // Denominator sums via the int64_t integral image (O(1)/pixel).
+    cuda( Memset( dSAT,   0, (size_t)(H+1)*(W+1)*sizeof(int64_t) ) );
+    cuda( Memset( dSATsq, 0, (size_t)(H+1)*(W+1)*sizeof(int64_t) ) );
     satRowScan<<<(H+255)/256,256>>>( dImg, W, H, dSAT, dSATsq );  cuda( GetLastError() );
     satColScan<<<(W+255)/256,256>>>( W, H, dSAT, dSATsq );        cuda( GetLastError() );
     satSums<<<(M+255)/256,256>>>( dSAT, dSATsq, W, outW, M, dSumI, dSumISq );  cuda( GetLastError() );
@@ -322,14 +323,14 @@ main( int argc, char *argv[] )
     cuda( Memcpy( hITb,    dITb,   (size_t)M*NT*sizeof(int),   cudaMemcpyDeviceToHost ) );
 
     // (a) SumIT (reconstructed) exactly matches the non-TC baseline.
-    for ( long i = 0; i < (long)M*NT; i++ ) {
-        int p = i/NT, t = i%NT;
-        long trueIT = (long)hRawITh[i] + 128L*hSumIh[p] + 128L*hSumT[t] - 128L*128*Kg;
-        long d = labs( trueIT - hITb[i] ); if ( d ) { mism++; if ( d > maxd ) maxd = d; }
+    for ( size_t i = 0; i < (size_t)M*NT; i++ ) {
+        int p = (int)(i/NT), t = (int)(i%NT);
+        int64_t trueIT = (int64_t)hRawITh[i] + 128*hSumIh[p] + 128*hSumT[t] - 128*128*Kg;
+        int64_t d = llabs( trueIT - hITb[i] ); if ( d ) { mism++; if ( d > maxd ) maxd = d; }
     }
     // (b) every template's self-location scores coefficient ~1.
     for ( int t = 0; t < NT; t++ ) {
-        long p = (long)tpy[t]*outW + tpx[t];
+        size_t p = (size_t)tpy[t]*outW + tpx[t];
         double c = hCorr[p*NT + t];
         if ( c < worstSelf ) worstSelf = c;
     }
@@ -352,9 +353,9 @@ main( int argc, char *argv[] )
         printf( "  %-26s %8.3f %9.1f   INT8 Tensor Cores (cuBLAS)\n", "TC GEMM", msTC, gop/(msTC/1e3) );
         printf( "  %-26s %8.3f %9.1f   hand kernel, no TC\n",         "baseline", msB, gop/(msB/1e3) );
         printf( "\n  speedup: %.1fx\n", msB/msTC );
-        printf( "  SumIT vs baseline: %ld mismatches (maxdiff %ld)\n", mism, maxd );
+        printf( "  SumIT vs baseline: %lld mismatches (maxdiff %lld)\n", (long long)mism, (long long)maxd );
         printf( "  worst self-correlation coefficient: %.5f (want ~1.0)\n", worstSelf );
-        printf( "  integral-image sums vs window loop: %ld mismatches\n", satBad );
+        printf( "  integral-image sums vs window loop: %lld mismatches\n", (long long)satBad );
     }
     ret = 0;
 
