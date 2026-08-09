@@ -133,6 +133,7 @@ set_target_properties(
     mallocSpeed
     mallocAsyncSpeed
     scopedAtomicSpeed
+    l2Persistence
     reportClocks
 
     # reduction
