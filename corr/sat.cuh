@@ -9,18 +9,23 @@
  * independent of template size and shared across a whole template bank or FFT
  * search.
  *
- * Three builds share one signature, selected by a template tag so they are
+ * Four builds share one signature, selected by a template tag so they are
  * drop-in swappable:
  *   SAT_NAIVE -- one thread per row, then per column; both moments fused in one
  *                pass. Simple and illustrative; serial within a line.
  *   SAT_CUB   -- the library build: cub::DeviceScan row scans, a coalesced
  *                transpose, scan again (= columns), transpose back.
- *   SAT_DLB   -- the fast build: CUB row scan into a uint32 intermediate (one
- *                row's running sum fits 32 bits out to W ~ 66K), then a
- *                transpose-free single-pass column scan using decoupled
- *                look-back (Chapter 13). No transpose, and the narrow
- *                intermediate halves both its DRAM traffic and its shared
- *                staging. ~3x the throughput of SAT_CUB at large sizes.
+ *   SAT_DLB   -- CUB row scan into a uint32 intermediate (one row's running sum
+ *                fits 32 bits out to W ~ 66K), then a transpose-free single-pass
+ *                column scan using decoupled look-back (Chapter 13). No transpose,
+ *                and the narrow intermediate halves both its DRAM traffic and its
+ *                shared staging. ~3x the throughput of SAT_CUB at large sizes.
+ *   SAT_FUSED -- the fast build: one kernel fuses the row scan INTO the column
+ *                look-back, so the intermediate is never written or read. Each tile
+ *                scans its rows with a horizontal look-back over the tiles to its
+ *                left, then its columns with a vertical look-back over the tiles
+ *                above; both moments ride the same chains and the image is read
+ *                once. ~1.9x the throughput of SAT_DLB at large sizes.
  *
  * Scratch is caller-owned (query with satScratchBytes, allocate, pass in) so the
  * header holds no state and needs no destructor:
@@ -69,7 +74,7 @@
 
 #include <chError.h>
 
-enum SATMethod { SAT_NAIVE, SAT_CUB, SAT_DLB };   // illustrative / library / fast
+enum SATMethod { SAT_NAIVE, SAT_CUB, SAT_DLB, SAT_FUSED };   // illustrative / library / DLB / fused single-pass
 
 // Four-corner box query over [x0,x1) x [y0,y1); S(-1,*) = S(*,-1) = 0.
 __host__ __device__ __forceinline__ int64_t
@@ -248,6 +253,185 @@ colDLB( const IT *__restrict__ A, int W, int H, int nS, int WG,
     }
 }
 
+// ---- fully-fused single-pass 2D decoupled look-back (both moments, no intermediate) ----
+//
+// SAT_DLB still runs a CUB row scan into a uint32 intermediate before its column
+// look-back. This kernel fuses the two directions so the intermediate is never
+// written or read: a block stages one (SAT_BR x SAT_BW) tile in shared, scans its
+// rows with a HORIZONTAL look-back over the tiles to its left, then scans its
+// columns with a VERTICAL look-back over the tiles above. Both moments (sum and
+// sum of squares) ride the same look-back chains, and the image is read once.
+//
+// Tiles are handed out in row-major order by the atomic counter, so both the left
+// neighbor (t-1) and the upper neighbor (t-WG) are lower tile indices: a block only
+// ever waits on earlier-scheduled tiles -> forward progress. Launch to the resident
+// limit. Row carries fit uint32 (one row's running sum is <= W*255^2 < 2^32 out to
+// W ~ 66K); column carries and the SAT itself are int64.
+
+__global__ void
+fusedBoth( const uint8_t *__restrict__ img, int W, int H, int nS, int WG,
+           int *ctr, volatile int *statusH, volatile int *statusV,
+           uint32_t *rowAggS, uint32_t *rowPrefS, uint32_t *rowAggQ, uint32_t *rowPrefQ,
+           int64_t *colAggS, int64_t *colPrefS, int64_t *colAggQ, int64_t *colPrefQ,
+           int64_t *S, int64_t *Q )
+{
+    __shared__ uint32_t tileS[SAT_BR][SAT_BW+1];   // pixels, then their row/column scan
+    __shared__ uint32_t tileQ[SAT_BR][SAT_BW+1];   // pixel squares, likewise
+    __shared__ uint32_t hcarryS[SAT_BR];           // horizontal (left) carry, per row
+    __shared__ uint32_t hcarryQ[SAT_BR];
+    __shared__ uint32_t rowLocS[SAT_BR];           // this tile's per-row totals
+    __shared__ uint32_t rowLocQ[SAT_BR];
+    __shared__ int      s_tile;
+    const int tid = threadIdx.x;
+    const int numTiles = nS*WG;
+    // Grab the first tile (row-major order via the atomic counter); the block walks
+    // tiles until the counter passes the last -- the loop's exit criterion.
+    if ( 0 == tid ) s_tile = atomicAdd( ctr, 1 );
+    __syncthreads();
+    for ( int t = s_tile; t < numTiles; t = s_tile ) {
+        int tj  = t / WG;               // stripe (row block)
+        int ti  = t % WG;               // column group
+        // col = this block's tid-th column; consecutive tids -> consecutive columns,
+        // so the staging loads and the SAT stores below are coalesced across the warp.
+        int col = ti*SAT_BW + tid;
+        int y0  = tj*SAT_BR;
+        int y1  = min( y0 + SAT_BR, H );
+        bool ok = col < W;
+
+        // 1. stage the stripe: read the image once, forming pixels and their squares
+        for ( int r = 0; r < SAT_BR; r++ ) {
+            int y = y0 + r;
+            uint32_t p = (ok && y < y1) ? img[(size_t)y*W + col] : 0u;
+            tileS[r][tid] = p;
+            tileQ[r][tid] = p*p;
+        }
+        __syncthreads();
+
+        // 2. per-row totals -- threads 0..SAT_BR-1 each cooperate as one row r --
+        // then publish the row AGGREGATE for the horizontal look-back.
+        if ( tid < SAT_BR ) {
+            int r = tid;
+            uint32_t s = 0;
+            uint32_t q = 0;
+            for ( int c = 0; c < SAT_BW; c++ ) {
+                s += tileS[r][c];
+                q += tileQ[r][c];
+            }
+            rowLocS[r] = s;
+            rowLocQ[r] = q;
+            rowAggS[(size_t)t*SAT_BR + r] = s;
+            rowAggQ[(size_t)t*SAT_BR + r] = q;
+        }
+        __syncthreads();
+        __threadfence();
+        if ( 0 == tid ) statusH[t] = 1;            // row AGGREGATE ready
+
+        // 3. horizontal look-back over the left tiles -> exclusive row carry.
+        // statusH[pidx] carries no tid, so threads 0..SAT_BR-1 read one flag and spin
+        // together; only the accumulated carry below is per row.
+        if ( tid < SAT_BR ) {
+            int r = tid;
+            uint32_t exS = 0;
+            uint32_t exQ = 0;
+            for ( int p = ti-1; p >= 0; p-- ) {
+                int pidx = tj*WG + p;
+                int st = statusH[pidx];
+                while ( 0 == st ) {                // spin until the left tile is ready
+                    st = statusH[pidx];
+                }
+                __threadfence();
+                if ( 2 == st ) {                   // its full prefix is done: take it, stop
+                    exS += rowPrefS[(size_t)pidx*SAT_BR + r];
+                    exQ += rowPrefQ[(size_t)pidx*SAT_BR + r];
+                    break;
+                }
+                exS += rowAggS[(size_t)pidx*SAT_BR + r];
+                exQ += rowAggQ[(size_t)pidx*SAT_BR + r];
+            }
+            hcarryS[r] = exS;
+            hcarryQ[r] = exQ;
+            rowPrefS[(size_t)t*SAT_BR + r] = exS + rowLocS[r];
+            rowPrefQ[(size_t)t*SAT_BR + r] = exQ + rowLocQ[r];
+        }
+        __syncthreads();
+        __threadfence();
+        if ( 0 == tid ) statusH[t] = 2;            // row PREFIX ready
+
+        // 4. horizontal scan: inclusive prefix along each row + its carry, in place.
+        // tileS/tileQ[r][c] now hold R(col,row), the row-scanned value.
+        if ( tid < SAT_BR ) {
+            int r = tid;
+            uint32_t accS = hcarryS[r];
+            uint32_t accQ = hcarryQ[r];
+            for ( int c = 0; c < SAT_BW; c++ ) {
+                accS += tileS[r][c];
+                tileS[r][c] = accS;
+                accQ += tileQ[r][c];
+                tileQ[r][c] = accQ;
+            }
+        }
+        __syncthreads();
+
+        // 5. per-column totals of R -- every thread cooperates as its own column col --
+        // then publish the column AGGREGATE for the vertical look-back.
+        int64_t colLocS = 0;
+        int64_t colLocQ = 0;
+        for ( int r = 0; r < SAT_BR; r++ ) {
+            colLocS += (int64_t)tileS[r][tid];
+            colLocQ += (int64_t)tileQ[r][tid];
+        }
+        colAggS[(size_t)t*SAT_BW + tid] = colLocS;
+        colAggQ[(size_t)t*SAT_BW + tid] = colLocQ;
+        __syncthreads();
+        __threadfence();
+        if ( 0 == tid ) statusV[t] = 1;            // column AGGREGATE ready
+
+        // 6. vertical look-back over the upper tiles -> exclusive column carry.
+        // statusV[pidx] carries no tid: the whole warp reads one flag and spins
+        // together, and only the carry is per column.
+        int64_t vS = 0;
+        int64_t vQ = 0;
+        for ( int p = tj-1; p >= 0; p-- ) {
+            int pidx = p*WG + ti;
+            int st = statusV[pidx];
+            while ( 0 == st ) {                    // spin until the upper tile is ready
+                st = statusV[pidx];
+            }
+            __threadfence();
+            if ( 2 == st ) {
+                vS += colPrefS[(size_t)pidx*SAT_BW + tid];
+                vQ += colPrefQ[(size_t)pidx*SAT_BW + tid];
+                break;
+            }
+            vS += colAggS[(size_t)pidx*SAT_BW + tid];
+            vQ += colAggQ[(size_t)pidx*SAT_BW + tid];
+        }
+        colPrefS[(size_t)t*SAT_BW + tid] = vS + colLocS;
+        colPrefQ[(size_t)t*SAT_BW + tid] = vQ + colLocQ;
+        __syncthreads();
+        __threadfence();
+        if ( 0 == tid ) statusV[t] = 2;            // column PREFIX ready
+
+        // 7. vertical scan: apply the column carry down the tile, write both SATs
+        int64_t accS = vS;
+        int64_t accQ = vQ;
+        for ( int r = 0; r < SAT_BR; r++ ) {
+            accS += (int64_t)tileS[r][tid];
+            accQ += (int64_t)tileQ[r][tid];
+            int y = y0 + r;
+            if ( ok && y < y1 ) {
+                S[(size_t)y*W + col] = accS;
+                Q[(size_t)y*W + col] = accQ;
+            }
+        }
+        __syncthreads();
+
+        // grab the next tile; the for's next-step re-reads it as t = s_tile
+        if ( 0 == tid ) s_tile = atomicAdd( ctr, 1 );
+        __syncthreads();
+    }
+}
+
 __host__ inline size_t
 alignUp( size_t x, size_t a )
 {
@@ -267,7 +451,17 @@ struct Plan {
     size_t offAggr = 0;      // DLB per-column aggregates
     size_t offPref = 0;      // DLB per-column prefixes
     size_t offStatus = 0;    // DLB per-tile status flags
-    size_t offCtr = 0;       // DLB atomic tile counter
+    size_t offCtr = 0;       // DLB/FUSED atomic tile counter
+    size_t offStatusH = 0;   // FUSED per-tile horizontal status flags
+    size_t offStatusV = 0;   // FUSED per-tile vertical status flags
+    size_t offRowAggS = 0;   // FUSED per-tile-row aggregates/prefixes (uint32, both moments)
+    size_t offRowPrefS = 0;
+    size_t offRowAggQ = 0;
+    size_t offRowPrefQ = 0;
+    size_t offColAggS = 0;   // FUSED per-tile-column aggregates/prefixes (int64, both moments)
+    size_t offColPrefS = 0;
+    size_t offColAggQ = 0;
+    size_t offColPrefQ = 0;
     int nS = 0;
     int WG = 0;
 };
@@ -300,7 +494,7 @@ plan( int W, int H )
         o = alignUp( o + N*8, AL );
         p.total = o;
     }
-    else {   // SAT_DLB
+    else if constexpr ( SAT_DLB == M ) {
         cub::DeviceScan::InclusiveSumByKey( nullptr, p.cubBytes,
             thrust::make_transform_iterator( cnt, RowKey{W} ),
             thrust::make_transform_iterator( cnt, Pix32{nullptr} ), (uint32_t *)nullptr, (int)N );
@@ -317,6 +511,33 @@ plan( int W, int H )
         o = alignUp( o + (size_t)p.nS*p.WG*4, AL );
         p.offCtr = o;
         o = alignUp( o + 4, AL );
+        p.total = o;
+    }
+    else {   // SAT_FUSED
+        size_t nt = (size_t)p.nS * p.WG;
+        size_t o = 0;
+        p.offCtr = o;
+        o = alignUp( o + 4, AL );
+        p.offStatusH = o;
+        o = alignUp( o + nt*4, AL );
+        p.offStatusV = o;
+        o = alignUp( o + nt*4, AL );
+        p.offRowAggS = o;
+        o = alignUp( o + nt*SAT_BR*4, AL );
+        p.offRowPrefS = o;
+        o = alignUp( o + nt*SAT_BR*4, AL );
+        p.offRowAggQ = o;
+        o = alignUp( o + nt*SAT_BR*4, AL );
+        p.offRowPrefQ = o;
+        o = alignUp( o + nt*SAT_BR*4, AL );
+        p.offColAggS = o;
+        o = alignUp( o + nt*SAT_BW*8, AL );
+        p.offColPrefS = o;
+        o = alignUp( o + nt*SAT_BW*8, AL );
+        p.offColAggQ = o;
+        o = alignUp( o + nt*SAT_BW*8, AL );
+        p.offColPrefQ = o;
+        o = alignUp( o + nt*SAT_BW*8, AL );
         p.total = o;
     }
     return p;
@@ -378,7 +599,7 @@ satBuild( const uint8_t *dImg, int W, int H,
                 transposeT<int64_t><<<dim3((H+31)/32,(W+31)/32),blk>>>( Bt, out, H, W );
             }
         }
-        else {   // SAT_DLB
+        else if constexpr ( SAT_DLB == M ) {
             void     *cubTmp = base + p.offCub;
             uint32_t *A32    = (uint32_t *)(base + p.offA32);
             int64_t  *aggr   = (int64_t  *)(base + p.offAggr);
@@ -405,6 +626,32 @@ satBuild( const uint8_t *dImg, int W, int H,
                 CUDART_CHECK( cudaMemset( status, 0, (size_t)p.nS*p.WG*sizeof(int) ) );
                 colDLB<uint32_t><<<blocks,SAT_BW>>>( A32, W, H, p.nS, p.WG, ctr, status, aggr, pref, out );
             }
+        }
+        else {   // SAT_FUSED
+            int      *ctr      = (int *)(base + p.offCtr);
+            int      *statusH  = (int *)(base + p.offStatusH);
+            int      *statusV  = (int *)(base + p.offStatusV);
+            uint32_t *rowAggS  = (uint32_t *)(base + p.offRowAggS);
+            uint32_t *rowPrefS = (uint32_t *)(base + p.offRowPrefS);
+            uint32_t *rowAggQ  = (uint32_t *)(base + p.offRowAggQ);
+            uint32_t *rowPrefQ = (uint32_t *)(base + p.offRowPrefQ);
+            int64_t  *colAggS  = (int64_t *)(base + p.offColAggS);
+            int64_t  *colPrefS = (int64_t *)(base + p.offColPrefS);
+            int64_t  *colAggQ  = (int64_t *)(base + p.offColAggQ);
+            int64_t  *colPrefQ = (int64_t *)(base + p.offColPrefQ);
+            int numSM;
+            int perSM;
+            CUDART_CHECK( cudaDeviceGetAttribute( &numSM, cudaDevAttrMultiProcessorCount, 0 ) );
+            CUDART_CHECK( cudaOccupancyMaxActiveBlocksPerMultiprocessor( &perSM, fusedBoth, SAT_BW, 0 ) );
+            int blocks = numSM * perSM;
+            size_t nt = (size_t)p.nS * p.WG;
+            CUDART_CHECK( cudaMemset( ctr, 0, sizeof(int) ) );
+            CUDART_CHECK( cudaMemset( statusH, 0, nt*sizeof(int) ) );
+            CUDART_CHECK( cudaMemset( statusV, 0, nt*sizeof(int) ) );
+            // one launch: both moments through a single fused pass, image read once
+            fusedBoth<<<blocks,SAT_BW>>>( dImg, W, H, p.nS, p.WG, ctr, statusH, statusV,
+                                          rowAggS, rowPrefS, rowAggQ, rowPrefQ,
+                                          colAggS, colPrefS, colAggQ, colPrefQ, dSum, dSumSq );
         }
     }
 

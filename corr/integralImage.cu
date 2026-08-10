@@ -95,6 +95,9 @@ main( int argc, char *argv[] )
     if ( satScratchBytes<SAT_DLB>( Wmax, Wmax ) > scratchBytes ) {
         scratchBytes = satScratchBytes<SAT_DLB>( Wmax, Wmax );
     }
+    if ( satScratchBytes<SAT_FUSED>( Wmax, Wmax ) > scratchBytes ) {
+        scratchBytes = satScratchBytes<SAT_FUSED>( Wmax, Wmax );
+    }
 
     srand( 5 );
     hImg = (uint8_t *) malloc( Nmax );
@@ -114,9 +117,9 @@ main( int argc, char *argv[] )
     {
         cudaDeviceProp prop;
         cuda( GetDeviceProperties( &prop, 0 ) );
-        printf( "%s  summed-area table build, both moments (naive / CUB / DLB), ms\n\n", prop.name );
-        printf( "  %5s  %9s %9s %9s   %7s %7s  %6s\n",
-                "size", "naive", "CUB", "DLB", "N/DLB", "CUB/DLB", "exact" );
+        printf( "%s  summed-area table build, both moments (naive / CUB / DLB / FUSED), ms\n\n", prop.name );
+        printf( "  %5s  %9s %9s %9s %9s   %8s %8s  %6s\n",
+                "size", "naive", "CUB", "DLB", "FUSED", "DLB/FUS", "CUB/FUS", "exact" );
     }
 
     for ( int si = 0; si < nSizes; si++ ) {
@@ -126,6 +129,7 @@ main( int argc, char *argv[] )
         float msN = 0.f;
         float msC = 0.f;
         float msD = 0.f;
+        float msF = 0.f;
         long bad = 0;
 
         #define BENCH(TAG,MS) do {                                                            \
@@ -148,10 +152,11 @@ main( int argc, char *argv[] )
         BENCH( SAT_NAIVE, msN );
         BENCH( SAT_CUB,   msC );
         BENCH( SAT_DLB,   msD );
+        BENCH( SAT_FUSED, msF );
         #undef BENCH
 
-        printf( "  %5d  %9.4f %9.4f %9.4f   %6.2fx %6.2fx  %s\n",
-                W, msN, msC, msD, msN/msD, msC/msD, bad ? "MISMATCH" : "exact" );
+        printf( "  %5d  %9.4f %9.4f %9.4f %9.4f   %7.2fx %7.2fx  %s\n",
+                W, msN, msC, msD, msF, msD/msF, msC/msF, bad ? "MISMATCH" : "exact" );
     }
     ret = 0;
 
