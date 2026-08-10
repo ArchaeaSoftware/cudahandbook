@@ -184,15 +184,15 @@ colDLB( const IT *__restrict__ A, int W, int H, int nS, int WG,
     __shared__ int s_tile;
     const int tid = threadIdx.x;
     const int numTiles = nS*WG;
-    while ( true ) {
-        if ( 0 == tid ) {
-            s_tile = atomicAdd( ctr, 1 );
-        }
-        __syncthreads();
-        int t = s_tile;
-        if ( t >= numTiles ) return;
+    // Grab the first tile (stripe-major order via the atomic counter); the block
+    // walks tiles until the counter passes the last -- the loop's exit criterion.
+    if ( 0 == tid ) s_tile = atomicAdd( ctr, 1 );
+    __syncthreads();
+    for ( int t = s_tile; t < numTiles; t = s_tile ) {
         int s = t / WG;
         int g = t % WG;
+        // col = this block's tid-th column; consecutive tids -> consecutive columns,
+        // so the per-row global loads/stores below are coalesced across the warp.
         int col = g*SAT_BW + tid;
         int y0 = s*SAT_BR;
         int y1 = min( y0 + SAT_BR, H );
@@ -214,6 +214,8 @@ colDLB( const IT *__restrict__ A, int W, int H, int nS, int WG,
         // look back over earlier stripes for the exclusive prefix (the carry)
         int64_t ex = 0;
         for ( int p = s-1; p >= 0; p-- ) {
+            // pi has no tid: status[pi] is block-uniform, so the whole block reads one
+            // flag, spins together, and breaks together -- only ex below is per-column.
             int pi = p*WG + g;
             int st = status[pi];
             while ( 0 == st ) {                    // spin until predecessor ready
@@ -238,6 +240,10 @@ colDLB( const IT *__restrict__ A, int W, int H, int nS, int WG,
             int y = y0 + r;
             if ( ok && y < y1 ) S[(size_t)y*W + col] = a;
         }
+        __syncthreads();
+
+        // grab the next tile; the for's next-step re-reads it as t = s_tile
+        if ( 0 == tid ) s_tile = atomicAdd( ctr, 1 );
         __syncthreads();
     }
 }
