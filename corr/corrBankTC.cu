@@ -22,7 +22,7 @@
  * finds each template's correlation peak to confirm it is detected there.
  *
  * The per-pixel denominator sums (SumI, SumISq) come from an int64_t summed-area
- * table (integral image): a separable row-then-column inclusive scan, box sums
+ * table (integral image, sat.cuh): a separable row-then-column inclusive scan, box sums
  * via the 4-corner rule in O(1)/pixel. int64_t keeps them exact -- a 512x512 8-bit
  * squared-sum already overflows int32.
  *
@@ -66,6 +66,8 @@
 #include <cublas_v2.h>       // before chError.h so the cublas() macro is defined
 #include <chError.h>
 #include <pgm.h>
+
+#include "sat.cuh"
 
 static const int T  = 16;               // template edge; window K = T*T = 256
 static const int NT = 32;               // templates in the bank
@@ -119,49 +121,17 @@ sumI_sq( const uint8_t *A, int M, int *SumI, int *SumISq )
     }
 }
 
-// ---- int64_t summed-area table (integral image) for the denominator ----
-// Separable build: an inclusive scan per row, then per column. The parallelism
-// is across the H rows / W columns, so each scan is a plain sequential loop --
-// no in-row parallel prefix sum needed at this scale. int64_t => exact box sums.
-// Zero border: sat[(y+1)*(W+1)+(x+1)] = sum_{a<=x, b<=y} f(a,b).
+// SumI, SumISq per output pixel via the four-corner rule (satBox, sat.cuh):
+// O(1) per pixel, independent of the template size.
 __global__ void
-satRowScan( const uint8_t *img, int W, int H, int64_t *sat, int64_t *satSq )
-{
-    for ( int y = blockIdx.x*blockDim.x + threadIdx.x; y < H; y += gridDim.x*blockDim.x ) {
-        int64_t acc = 0, accSq = 0;
-        int64_t *rs  = sat   + (int64_t)(y+1)*(W+1);
-        int64_t *rsq = satSq + (int64_t)(y+1)*(W+1);
-        for ( int x = 0; x < W; x++ ) {
-            int v = img[y*W + x];
-            acc += v; accSq += (int64_t)v*v;
-            rs[x+1] = acc; rsq[x+1] = accSq;
-        }
-    }
-}
-
-__global__ void
-satColScan( int W, int H, int64_t *sat, int64_t *satSq )
-{
-    for ( int c = blockIdx.x*blockDim.x + threadIdx.x + 1; c <= W; c += gridDim.x*blockDim.x ) {
-        int64_t acc = 0, accSq = 0;
-        for ( int y = 1; y <= H; y++ ) {
-            int64_t *p = sat   + (int64_t)y*(W+1) + c;
-            int64_t *q = satSq + (int64_t)y*(W+1) + c;
-            acc += *p; accSq += *q; *p = acc; *q = accSq;
-        }
-    }
-}
-
-// SumI, SumISq per output pixel via the 4-corner rule: O(1)/pixel, size-independent.
-__global__ void
-satSums( const int64_t *sat, const int64_t *satSq, int W, int outW, int M,
-         int *SumI, int *SumISq )
+windowSums( const int64_t *dSum, const int64_t *dSumSq, int W, int outW, int M,
+            int *SumI, int *SumISq )
 {
     for ( int p = blockIdx.x*blockDim.x + threadIdx.x; p < M; p += gridDim.x*blockDim.x ) {
-        int x0 = p % outW, y0 = p / outW, x1 = x0 + T, y1 = y0 + T;   // window [x0,x1)x[y0,y1)
-        int64_t a = (int64_t)y0*(W+1), b = (int64_t)y1*(W+1);
-        SumI[p]   = (int)( sat[b+x1]   - sat[a+x1]   - sat[b+x0]   + sat[a+x0] );
-        SumISq[p] = (int)( satSq[b+x1] - satSq[a+x1] - satSq[b+x0] + satSq[a+x0] );
+        int x0 = p % outW;
+        int y0 = p / outW;
+        SumI[p]   = (int) satBox( dSum,   W, x0, y0, x0+T, y0+T );
+        SumISq[p] = (int) satBox( dSumSq, W, x0, y0, x0+T, y0+T );
     }
 }
 
@@ -238,7 +208,7 @@ main( int argc, char *argv[] )
     int8_t   *dAS = NULL,  *dBankS = NULL;
     int *dRawIT = NULL, *dITb = NULL, *dSumI = NULL, *dSumISq = NULL, *dSumT = NULL, *dSumTSq = NULL;
     float *dCorr = NULL;
-    int64_t *dSAT = NULL, *dSATsq = NULL;
+    int64_t *dSum = NULL, *dSumSq = NULL;
     int *dSumIchk = NULL, *dSumISqchk = NULL;
     int *dBestIdx = NULL, *hBestIdx = NULL;
     float *dBestScore = NULL, *hBestScore = NULL;
@@ -257,8 +227,9 @@ main( int argc, char *argv[] )
 
     // Pack the (possibly pitched) host image into a dense WxH buffer.
     hImg = (uint8_t *) malloc( (size_t)W*H );
-    for ( int y = 0; y < H; y++ )
+    for ( int y = 0; y < H; y++ ) {
         for ( int x = 0; x < W; x++ ) hImg[y*W+x] = hRaw[y*sysPitch + x];
+    }
 
     // Build the bank: NT templates on a grid of locations in the image.
     hBank   = (uint8_t *) malloc( (size_t)Kg*NT );
@@ -276,13 +247,14 @@ main( int argc, char *argv[] )
             if ( tpx[t] > outW-1 ) tpx[t] = outW-1;
             if ( tpy[t] > outH-1 ) tpy[t] = outH-1;
             int st = 0, stsq = 0;
-            for ( int wy = 0; wy < T; wy++ )
+            for ( int wy = 0; wy < T; wy++ ) {
                 for ( int wx = 0; wx < T; wx++ ) {
                     uint8_t v = hImg[(tpy[t]+wy)*W + (tpx[t]+wx)];
                     hBank[(wy*T+wx)*NT + t] = v;
                     hBankS[(wy*T+wx)*NT + t] = (int8_t)((int)v - 128);
                     st += v; stsq += v*v;
                 }
+            }
             hSumT[t] = st; hSumTSq[t] = stsq;
         }
     }
@@ -299,8 +271,8 @@ main( int argc, char *argv[] )
     cuda( Malloc( &dSumT,  NT*sizeof(int) ) );
     cuda( Malloc( &dSumTSq,NT*sizeof(int) ) );
     cuda( Malloc( &dCorr,  (size_t)M*NT*sizeof(float) ) );
-    cuda( Malloc( &dSAT,    (size_t)(H+1)*(W+1)*sizeof(int64_t) ) );
-    cuda( Malloc( &dSATsq,  (size_t)(H+1)*(W+1)*sizeof(int64_t) ) );
+    cuda( Malloc( &dSum,   (size_t)W*H*sizeof(int64_t) ) );
+    cuda( Malloc( &dSumSq, (size_t)W*H*sizeof(int64_t) ) );
     cuda( Malloc( &dSumIchk,   (size_t)M*sizeof(int) ) );
     cuda( Malloc( &dSumISqchk, (size_t)M*sizeof(int) ) );
     cuda( Malloc( &dBestIdx,   NT*sizeof(int) ) );
@@ -312,12 +284,9 @@ main( int argc, char *argv[] )
     cuda( Memcpy( dSumTSq,hSumTSq,NT*sizeof(int),cudaMemcpyHostToDevice ) );
 
     im2col<<<1024,256>>>( dImg, W, outW, M, dA, dAS );  cuda( GetLastError() );
-    // Denominator sums via the int64_t integral image (O(1)/pixel).
-    cuda( Memset( dSAT,   0, (size_t)(H+1)*(W+1)*sizeof(int64_t) ) );
-    cuda( Memset( dSATsq, 0, (size_t)(H+1)*(W+1)*sizeof(int64_t) ) );
-    satRowScan<<<(H+255)/256,256>>>( dImg, W, H, dSAT, dSATsq );  cuda( GetLastError() );
-    satColScan<<<(W+255)/256,256>>>( W, H, dSAT, dSATsq );        cuda( GetLastError() );
-    satSums<<<(M+255)/256,256>>>( dSAT, dSATsq, W, outW, M, dSumI, dSumISq );  cuda( GetLastError() );
+    // Denominator sums via the integral image (sat.cuh, four-corner rule, O(1)/pixel).
+    CUDART_CHECK( satBuild<SAT_NAIVE>( dImg, W, H, dSum, dSumSq, NULL, 0 ) );
+    windowSums<<<(M+255)/256,256>>>( dSum, dSumSq, W, outW, M, dSumI, dSumISq );  cuda( GetLastError() );
     // Cross-check the integral-image sums against the direct window loop.
     sumI_sq<<<(M+255)/256,256>>>( dA, M, dSumIchk, dSumISqchk );  cuda( GetLastError() );
     cuda( DeviceSynchronize() );
@@ -419,7 +388,7 @@ Error_cudart:
     cudaFree( dImg ); cudaFree( dA ); cudaFree( dAS ); cudaFree( dBank ); cudaFree( dBankS );
     cudaFree( dRawIT ); cudaFree( dITb ); cudaFree( dSumI ); cudaFree( dSumISq );
     cudaFree( dSumT ); cudaFree( dSumTSq ); cudaFree( dCorr );
-    cudaFree( dSAT ); cudaFree( dSATsq ); cudaFree( dSumIchk ); cudaFree( dSumISqchk );
+    cudaFree( dSum ); cudaFree( dSumSq ); cudaFree( dSumIchk ); cudaFree( dSumISqchk );
     cudaFree( dBestIdx ); cudaFree( dBestScore );
     return ret;
 }
