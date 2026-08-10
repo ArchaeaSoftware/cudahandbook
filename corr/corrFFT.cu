@@ -11,14 +11,21 @@
  * the method of choice for large templates (a spatial search is O(N * K), K the
  * template area). cuFFT is single precision, so the FFT numerator is approximate
  * (fine for localization); the denominator SumI/SumISq comes from the exact
- * int64 integral image in sat.cuh, and the template's SumT/SumTSq are constants.
+ * int64 summed-area table in sat.cuh, built by the fused single-pass
+ * decoupled-look-back method (SAT_FUSED), and the template's SumT/SumTSq are constants.
  *
  * The template is extracted from the image itself, so it correlates perfectly
  * (coefficient 1) at its own location; the sample finds the correlation peak to
  * confirm it is detected there, and cross-checks the FFT numerator against a
  * direct spatial one.
  *
+ * --padWidth/--padHeight grow the working image (coins placed top-left, the rest
+ * zero-padded -- there is no data dependency in the timing), so the full-match
+ * cost can be swept to realistic sizes where the FFT numerator flattens and the
+ * summed-area-table build dominates.
+ *
  * Build: nvcc -O3 -arch=sm_86 -I ../chLib corrFFT.cu ../chLib/pgm.cu -lcufft
+ * Run:   ./corrFFT [image.pgm] [--padWidth W --padHeight H]
  *
  * Copyright (c) 2025-2026, Archaea Software, LLC.
  * All rights reserved.
@@ -51,11 +58,13 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include <cstdint>
 
 #include <cufft.h>
 #include <chError.h>
+#include <chCommandLine.h>
 #include <pgm.h>
 #include "sat.cuh"
 
@@ -107,7 +116,7 @@ mulConj( const cufftComplex *F, const cufftComplex *Tt, cufftComplex *C, int n )
     }
 }
 
-// NCC coefficient per output pixel: FFT numerator + integral-image denominator.
+// NCC coefficient per output pixel: FFT numerator + summed-area-table denominator.
 __global__ void
 combine( const float *corrRaw, const int64_t *dSum, const int64_t *dSumSq,
          int64_t SumT, int64_t SumTSq, int cPix, float invN,
@@ -188,7 +197,11 @@ main( int argc, char *argv[] )
     cufftResult status_cufft;
     int ret = 1;
     const int iters = 50;
-    const char *inputFilename = (argc > 1) ? argv[1] : "coins.pgm";
+    const char *inputFilename = "coins.pgm";
+    int padWidth = 0, padHeight = 0;
+    if ( argc > 1 && '-' != argv[1][0] ) inputFilename = argv[1];
+    chCommandLineGet( &padWidth,  "padWidth",  argc, argv );
+    chCommandLineGet( &padHeight, "padHeight", argc, argv );
 
     uint8_t *hRaw = NULL, *dRaw = NULL, *hImg = NULL, *dImg = NULL;
     unsigned int sysPitch = 0, devPitch = 0;
@@ -198,28 +211,39 @@ main( int argc, char *argv[] )
     int *dITspat = NULL, *dBestIdx = NULL;
     float *dBestScore = NULL;
     int64_t *dSum = NULL, *dSumSq = NULL;
+    void *scratch = NULL;
+    size_t scratchBytes = 0;
     float *hCorr = NULL, *hRawCorr = NULL;
     int *hITspat = NULL, hBestIdx = 0;
     float hBestScore = 0.f;
     cufftHandle planR2C = 0, planC2R = 0;
     cudaEvent_t e0 = NULL, e1 = NULL;
-    float msFFT = 0.f, msSpat = 0.f, msFull = 0.f;
+    float msFFT = 0.f, msSpat = 0.f, msSAT = 0.f, msFull = 0.f;
     double worstRel = 0.0, selfCoef = 0.0;
 
     if ( pgmLoad( inputFilename, &hRaw, &sysPitch, &dRaw, &devPitch, &W, &H ) ) {
         fprintf( stderr, "could not load %s\n", inputFilename );
         return 1;
     }
+    const int W0 = W, H0 = H;                 // original (coins) dimensions
+    if ( padWidth  > W ) W = padWidth;         // grow the working image; no data dependency
+    if ( padHeight > H ) H = padHeight;
     const int outW = W - T + 1, outH = H - T + 1, M = outW*outH;
     const int Wp = nextPow2( W ), Hp = nextPow2( H );   // pad the FFT to a fast, wrap-free size
     const int Cw = Wp/2 + 1;
-    const int tx = W/3, ty = H/3;            // planted template location (in range)
+    const int tx = W0/3, ty = H0/3;            // planted template stays inside the coins region
     const float invN = 1.0f / ((float)Hp*Wp);
+    const int itersSpat = ( W >= 1024 ) ? 3 : iters;    // the O(N*K) cross-check is slow at scale
+    const int uSig = ( W0 - T > 0 ) ? W0 - T : outW;    // cross-check only where there is signal
+    const int vSig = ( H0 - T > 0 ) ? H0 - T : outH;    // (the zero-padded remainder has SumIT==0)
 
-    // Pack the (possibly pitched) host image into a dense WxH buffer; template sums.
+    // Pack coins into the top-left of a dense, zero-padded WxH buffer; template sums.
     hImg = (uint8_t *) malloc( (size_t)W*H );
-    for ( int y = 0; y < H; y++ ) {
-        for ( int x = 0; x < W; x++ ) hImg[y*W + x] = hRaw[y*sysPitch + x];
+    memset( hImg, 0, (size_t)W*H );
+    for ( int y = 0; y < H0; y++ ) {
+        for ( int x = 0; x < W0; x++ ) {
+            hImg[y*W + x] = hRaw[y*sysPitch + x];
+        }
     }
     int64_t SumT = 0, SumTSq = 0;
     for ( int a = 0; a < T; a++ ) {
@@ -243,6 +267,8 @@ main( int argc, char *argv[] )
     cuda( Malloc( &dITspat,  (size_t)M*sizeof(int) ) );
     cuda( Malloc( &dBestIdx,    sizeof(int) ) );
     cuda( Malloc( &dBestScore,  sizeof(float) ) );
+    scratchBytes = satScratchBytes<SAT_FUSED>( W, H );
+    cuda( Malloc( &scratch, scratchBytes ) );
     cuda( Memcpy( dImg, hImg, (size_t)W*H, cudaMemcpyHostToDevice ) );
 
     cuda( Memset( dImgF, 0, (size_t)Hp*Wp*sizeof(float) ) );
@@ -276,21 +302,30 @@ main( int argc, char *argv[] )
     SPATIAL();
     cuda( DeviceSynchronize() );
     cuda( EventRecord( e0, 0 ) );
-    for ( int i = 0; i < iters; i++ ) SPATIAL();
+    for ( int i = 0; i < itersSpat; i++ ) SPATIAL();
     cuda( EventRecord( e1, 0 ) );
     cuda( EventSynchronize( e1 ) );
-    cuda( EventElapsedTime( &msSpat, e0, e1 ) );  msSpat /= iters;
+    cuda( EventElapsedTime( &msSpat, e0, e1 ) );  msSpat /= itersSpat;
 
-    // Denominator via the integral image (sat.cuh), then the coefficient and peak.
-    CUDART_CHECK( satBuild<SAT_NAIVE>( dImg, W, H, dSum, dSumSq, NULL, 0 ) );
+    // Denominator via the summed-area table (sat.cuh), then the coefficient and peak.
+    CUDART_CHECK( satBuild<SAT_FUSED>( dImg, W, H, dSum, dSumSq, scratch, scratchBytes ) );
     combine<<<(M+255)/256,256>>>( dCorrRaw, dSum, dSumSq, SumT, SumTSq, Kg, invN, W, Wp, outW, M, dCorr );
     findPeak<<<1,256>>>( dCorr, M, dBestIdx, dBestScore );
     cuda( DeviceSynchronize() );
 
+    // SAT denominator build (DLB), timed on its own.
+    cuda( EventRecord( e0, 0 ) );
+    for ( int i = 0; i < iters; i++ ) {
+        satBuild<SAT_FUSED>( dImg, W, H, dSum, dSumSq, scratch, scratchBytes );
+    }
+    cuda( EventRecord( e1, 0 ) );
+    cuda( EventSynchronize( e1 ) );
+    cuda( EventElapsedTime( &msSAT, e0, e1 ) );  msSAT /= iters;
+
     // Full one-template pipeline: FFT numerator + SAT build + combine.
     #define FULL() do {                                                                   \
         FFT_NUMERATOR();                                                                  \
-        satBuild<SAT_NAIVE>( dImg, W, H, dSum, dSumSq, NULL, 0 );                          \
+        satBuild<SAT_FUSED>( dImg, W, H, dSum, dSumSq, scratch, scratchBytes );              \
         combine<<<(M+255)/256,256>>>( dCorrRaw, dSum, dSumSq, SumT, SumTSq, Kg, invN, W, Wp, outW, M, dCorr ); \
     } while (0)
     FULL();
@@ -314,11 +349,12 @@ main( int argc, char *argv[] )
     cuda( Memcpy( &hBestIdx,   dBestIdx,   sizeof(int),   cudaMemcpyDeviceToHost ) );
     cuda( Memcpy( &hBestScore, dBestScore, sizeof(float), cudaMemcpyDeviceToHost ) );
 
-    // (a) FFT numerator vs the exact spatial one (worst relative error).
+    // (a) FFT numerator vs the exact spatial one (worst relative error), sampled
+    // over the coins region (uSig x vSig) where there is real signal.
     srand( 7 );
     for ( int s = 0; s < 400; s++ ) {
-        int u = rand() % outW;
-        int v = rand() % outH;
+        int u = rand() % uSig;
+        int v = rand() % vSig;
         double fft = (double)hRawCorr[v*Wp + u] * (double)invN;
         double sp  = (double)hITspat[v*outW + u];
         double rel = fabs( fft - sp ) / (fabs(sp) + 1.0);
@@ -332,17 +368,17 @@ main( int argc, char *argv[] )
         int py = hBestIdx / outW;
         cudaDeviceProp prop;
         cuda( GetDeviceProperties( &prop, 0 ) );
-        printf( "%s  cuFFT single-template NCC: image %dx%d, template %dx%d, M=%d\n\n",
-                prop.name, W, H, T, T, M );
-        printf( "  %-24s %8s\n", "numerator method", "ms" );
-        printf( "  %-24s %8.3f   cuFFT (R2C, R2C, mul, C2R), single precision\n", "FFT", msFFT );
-        printf( "  %-24s %8.3f   direct spatial, exact int, O(N*K)\n", "spatial", msSpat );
-        printf( "\n  speedup FFT vs spatial: %.1fx  (K = %dx%d)\n", msSpat/msFFT, T, T );
-        printf( "  full pipeline (FFT + SAT + combine): %.3f ms\n", msFull );
-        printf( "  FFT vs spatial numerator: worst relative error %.2e (fp32 FFT)\n", worstRel );
-        printf( "  self-correlation coefficient at planted location: %.5f (want ~1.0)\n", selfCoef );
-        printf( "  peak at (%d,%d) score %.5f, planted (%d,%d) -> %s\n",
-                px, py, hBestScore, tx, ty, (px == tx && py == ty) ? "MATCH" : "MISLOCATED" );
+        printf( "%s  cuFFT single-template NCC: image %dx%d (FFT pad %dx%d), template %dx%d, M=%d\n\n",
+                prop.name, W, H, Wp, Hp, T, T, M );
+        printf( "  %-26s %9s\n", "stage", "ms" );
+        printf( "  %-26s %9.3f   cuFFT R2C,R2C,mulConj,C2R (fp32)\n", "FFT numerator", msFFT );
+        printf( "  %-26s %9.3f   summed-area table, fused single-pass (exact int64)\n", "SAT denominator build", msSAT );
+        printf( "  %-26s %9.3f   FFT numerator + SAT build + combine\n", "full pipeline", msFull );
+        printf( "  %-26s %9.3f   direct spatial numerator, exact int, O(N*K)\n", "(spatial cross-check)", msSpat );
+        printf( "\n  FFT vs spatial numerator: %.1fx faster (K=%dx%d); worst rel err %.2e (fp32 FFT)\n",
+                msSpat/msFFT, T, T, worstRel );
+        printf( "  self-corr at planted location: %.5f; peak (%d,%d) vs planted (%d,%d) -> %s\n",
+                selfCoef, px, py, tx, ty, (px == tx && py == ty) ? "MATCH" : "MISLOCATED" );
     }
     ret = 0;
 
@@ -354,7 +390,7 @@ Error_cudart:
     if ( e1 ) cudaEventDestroy( e1 );
     cudaFree( dImg );  cudaFree( dImgF );  cudaFree( dTmplF );  cudaFree( dCorrRaw );  cudaFree( dCorr );
     cudaFree( dImgHat );  cudaFree( dTmplHat );  cudaFree( dCorrHat );
-    cudaFree( dSum );  cudaFree( dSumSq );  cudaFree( dITspat );
+    cudaFree( dSum );  cudaFree( dSumSq );  cudaFree( scratch );  cudaFree( dITspat );
     cudaFree( dBestIdx );  cudaFree( dBestScore );
     free( hImg );  free( hCorr );  free( hRawCorr );  free( hITspat );
     return ret;
