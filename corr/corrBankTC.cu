@@ -283,12 +283,12 @@ main( int argc, char *argv[] )
     cuda( Memcpy( dSumT,  hSumT,  NT*sizeof(int),cudaMemcpyHostToDevice ) );
     cuda( Memcpy( dSumTSq,hSumTSq,NT*sizeof(int),cudaMemcpyHostToDevice ) );
 
-    im2col<<<1024,256>>>( dImg, W, outW, M, dA, dAS );  cuda( GetLastError() );
+    im2col<<<1024,256>>>( dImg, W, outW, M, dA, dAS );
     // Denominator sums via the integral image (sat.cuh, four-corner rule, O(1)/pixel).
     CUDART_CHECK( satBuild<SAT_NAIVE>( dImg, W, H, dSum, dSumSq, NULL, 0 ) );
-    windowSums<<<(M+255)/256,256>>>( dSum, dSumSq, W, outW, M, dSumI, dSumISq );  cuda( GetLastError() );
+    windowSums<<<(M+255)/256,256>>>( dSum, dSumSq, W, outW, M, dSumI, dSumISq );
     // Cross-check the integral-image sums against the direct window loop.
-    sumI_sq<<<(M+255)/256,256>>>( dA, M, dSumIchk, dSumISqchk );  cuda( GetLastError() );
+    sumI_sq<<<(M+255)/256,256>>>( dA, M, dSumIchk, dSumISqchk );
     cuda( DeviceSynchronize() );
 
     cublas( Create( &cb ) );
@@ -317,9 +317,9 @@ main( int argc, char *argv[] )
     #undef BASE
 
     combine<<<(M*NT+255)/256,256>>>( dRawIT, dSumI, dSumISq, dSumT, dSumTSq, Kg, M, dCorr );
-    cuda( GetLastError() ); cuda( DeviceSynchronize() );
+    cuda( DeviceSynchronize() );
     findPeaks<<<NT,256>>>( dCorr, M, dBestIdx, dBestScore );
-    cuda( GetLastError() ); cuda( DeviceSynchronize() );
+    cuda( DeviceSynchronize() );
 
     // ---- validation ----
     hCorr    = (float *) malloc( (size_t)M*NT*sizeof(float) );

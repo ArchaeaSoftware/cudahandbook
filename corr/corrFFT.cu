@@ -246,9 +246,9 @@ main( int argc, char *argv[] )
     cuda( Memcpy( dImg, hImg, (size_t)W*H, cudaMemcpyHostToDevice ) );
 
     cuda( Memset( dImgF, 0, (size_t)Hp*Wp*sizeof(float) ) );
-    copyToPad<<<256,256>>>( dImg, W, H, Wp, dImgF );  cuda( GetLastError() );
+    copyToPad<<<256,256>>>( dImg, W, H, Wp, dImgF );
     cuda( Memset( dTmplF, 0, (size_t)Hp*Wp*sizeof(float) ) );
-    fillTemplate<<<64,256>>>( dImg, W, Wp, tx, ty, dTmplF );  cuda( GetLastError() );
+    fillTemplate<<<64,256>>>( dImg, W, Wp, tx, ty, dTmplF );
 
     cufft( Plan2d( &planR2C, Hp, Wp, CUFFT_R2C ) );
     cufft( Plan2d( &planC2R, Hp, Wp, CUFFT_C2R ) );
@@ -273,7 +273,7 @@ main( int argc, char *argv[] )
     cuda( EventElapsedTime( &msFFT, e0, e1 ) );  msFFT /= iters;
 
     #define SPATIAL() sumIT_spatial<<<(M+127)/128,128>>>( dImg, W, outW, tx, ty, M, dITspat )
-    SPATIAL();  cuda( GetLastError() );
+    SPATIAL();
     cuda( DeviceSynchronize() );
     cuda( EventRecord( e0, 0 ) );
     for ( int i = 0; i < iters; i++ ) SPATIAL();
@@ -284,9 +284,7 @@ main( int argc, char *argv[] )
     // Denominator via the integral image (sat.cuh), then the coefficient and peak.
     CUDART_CHECK( satBuild<SAT_NAIVE>( dImg, W, H, dSum, dSumSq, NULL, 0 ) );
     combine<<<(M+255)/256,256>>>( dCorrRaw, dSum, dSumSq, SumT, SumTSq, Kg, invN, W, Wp, outW, M, dCorr );
-    cuda( GetLastError() );
     findPeak<<<1,256>>>( dCorr, M, dBestIdx, dBestScore );
-    cuda( GetLastError() );
     cuda( DeviceSynchronize() );
 
     // Full one-template pipeline: FFT numerator + SAT build + combine.

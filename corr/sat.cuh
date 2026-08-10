@@ -347,9 +347,7 @@ satBuild( const uint8_t *dImg, int W, int H,
 
     if constexpr ( SAT_NAIVE == M ) {
         naiveRow<<<(H+255)/256,256>>>( dImg, W, H, dSum, dSumSq );
-        CUDART_CHECK( cudaGetLastError() );
         naiveCol<<<(W+255)/256,256>>>( W, H, dSum, dSumSq );
-        CUDART_CHECK( cudaGetLastError() );
     }
     else {
         Plan p = plan<M>( W, H );
@@ -374,12 +372,10 @@ satBuild( const uint8_t *dImg, int W, int H,
                         thrust::make_transform_iterator( cnt, Pix64q{dImg} ), A, (int)N ) );
                 }
                 transposeT<int64_t><<<dim3((W+31)/32,(H+31)/32),blk>>>( A, At, W, H );
-                CUDART_CHECK( cudaGetLastError() );
                 cb = p.cubBytes;
                 CUDART_CHECK( cub::DeviceScan::InclusiveSumByKey( cubTmp, cb,
                     thrust::make_transform_iterator( cnt, RowKey{H} ), At, Bt, (int)N ) );
                 transposeT<int64_t><<<dim3((H+31)/32,(W+31)/32),blk>>>( Bt, out, H, W );
-                CUDART_CHECK( cudaGetLastError() );
             }
         }
         else {   // SAT_DLB
@@ -408,7 +404,6 @@ satBuild( const uint8_t *dImg, int W, int H,
                 CUDART_CHECK( cudaMemset( ctr, 0, sizeof(int) ) );
                 CUDART_CHECK( cudaMemset( status, 0, (size_t)p.nS*p.WG*sizeof(int) ) );
                 colDLB<uint32_t><<<blocks,SAT_BW>>>( A32, W, H, p.nS, p.WG, ctr, status, aggr, pref, out );
-                CUDART_CHECK( cudaGetLastError() );
             }
         }
     }
