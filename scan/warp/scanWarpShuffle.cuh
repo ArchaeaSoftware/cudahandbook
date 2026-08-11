@@ -45,10 +45,10 @@ scanWarpShuffle_step(int partial, int offset)
     asm(
         "{.reg .u32 r0;"
          ".reg .pred p;"
-         "shfl.up.b32 r0|p, %1, %2, 0;"
+         "shfl.sync.up.b32 r0|p, %1, %2, 0, %4;"
          "@p add.u32 r0, r0, %3;"
          "mov.u32 %0, r0;}"
-        : "=r"(result) : "r"(partial), "r"(offset), "r"(partial));
+        : "=r"(result) : "r"(partial), "r"(offset), "r"(partial), "r"(0xffffffff));
     return result;
 }
 

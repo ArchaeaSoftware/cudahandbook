@@ -67,13 +67,18 @@ inline __device__ T
 scanWarp( volatile T *sPartials )
 {
     T t = sPartials[0];
-    const int tid = threadIdx.x;
-    const int lane = tid & 31;
-    if ( lane >=  1 ) { t += sPartials[- 1]; __syncwarp(); sPartials[0] = t; }
-    if ( lane >=  2 ) { t += sPartials[- 2]; __syncwarp(); sPartials[0] = t; }
-    if ( lane >=  4 ) { t += sPartials[- 4]; __syncwarp(); sPartials[0] = t; }
-    if ( lane >=  8 ) { t += sPartials[- 8]; __syncwarp(); sPartials[0] = t; }
-    if ( lane >= 16 ) { t += sPartials[-16]; __syncwarp(); sPartials[0] = t; }
+    const int lane = threadIdx.x & 31;
+    auto step = [&]( int offset ) {
+        if ( lane >= offset ) {
+            t += sPartials[-offset];
+        }
+        __syncwarp();
+        sPartials[0] = t;
+        __syncwarp();
+    };
+    for ( int offset = 1; offset < 32; offset <<= 1 ) {
+        step( offset );
+    }
     return t;
 }
 
@@ -88,14 +93,19 @@ inline __device__ T
 scanWarpExclusive( volatile T *sPartials )
 {
     T t = sPartials[0];
-        const int tid = threadIdx.x;
-    const int lane = tid & 31;
-    if ( lane >=  1 ) { t += sPartials[- 1]; sPartials[0] = t; }
-    if ( lane >=  2 ) { t += sPartials[- 2]; sPartials[0] = t; }
-    if ( lane >=  4 ) { t += sPartials[- 4]; sPartials[0] = t; }
-    if ( lane >=  8 ) { t += sPartials[- 8]; sPartials[0] = t; }
-    if ( lane >= 16 ) { t += sPartials[-16]; sPartials[0] = t; }
-    t = (threadIdx.x&31) ? sPartials[-1] : 0;
+    const int lane = threadIdx.x & 31;
+    auto step = [&]( int offset ) {
+        if ( lane >= offset ) {
+            t += sPartials[-offset];
+        }
+        __syncwarp();
+        sPartials[0] = t;
+        __syncwarp();
+    };
+    for ( int offset = 1; offset < 32; offset <<= 1 ) {
+        step( offset );
+    }
+    t = ( threadIdx.x & 31 ) ? sPartials[-1] : 0;
     return t;
 }
 
