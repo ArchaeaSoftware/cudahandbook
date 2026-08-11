@@ -128,15 +128,13 @@ scanFan( T *out, const T *in, size_t N, int b )
     size_t numPartials = (N+b-1)/b;
 
     //
-    // number of CUDA threadblocks to use.  The kernels are 
-    // blocking agnostic, so we can clamp to any number 
-    // within CUDA's limits and the code will work.
+    // one thread block per b-element tile.  The kernels are
+    // grid-stride, so any block count within CUDA's limits would
+    // also work; one block per tile keeps the mapping simple.
     //
-    const size_t maxBlocks = 150;   // maximum blocks to launch
-    size_t numBlocks = std::min( numPartials, maxBlocks );
+    size_t numBlocks = numPartials;
 
-    cuda(Malloc( &gPartials, 
-                              numPartials*sizeof(T) ) );
+    cuda(Malloc( &gPartials, numPartials*sizeof(T) ) );
 
     scanAndWritePartials<T, true><<<numBlocks,b,b*sizeof(T)>>>( 
         out, gPartials, in, N, numPartials );
