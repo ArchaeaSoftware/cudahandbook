@@ -67,13 +67,13 @@ inline __device__ T
 scanWarp( volatile T *sPartials )
 {
     T t = sPartials[0];
-        const int tid = threadIdx.x;
+    const int tid = threadIdx.x;
     const int lane = tid & 31;
-    if ( lane >=  1 ) { t += sPartials[- 1]; sPartials[0] = t; }
-    if ( lane >=  2 ) { t += sPartials[- 2]; sPartials[0] = t; }
-    if ( lane >=  4 ) { t += sPartials[- 4]; sPartials[0] = t; }
-    if ( lane >=  8 ) { t += sPartials[- 8]; sPartials[0] = t; }
-    if ( lane >= 16 ) { t += sPartials[-16]; sPartials[0] = t; }
+    if ( lane >=  1 ) { t += sPartials[- 1]; __syncwarp(); sPartials[0] = t; }
+    if ( lane >=  2 ) { t += sPartials[- 2]; __syncwarp(); sPartials[0] = t; }
+    if ( lane >=  4 ) { t += sPartials[- 4]; __syncwarp(); sPartials[0] = t; }
+    if ( lane >=  8 ) { t += sPartials[- 8]; __syncwarp(); sPartials[0] = t; }
+    if ( lane >= 16 ) { t += sPartials[-16]; __syncwarp(); sPartials[0] = t; }
     return t;
 }
 
