@@ -67,8 +67,8 @@ inline __device__ T
 scanWarp( volatile T *sPartials )
 {
     T t = sPartials[0];
-    const int lane = threadIdx.x & 31;
-    auto step = [&]( int offset ) {
+    auto step = [&t, &sPartials]( int offset ) {
+        const int lane = threadIdx.x & 31;
         if ( lane >= offset ) {
             t += sPartials[-offset];
         }
@@ -93,8 +93,8 @@ inline __device__ T
 scanWarpExclusive( volatile T *sPartials )
 {
     T t = sPartials[0];
-    const int lane = threadIdx.x & 31;
-    auto step = [&]( int offset ) {
+    auto step = [&t, &sPartials]( int offset ) {
+        const int lane = threadIdx.x & 31;
         if ( lane >= offset ) {
             t += sPartials[-offset];
         }
