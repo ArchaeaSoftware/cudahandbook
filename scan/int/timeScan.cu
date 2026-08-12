@@ -57,7 +57,6 @@ int *g_hostIn, *g_hostOut;
 
 #include "scanFan.cuh"
 #include "scanReduceThenScan.cuh"
-#include "scanReduceThenScan_0.cuh"
 #include "scan2Level.cuh"
 //#include "scanThrust.cuh"
 
@@ -139,16 +138,10 @@ main( int argc, char *argv[] )
     if ( maxThreads >= 1024 )
     printf( "scanReduceThenScan (64M, 1024 threads/block): %.2f Mints/s\n", TimeScan<int>(scanReduceThenScan<int>, 64*1048576, 1024, 10)/1048576 );
 
-    printf( "scanReduceThenScan_0 (64M, 128 threads/block): %.2f Mints/s\n", TimeScan<int>(scanReduceThenScan_0<int>, 64*1048576, 128, 10)/1048576 );
-    printf( "scanReduceThenScan_0 (64M, 256 threads/block): %.2f Mints/s\n", TimeScan<int>(scanReduceThenScan_0<int>, 64*1048576, 256, 10)/1048576 );
-    printf( "scanReduceThenScan_0 (64M, 512 threads/block): %.2f Mints/s\n", TimeScan<int>(scanReduceThenScan_0<int>, 64*1048576, 512, 10)/1048576 );
+    printf( "scan2Level (64M, 128 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int>, 64*1048576, 128, 10)/1048576 );
+    printf( "scan2Level (64M, 256 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int>, 64*1048576, 256, 10)/1048576 );
+    printf( "scan2Level (64M, 512 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int>, 64*1048576, 512, 10)/1048576 );
     if ( maxThreads >= 1024 )
-    printf( "scanReduceThenScan_0 (64M, 1024 threads/block): %.2f Mints/s\n", TimeScan<int>(scanReduceThenScan_0<int>, 64*1048576, 1024, 10)/1048576 );
-
-    printf( "scan2Level_0 (64M, 128 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int>, 64*1048576, 128, 10)/1048576 );
-    printf( "scan2Level_0 (64M, 256 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int>, 64*1048576, 256, 10)/1048576 );
-    printf( "scan2Level_0 (64M, 512 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int>, 64*1048576, 512, 10)/1048576 );
-    if ( maxThreads >= 1024 )
-    printf( "scan2Level_0 (64M, 1024 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int>, 64*1048576, 1024, 10)/1048576 );
+    printf( "scan2Level (64M, 1024 threads/block): %.2f Mints/s\n", TimeScan<int>(scan2Level<int>, 64*1048576, 1024, 10)/1048576 );
 
 }

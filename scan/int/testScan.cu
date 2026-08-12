@@ -57,7 +57,6 @@ enum ScanType {
 
 #include "scanFan.cuh"
 #include "scanReduceThenScan.cuh"
-#include "scanReduceThenScan_0.cuh"
 #include "scan2Level.cuh"
 //#include "scanThrust.cuh"
 
@@ -180,25 +179,17 @@ main( int argc, char *argv[] )
         for ( int numInts = 256; numInts <= 2048; numInts += 128 ) {
 
 
-//            SCAN_TEST_VECTOR( scan2Level<int>, numInts, numThreads );
-#if 0
             SCAN_TEST_VECTOR( scanFan<int>, numInts, numThreads );
             SCAN_TEST_VECTOR( scanReduceThenScan<int>, numInts, numThreads );
-            SCAN_TEST_VECTOR( scanReduceThenScan_0<int>, numInts, numThreads );
             SCAN_TEST_VECTOR( scan2Level<int>, numInts, numThreads );
-            SCAN_TEST_VECTOR( scan2Level_0<int>, numInts, numThreads );
-#endif
         }
 
         for ( int numInts = 33*1048576-1; numInts < 33*1048576+1; numInts++ ) {
 
 //            SCAN_TEST_VECTOR( scan2Level<int>, numInts, numThreads );
 #if 0
-            SCAN_TEST_VECTOR( scan2Level_0<int>, numInts, numThreads );
-
             SCAN_TEST_VECTOR( scanFan<int>, numInts, numThreads );
             SCAN_TEST_VECTOR( scanReduceThenScan<int>, numInts, numThreads );
-            SCAN_TEST_VECTOR( scanReduceThenScan_0<int>, numInts, numThreads );
 
             SCAN_TEST_VECTOR( ScanThrust<int>, numInts, numThreads );
 #endif

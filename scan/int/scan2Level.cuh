@@ -216,10 +216,4 @@ scan2Level( T *out, const T *in, size_t N, int b )
 Error_cudart:;
 }
 
-template<class T>
-void
-scan2Level_0( T *out, const T *in, size_t N, int b )
-{
-    scan2Level<T>( out, in, N, b );
-}
 

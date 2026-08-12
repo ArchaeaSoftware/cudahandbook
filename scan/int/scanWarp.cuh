@@ -36,6 +36,8 @@
 #ifndef __SCAN_WARP_CUH__
 #define __SCAN_WARP_CUH__
 
+#include "../scanWarpPolicy.cuh"
+
 #if 0
 /*
  * scanWarp - assumes no zero padding
@@ -66,15 +68,9 @@ template<class T>
 inline __device__ T
 scanWarp( volatile T *sPartials )
 {
-    T t = sPartials[0];
-        const int tid = threadIdx.x;
-    const int lane = tid & 31;
-    if ( lane >=  1 ) { t += sPartials[- 1]; sPartials[0] = t; }
-    if ( lane >=  2 ) { t += sPartials[- 2]; sPartials[0] = t; }
-    if ( lane >=  4 ) { t += sPartials[- 4]; sPartials[0] = t; }
-    if ( lane >=  8 ) { t += sPartials[- 8]; sPartials[0] = t; }
-    if ( lane >= 16 ) { t += sPartials[-16]; sPartials[0] = t; }
-    return t;
+    // Volta-clean; unified with scan/warp via the shared policy header. The value
+    // is pre-loaded in sPartials[0]; this scans in place and returns the result.
+    return WarpScanShared::inclusive<T>( sPartials[0], sPartials );
 }
 
 #endif // __SCAN_WARP_CUH__
