@@ -58,12 +58,6 @@ scanWarp( volatile T *sPartials )
 }
 #endif
 
-/*
- * scanWarp - bZeroPadded template parameter specifies
- *    whether to conditionally add based on the lane ID.
- *    If we can assume that sPartials[-1..-16] is 0,
- *    the routine takes fewer instructions.
- */
 template<class T>
 inline __device__ T
 scanWarp( volatile T *sPartials )
