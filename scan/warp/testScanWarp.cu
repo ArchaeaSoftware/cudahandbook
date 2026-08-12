@@ -2,445 +2,153 @@
  *
  * testScanWarp.cu
  *
- * Microdemo to test warp scan algorithms.
+ * Exercises the warp/block scan policies in scanWarpPolicy.cuh. Every policy is
+ * instantiated (and therefore compiled) here and selected purely by template
+ * argument, so no variant can silently bit-rot. Each is cross-checked exact
+ * against a host inclusive scan and timed.
  *
- * Build with: nvcc -I ..\chLib <options> testScanWarp.cu
- * Requires: No minimum SM requirement.
+ * Build (via CMake) or: nvcc -I ../../chLib -arch=sm_86 testScanWarp.cu
  *
- * Copyright (c) 2011-2026, Archaea Software, LLC.
+ * Copyright (c) 2025-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions 
+ * modification, are permitted provided that the following conditions
  * are met:
  *
- * 1. Redistributions of source code must retain the above copyright 
- *    notice, this list of conditions and the following disclaimer. 
- * 2. Redistributions in binary form must reproduce the above copyright 
- *    notice, this list of conditions and the following disclaimer in 
- *    the documentation and/or other materials provided with the 
- *    distribution. 
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS 
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE 
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, 
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
  * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER 
- * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT 
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN 
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
  */
 
-#include <algorithm>
-#include <cstdio>
+#include <stdio.h>
 #include <stdlib.h>
 
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
-
-#include <chCommandLine.h>
 #include <chError.h>
 
-#include "scanBlock.cuh" 
-#include "scanWarp.cuh"
-#include "scanWarp2.cuh"
-#include "scanWarpShuffle.cuh"
+#include "../scanWarpPolicy.cuh"
 
+static const int BLOCKSIZE = 256;   // 8 warps
 
-
-#define min(a,b) ((a)<(b)?(a):(b))
-
-enum ScanType {
-    Inclusive, Exclusive
-};
-
-#include "scanFan.cuh"
-#include "scanReduceThenScan.cuh"
-#include "scanReduceThenScan_0.cuh"
-#include "scan2Level.cuh"
-#include "scanThrust.cuh"
-
-template<int period>
-void
-ScanExclusiveCPUPeriodic( int *out, const int *in, size_t N )
-{
-    for ( size_t i = 0; i < N; i += period ) {
-        int sum = 0;
-        for ( size_t j = 0; j < period; j++ ) {
-            int next = in[i+j]; // in case we are doing this in place
-            out[i+j] = sum;
-            sum += next;
-        }
-    }
-}
-
-template<int period>
-void
-ScanInclusiveCPUPeriodic( int *out, const int *in, size_t N )
-{
-    for ( size_t i = 0; i < N; i += period ) {
-        int sum = 0;
-        for ( size_t j = 0; j < period; j++ ) {
-            sum += in[i+j];
-            out[i+j] = sum;
-        }
-    }
-}
-
-template<ScanType scantype>
-void
-ScanCPU32( int *out, const int *in, size_t N )
-{
-    switch ( scantype ) {
-        case Exclusive: return ScanExclusiveCPUPeriodic<32>( out, in, N );
-        case Inclusive: return ScanInclusiveCPUPeriodic<32>( out, in, N );
-    }
-}
-
-void
-RandomArray( int *out, size_t N, int modulus )
-{
-    for ( size_t i = 0; i < N; i++ ) {
-        out[i] = rand() % modulus;
-    }
-}
-
-template<ScanType scantype>
+template<class Policy>
 __global__ void
-ScanGPUWarp( int *out, const int *in, size_t N )
+warpScanKernel( const int *in, int *out, int N )
 {
-    extern __shared__ int sPartials[];
-    for ( size_t i = blockIdx.x*blockDim.x;
-                 i < N;
-                 i += blockDim.x ) {
-        sPartials[threadIdx.x] = in[i+threadIdx.x];
-        __syncthreads();
-        if ( scantype == Inclusive ) {
-            out[i+threadIdx.x] = scanWarp<int>( sPartials+threadIdx.x );
-        }
-        else {
-            out[i+threadIdx.x] = scanWarpExclusive<int>( sPartials+threadIdx.x );
-        }
-    }
+    extern __shared__ int s[];
+    for ( int i = blockIdx.x*blockDim.x + threadIdx.x; i < N; i += gridDim.x*blockDim.x )
+        out[i] = warpScanInclusive<Policy,int>( in[i], s + threadIdx.x );
 }
 
-template<ScanType scantype>
-void
-ScanGPU( 
-    int *out, 
-    const int *in, 
-    size_t N, 
-    int cThreads )
-{
-    int cBlocks = (int) (N/150);
-    if ( cBlocks > 150 ) {
-        cBlocks = 150;
-    }
-    ScanGPUWarp<scantype><<<cBlocks, cThreads, cThreads*sizeof(int)>>>( 
-        out, in, N );
-}
-
+template<class Policy>
 __global__ void
-ScanInclusiveGPUWarp_0( int *out, const int *in, size_t N )
+blockScanKernel( const int *in, int *out, int N )
 {
-    extern __shared__ int sPartials[];
-    const int sIndex = (threadIdx.x);
-
-    sPartials[sIndex-16] = 0;
-
-    for ( size_t i = blockIdx.x*blockDim.x;
-                 i < N;
-                 i += blockDim.x ) {
-        sPartials[sIndex] = in[i+threadIdx.x];
-        out[i+threadIdx.x] = scanWarp<int>( sPartials+sIndex );
-    }
+    extern __shared__ int s[];
+    for ( int i = blockIdx.x*blockDim.x + threadIdx.x; i < N; i += gridDim.x*blockDim.x )
+        out[i] = blockScanInclusive<Policy,int>( in[i], s );
 }
 
-void
-ScanInclusiveGPU_0( 
-    int *out, 
-    const int *in, 
-    size_t N, 
-    int cThreads )
+// Launch, cross-check exact against a host inclusive scan over each group
+// (group = 32 for warp, BLOCKSIZE for block), and time. Returns false on mismatch.
+template<class Policy, bool BLOCK>
+static bool
+runOne( const int *dIn, int *dOut, const int *hIn, int *hOut, int N )
 {
-    int cBlocks = (int) (N/150);
-    if ( cBlocks > 150 ) {
-        cBlocks = 150;
-    }
-    ScanInclusiveGPUWarp_0<<<cBlocks, 
-        cThreads, 
-        ((cThreads)*sizeof(int))>>>( 
-        out, in, N );
-}
+    dim3 grid( (N + BLOCKSIZE - 1) / BLOCKSIZE );
+    auto launch = [&] {
+        if ( BLOCK ) blockScanKernel<Policy><<<grid,BLOCKSIZE,BLOCKSIZE*sizeof(int)>>>( dIn, dOut, N );
+        else         warpScanKernel <Policy><<<grid,BLOCKSIZE,BLOCKSIZE*sizeof(int)>>>( dIn, dOut, N );
+    };
+    launch();
+    if ( cudaSuccess != cudaDeviceSynchronize() ) { printf( "  %-16s  launch failed\n", Policy::name ); return false; }
+    cudaMemcpy( hOut, dOut, N*sizeof(int), cudaMemcpyDeviceToHost );
 
-__global__ void
-ScanExclusiveGPUWarp_0( int *out, const int *in, size_t N )
-{
-    extern __shared__ int sPartials[];
-    const int sIndex = (threadIdx.x);
-
-    sPartials[sIndex-16] = 0;
-
-    for ( size_t i = blockIdx.x*blockDim.x;
-                 i < N;
-                 i += blockDim.x ) {
-        sPartials[sIndex] = in[i+threadIdx.x];
-        out[i+threadIdx.x] = scanWarpExclusive<int>( sPartials+sIndex );
-    }
-}
-
-void
-ScanExclusiveGPU_0( 
-    int *out, 
-    const int *in, 
-    size_t N, 
-    int cThreads )
-{
-    int cBlocks = (int) (N/150);
-    if ( cBlocks > 150 ) {
-        cBlocks = 150;
-    }
-    ScanExclusiveGPUWarp_0<<<cBlocks, 
-        cThreads, 
-        ((cThreads)*sizeof(int))>>>( 
-        out, in, N );
-}
-
-__global__ void
-ScanInclusiveGPUWarp2( int *out, const int *in, size_t N )
-{
-    extern __shared__ int sPartials[];
-    for ( size_t i = blockIdx.x*blockDim.x;
-                 i < N;
-                 i += blockDim.x ) {
-        sPartials[threadIdx.x] = in[i+threadIdx.x];
-        __syncthreads();
-        out[i+threadIdx.x] = scanWarp2<int>( sPartials+threadIdx.x );
-    }
-}
-
-void
-ScanInclusiveGPU2( 
-    int *out, 
-    const int *in, 
-    size_t N, 
-    int cThreads )
-{
-    int cBlocks = (int) (N/150);
-    if ( cBlocks > 150 ) {
-        cBlocks = 150;
-    }
-    ScanInclusiveGPUWarp2<<<cBlocks, cThreads, cThreads*sizeof(int)>>>( 
-            out, in, N );
-}
-
-__global__ void
-ScanExclusiveGPUWarp2( int *out, const int *in, size_t N )
-{
-    extern __shared__ int sPartials[];
-    for ( size_t i = blockIdx.x*blockDim.x;
-                 i < N;
-                 i += blockDim.x ) {
-        sPartials[threadIdx.x] = in[i+threadIdx.x];
-        __syncthreads();
-        out[i+threadIdx.x] = scanWarpExclusive2<int>( sPartials+threadIdx.x );
-    }
-}
-
-void
-ScanExclusiveGPU2( 
-    int *out, 
-    const int *in, 
-    size_t N, 
-    int cThreads )
-{
-    int cBlocks = (int) (N/150);
-    if ( cBlocks > 150 ) {
-        cBlocks = 150;
-    }
-    ScanExclusiveGPUWarp2<<<cBlocks, cThreads, cThreads*sizeof(int)>>>( 
-            out, in, N );
-}
-
-template<ScanType scantype>
-__global__ void
-ScanGPUWarpShuffle( int *out, const int *in, size_t N )
-{
-    for ( size_t i = blockIdx.x*blockDim.x;
-                 i < N;
-                 i += blockDim.x ) {
-        if ( scantype == Inclusive ) {
-            out[i+threadIdx.x] = scanWarpShuffle<5>( in[i+threadIdx.x] );
-        }
-        else {
-            out[i+threadIdx.x] = exclusive_scan_warp_shfl<5>( in[i+threadIdx.x] );
+    const int group = BLOCK ? BLOCKSIZE : 32;
+    long bad = 0;
+    for ( int b = 0; b < N; b += group ) {
+        int acc = 0;
+        for ( int j = 0; j < group && b+j < N; j++ ) {
+            acc += hIn[b+j];
+            if ( hOut[b+j] != acc ) bad++;
         }
     }
-}
 
-template<ScanType scantype>
-void
-ScanGPUShuffle( 
-    int *out, 
-    const int *in, 
-    size_t N, 
-    int cThreads )
-{
-    int cBlocks = (int) (N/150);
-    if ( cBlocks > 150 ) {
-        cBlocks = 150;
-    }
-    ScanGPUWarpShuffle<scantype><<<cBlocks, cThreads>>>( out, in, N );
-}
+    cudaEvent_t e0, e1;
+    cudaEventCreate( &e0 );
+    cudaEventCreate( &e1 );
+    const int iters = 200;
+    cudaEventRecord( e0, 0 );
+    for ( int i = 0; i < iters; i++ ) launch();
+    cudaEventRecord( e1, 0 );
+    cudaEventSynchronize( e1 );
+    float ms = 0.f;
+    cudaEventElapsedTime( &ms, e0, e1 );
+    ms /= iters;
+    cudaEventDestroy( e0 );
+    cudaEventDestroy( e1 );
 
-template<class T>
-bool
-TestScanWarp( 
-    float *pMelementspersecond,
-    const char *szScanFunction, 
-    void (*pfnScanCPU)(T *, const T *, size_t),
-    void (*pfnScanGPU)(T *, const T *, size_t, int), 
-    size_t N, 
-    int numThreads )
-{
-    bool ret = false;
-    cudaError_t status_cudart;
-    int *inGPU = 0;
-    int *outGPU = 0;
-    int *inCPU = (T *) malloc( N*sizeof(T) );
-    int *outCPU = (int *) malloc( N*sizeof(T) );
-    int *hostGPU = (int *) malloc( N*sizeof(T) );
-    cudaEvent_t evStart = 0, evStop = 0;
-    if ( 0==inCPU || 0==outCPU || 0==hostGPU )
-        goto Error_cudart;
-
-    printf( "Testing %s (%d threads/block)\n", szScanFunction, numThreads );
-
-    cuda(EventCreate( &evStart ) );
-    cuda(EventCreate( &evStop ) );
-    cuda(Malloc( &inGPU, N*sizeof(T) ) );
-    cuda(Malloc( &outGPU, N*sizeof(T) ) );
-    cuda(Memset( inGPU, 0, N*sizeof(T) ) );
-    cuda(Memset( outGPU, 0, N*sizeof(T) ) );
-
-    cuda(Memset( outGPU, 0, N*sizeof(T) ) );
-
-    RandomArray( inCPU, N, 256 );
-for ( int i = 0; i < N; i++ ) {
-    inCPU[i] = i;
-}
-    
-    pfnScanCPU( outCPU, inCPU, N );
-
-    cuda(Memcpy( inGPU, inCPU, N*sizeof(T), cudaMemcpyHostToDevice ) );
-    cuda(EventRecord( evStart, 0 ) );
-    pfnScanGPU( outGPU, inGPU, N, numThreads );
-    cuda(EventRecord( evStop, 0 ) );
-    cuda(Memcpy( hostGPU, outGPU, N*sizeof(T), cudaMemcpyDeviceToHost ) );
-    for ( size_t i = 0; i < N; i++ ) {
-        if ( hostGPU[i] != outCPU[i] ) {
-            printf( "Scan failed\n" );
-#ifdef _WIN32
-            __debugbreak();//_asm int 3
-#else
-            assert(0);
-#endif
-            goto Error_cudart;
-        }
-    }
-    {
-        float ms;
-        cuda(EventElapsedTime( &ms, evStart, evStop ) );
-        double Melements = N/1e6;
-        *pMelementspersecond = 1000.0f*Melements/ms;
-    }
-    ret = true;
-Error_cudart:
-    cudaEventDestroy( evStart );
-    cudaEventDestroy( evStop );
-    cudaFree( outGPU );
-    cudaFree( inGPU );
-    free( inCPU );
-    free( outCPU );
-    free( hostGPU );
-    return ret;
+    printf( "  %-16s  %-5s  %-4s  %6.1f GB/s\n",
+            Policy::name, BLOCK ? "block" : "warp", bad ? "FAIL" : "PASS",
+            2.0*N*sizeof(int)/(ms*1e6) );
+    return 0 == bad;
 }
 
 int
-main( int argc, char *argv[] )
+main()
 {
     cudaError_t status_cudart;
-    int maxThreads;
-    int numInts = 16*1048576;
+    int ret = 1;
+    const int N = BLOCKSIZE * 65536;            // 16.7M ints
+    int *hIn = NULL, *hOut = NULL, *dIn = NULL, *dOut = NULL;
+    bool ok = true;
 
-    cuda(SetDevice( 0 ) );
-    cuda(SetDeviceFlags( cudaDeviceMapHost ) );
+    hIn  = (int *) malloc( N*sizeof(int) );
+    hOut = (int *) malloc( N*sizeof(int) );
+    if ( ! hIn || ! hOut ) goto Error_cudart;
+    srand( 5 );
+    for ( int i = 0; i < N; i++ ) hIn[i] = rand() & 15;
+
+    cuda( Malloc( &dIn,  N*sizeof(int) ) );
+    cuda( Malloc( &dOut, N*sizeof(int) ) );
+    cuda( Memcpy( dIn, hIn, N*sizeof(int), cudaMemcpyHostToDevice ) );
 
     {
         cudaDeviceProp prop;
-        cudaGetDeviceProperties( &prop, 0 );
-        maxThreads = prop.maxThreadsPerBlock;
+        cuda( GetDeviceProperties( &prop, 0 ) );
+        printf( "%s  warp/block scan policies (all live, selected at compile time), N=%d\n\n", prop.name, N );
+        printf( "  %-16s  %-5s  %-4s  %s\n", "policy", "level", "chk", "throughput" );
     }
 
-#define SCAN_TEST_VECTOR( CPUFunction, GPUFunction, N, numThreads ) do { \
-    float fMelementsPerSecond; \
-    srand(0); \
-    bool bSuccess = TestScanWarp<int>( &fMelementsPerSecond, #GPUFunction, CPUFunction, GPUFunction, N, numThreads ); \
-    if ( ! bSuccess ) { \
-        printf( "%s failed: N=%d, numThreads=%d\n", #GPUFunction, N, numThreads ); \
-        exit(1); \
-    } \
-    if ( fMelementsPerSecond > maxElementsPerSecond ) { \
-        maxElementsPerSecond = fMelementsPerSecond; \
-    } \
-\
-} while (0)
+    ok &= runOne<WarpScanShared, false>( dIn, dOut, hIn, hOut, N );
+    ok &= runOne<WarpScanShuffle,false>( dIn, dOut, hIn, hOut, N );
+    printf( "\n" );
+    ok &= runOne<WarpScanShared, true >( dIn, dOut, hIn, hOut, N );
+    ok &= runOne<WarpScanShuffle,true >( dIn, dOut, hIn, hOut, N );
 
-    chCommandLineGet( &numInts, "numints", argc, argv );
-    printf( "Problem size: %d integers\n", numInts );
+    printf( "\n%s\n", ok ? "All policies PASS." : "FAILURES above." );
+    ret = ok ? 0 : 1;
 
-{
-    float maxElementsPerSecond = 0.0f;
-    SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanGPU<Exclusive>, numInts, 256 );
-}
-
-#if 0
-    for ( int numThreads = 256; numThreads <= maxThreads; numThreads *= 2 ) {
-        float maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanGPU<Exclusive>, numInts, numThreads );
-        printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
-        maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanExclusiveGPU_0, numInts, numThreads );
-        printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
-        maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanExclusiveGPU2, numInts, numThreads );
-        printf( "GPU2: %.2f Melements/s\n", maxElementsPerSecond );
-        maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanCPU32<Exclusive>, ScanGPUShuffle<Exclusive>, numInts, numThreads );
-        printf( "Shuffle: %.2f Melements/s\n", maxElementsPerSecond );
-    }
-
-    for ( int numThreads = 256; numThreads <= maxThreads; numThreads *= 2 ) {
-        float maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanGPU<Inclusive>, numInts, numThreads );
-        printf( "GPU: %.2f Melements/s\n", maxElementsPerSecond );
-        maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanInclusiveGPU_0, numInts, numThreads );
-        printf( "GPU (0): %.2f Melements/s\n", maxElementsPerSecond );
-        maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanInclusiveGPU2, numInts, numThreads );
-        printf( "GPU2: %.2f Melements/s\n", maxElementsPerSecond );
-        maxElementsPerSecond = 0.0f;
-        SCAN_TEST_VECTOR( ScanCPU32<Inclusive>, ScanGPUShuffle<Inclusive>, numInts, numThreads );
-        printf( "Shuffle: %.2f Melements/s\n", maxElementsPerSecond );
-    }
-#endif
-    return 0;
 Error_cudart:
-    return 1;
+    cudaFree( dIn );
+    cudaFree( dOut );
+    free( hIn );
+    free( hOut );
+    return ret;
 }

@@ -39,7 +39,7 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 add_subdirectory( int )
 add_subdirectory( radixSort )
 #add_subdirectory( streamCompact )
-#add_subdirectory( warp )
+add_subdirectory( warp )
 
 include_directories( chLib )
 
