@@ -134,13 +134,20 @@ scanFan( T *out, const T *in, size_t N, int b )
     //
     size_t numBlocks = numPartials;
 
-    cuda(Malloc( &gPartials, numPartials*sizeof(T) ) );
+    //
+    // The partials array is transient scratch: it lives only for the
+    // duration of this (recursive) call.  Allocate it stream-ordered from
+    // the default stream's memory pool so the driver can satisfy the request
+    // by recycling scratch freed at a shallower recursion level, rather than
+    // synchronizing the device on every cudaMalloc/cudaFree.
+    //
+    cuda(MallocAsync( &gPartials, numPartials*sizeof(T), 0 ) );
 
-    scanAndWritePartials<T, true><<<numBlocks,b,b*sizeof(T)>>>( 
+    scanAndWritePartials<T, true><<<numBlocks,b,b*sizeof(T)>>>(
         out, gPartials, in, N, numPartials );
     scanFan<T>( gPartials, gPartials, numPartials, b );
     scanAddBaseSums<T><<<numBlocks, b>>>( out, gPartials, N, numPartials );
 
  Error_cudart:
-    cudaFree( gPartials );
+    if ( gPartials ) cudaFreeAsync( gPartials, 0 );
 }

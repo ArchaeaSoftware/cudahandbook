@@ -97,15 +97,21 @@ streamCompact_odd( T *out, int *outCount, const T *in, size_t N, int b )
 
     uint32_t numTiles = (uint32_t) ( ( N + b - 1 ) / b );
 
-    cuda(Malloc( &gStatus, numTiles * sizeof(scanStatus) ) );
-    cuda(Memset( gStatus, 0, numTiles * sizeof(scanStatus) ) );   // SCAN_X == 0
-    cuda(Malloc( &tileCounter, sizeof(uint32_t) ) );
-    cuda(Memset( tileCounter, 0, sizeof(uint32_t) ) );
+    //
+    // gStatus and tileCounter are transient per-call scratch.  Allocate and
+    // zero them stream-ordered on the default stream so repeated calls (e.g.
+    // a timing loop) recycle the same pool memory instead of paying for a
+    // synchronizing cudaMalloc/cudaFree on every invocation.
+    //
+    cuda(MallocAsync( &gStatus, numTiles * sizeof(scanStatus), 0 ) );
+    cuda(MemsetAsync( gStatus, 0, numTiles * sizeof(scanStatus), 0 ) );   // SCAN_X == 0
+    cuda(MallocAsync( &tileCounter, sizeof(uint32_t), 0 ) );
+    cuda(MemsetAsync( tileCounter, 0, sizeof(uint32_t), 0 ) );
 
     streamCompact_odd_kernel<T><<<numTiles, b, b * sizeof(int)>>>(
         out, outCount, in, gStatus, tileCounter, numTiles, N );
 
 Error_cudart:
-    cudaFree( gStatus );
-    cudaFree( tileCounter );
+    if ( gStatus )     cudaFreeAsync( gStatus, 0 );
+    if ( tileCounter ) cudaFreeAsync( tileCounter, 0 );
 }

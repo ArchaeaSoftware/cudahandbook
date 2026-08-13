@@ -149,17 +149,24 @@ scanReduceThenScan( T *out, const T *in, size_t N, int b )
     const size_t maxBlocks = 150;
     size_t numBlocks = std::min( numPartials, maxBlocks );
 
-    cuda(Malloc( &gPartials, numPartials*sizeof(T) ) );
+    //
+    // The partials array is transient scratch: it lives only for the
+    // duration of this (recursive) call.  Allocate it stream-ordered from
+    // the default stream's memory pool so the driver can satisfy the request
+    // by recycling scratch freed at a shallower recursion level, rather than
+    // synchronizing the device on every cudaMalloc/cudaFree.
+    //
+    cuda(MallocAsync( &gPartials, numPartials*sizeof(T), 0 ) );
 
     scanReduceBlocks<T>( gPartials, in, N, b, numBlocks );
     scanReduceThenScan<T>( gPartials, gPartials, numPartials, b );
-    scanWithBaseSums<T><<<numBlocks,b,b*sizeof(T)>>>( 
-        out, 
-        gPartials, 
-        in, 
-        N, 
+    scanWithBaseSums<T><<<numBlocks,b,b*sizeof(T)>>>(
+        out,
+        gPartials,
+        in,
+        N,
         numPartials );
  Error_cudart:
-    cudaFree( gPartials );
+    if ( gPartials ) cudaFreeAsync( gPartials, 0 );
 
 }
