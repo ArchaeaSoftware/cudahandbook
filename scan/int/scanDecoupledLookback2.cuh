@@ -88,27 +88,4 @@ scanDecoupledLookback2_kernel(
     }
 }
 
-template<class T, int IPT>
-void
-scanDecoupledLookback2( T *out, const T *in, size_t N, int b )
-{
-    cudaError_t status_cudart;
-    scanStatus *gStatus = 0; uint32_t *ctr = 0;
-
-    if ( N == 0 ) return;
-    size_t tile = (size_t) b * IPT;
-    uint32_t numTiles = (uint32_t) ( ( N + tile - 1 ) / tile );
-    // Transient scratch: allocate/zero stream-ordered on the default stream so
-    // repeated calls recycle pool memory instead of synchronizing per malloc.
-    cuda(MallocAsync( &gStatus, numTiles * sizeof(scanStatus), 0 ) );
-    cuda(MemsetAsync( gStatus, 0, numTiles * sizeof(scanStatus), 0 ) );
-    cuda(MallocAsync( &ctr, sizeof(uint32_t), 0 ) );
-    cuda(MemsetAsync( ctr, 0, sizeof(uint32_t), 0 ) );
-    scanDecoupledLookback2_kernel<T,IPT><<<numTiles, b, tile * sizeof(T)>>>(
-        out, in, gStatus, ctr, N );
-Error_cudart:
-    if ( gStatus ) cudaFreeAsync( gStatus, 0 );
-    if ( ctr )     cudaFreeAsync( ctr, 0 );
-}
-
 #endif // __SCAN_DECOUPLED_LOOKBACK2_CUH__
