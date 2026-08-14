@@ -1,2 +1,5 @@
 .cflags*
 *.o
+
+# CMake out-of-source build trees
+build*/
