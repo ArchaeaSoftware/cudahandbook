@@ -1,17 +1,27 @@
 #!/usr/bin/env python3
 """Validate a benchmark submission (results JSON + raw log).
 
-    python3 bench/validate.py results/<gpu>/<handle>-<date>.json [...]
+    python3 bench/validate.py [--json] results/<gpu>/<handle>-<date>.json [...]
 
 Checks, in order:
   1. JSON Schema conformance (bench/schema.json; uses the `jsonschema`
      package when available, otherwise a built-in structural subset).
-  2. Metric keys and units against bench/metrics.json, and every value
-     against that metric's plausibility bounds.
+  2. Metric keys and units against bench/metrics.json; every value against
+     that metric's hard `bounds` (error) and `warn_bounds` (warning).
   3. Raw-log cross-check: each reported number must appear verbatim in the
      sibling .raw.txt program output.
+  4. Plausibility (bench/plausibility.py): hardware ceilings derived from
+     the submission's fingerprint, cross-metric coherence, raw-log hardware
+     evidence, and a full re-derivation of the doc from the raw log with
+     the bench/suites.py parsers.
 
-Exit status 0 = valid. Run by CI on submission pull requests.
+Findings come in two tiers: ERRORS (physically impossible, contradictory,
+or malformed -- the submission is invalid) and WARNINGS (suspicious or
+unverifiable -- surfaced for the human reviewer). Exit status is 0 iff no
+file has errors; warnings never fail the run, so legacy submissions that
+predate the hardware fingerprint keep validating. Run by CI on submission
+pull requests and by scripts/bench_review.py (website repo) at review time;
+--json emits [{"file", "errors", "warnings"}] for the latter.
 """
 from __future__ import annotations
 
@@ -21,6 +31,10 @@ import sys
 from pathlib import Path
 
 BENCH = Path(__file__).resolve().parent
+sys.path.insert(0, str(BENCH))
+
+import plausibility  # noqa: E402
+
 SCHEMA = json.loads((BENCH / "schema.json").read_text())
 METRICS = json.loads((BENCH / "metrics.json").read_text())
 
@@ -52,7 +66,8 @@ def check_schema(doc: dict, errors: list[str]) -> None:
             fail(f"schema: environment.gpu missing '{key}'", errors)
 
 
-def check_metrics(doc: dict, errors: list[str]) -> None:
+def check_metrics(doc: dict, errors: list[str],
+                  warnings: list[str]) -> None:
     for key, meas in doc.get("results", {}).items():
         spec = METRICS.get(key)
         if spec is None:
@@ -62,6 +77,7 @@ def check_metrics(doc: dict, errors: list[str]) -> None:
             fail(f"metrics: {key} unit '{meas.get('unit')}' != "
                  f"'{spec['unit']}'", errors)
         lo, hi = spec["bounds"]
+        wlo, whi = spec.get("warn_bounds", (lo, hi))
         values = ([meas["value"]] if "value" in meas
                   else list(meas.get("series", {}).values()))
         if not values:
@@ -70,6 +86,11 @@ def check_metrics(doc: dict, errors: list[str]) -> None:
             if not lo <= v <= hi:
                 fail(f"metrics: {key} value {v} outside plausible "
                      f"[{lo}, {hi}] {spec['unit']}", errors)
+            elif not wlo <= v <= whi:
+                warnings.append(
+                    f"metrics: {key} value {v} outside the expected "
+                    f"[{wlo}, {whi}] {spec['unit']} -- reviewer, please "
+                    f"sanity-check the hardware")
 
 
 def _forms(v: float) -> list[str]:
@@ -98,12 +119,7 @@ def check_location(doc: dict, json_path: Path, errors: list[str]) -> None:
              f"'{name}', found '{json_path.parent.name}/'", errors)
 
 
-def check_raw(doc: dict, json_path: Path, errors: list[str]) -> None:
-    raw_path = json_path.parent / doc["raw"]
-    if not raw_path.is_file():
-        fail(f"raw: {doc['raw']} not found next to the JSON", errors)
-        return
-    raw = raw_path.read_text(errors="replace")
+def check_raw(doc: dict, raw: str, errors: list[str]) -> None:
     for key, meas in doc.get("results", {}).items():
         values = ([meas["value"]] if "value" in meas
                   else list(meas.get("series", {}).values()))
@@ -113,31 +129,55 @@ def check_raw(doc: dict, json_path: Path, errors: list[str]) -> None:
                      errors)
 
 
-def validate(json_path: Path) -> list[str]:
+def validate(json_path: Path) -> tuple[list[str], list[str]]:
     errors: list[str] = []
+    warnings: list[str] = []
     try:
         doc = json.loads(json_path.read_text())
     except (OSError, json.JSONDecodeError) as e:
-        return [f"unreadable: {e}"]
+        return [f"unreadable: {e}"], warnings
     check_schema(doc, errors)
-    check_metrics(doc, errors)
+    check_metrics(doc, errors, warnings)
     check_location(doc, json_path, errors)
-    check_raw(doc, json_path, errors)
-    return errors
+    raw_path = json_path.parent / doc.get("raw", "")
+    if not raw_path.is_file():
+        fail(f"raw: {doc.get('raw')} not found next to the JSON", errors)
+    else:
+        raw = raw_path.read_text(errors="replace")
+        check_raw(doc, raw, errors)
+        plausibility.check_all(doc, raw, errors, warnings)
+    return errors, warnings
 
 
 def main() -> None:
-    paths = [Path(p) for p in sys.argv[1:]]
+    args = sys.argv[1:]
+    as_json = "--json" in args
+    paths = [Path(p) for p in args if p != "--json"]
     if not paths:
         sys.exit(__doc__.strip())
     bad = 0
+    report = []
     for p in paths:
-        errors = validate(p)
-        status = "OK" if not errors else f"{len(errors)} error(s)"
-        print(f"{p}: {status}")
-        for e in errors:
-            print(f"  - {e}")
+        errors, warnings = validate(p)
+        report.append({"file": str(p), "errors": errors,
+                       "warnings": warnings})
+        if not as_json:
+            if errors:
+                status = f"{len(errors)} error(s)"
+                if warnings:
+                    status += f", {len(warnings)} warning(s)"
+            elif warnings:
+                status = f"OK ({len(warnings)} warning(s))"
+            else:
+                status = "OK"
+            print(f"{p}: {status}")
+            for e in errors:
+                print(f"  - {e}")
+            for w in warnings:
+                print(f"  ~ {w}")
         bad += bool(errors)
+    if as_json:
+        print(json.dumps(report, indent=2))
     sys.exit(1 if bad else 0)
 
 
