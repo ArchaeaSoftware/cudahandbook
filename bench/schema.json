@@ -70,6 +70,53 @@
             "driver": {
               "type": "string",
               "maxLength": 20
+            },
+            "sm_count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2048,
+              "description": "Fingerprint (deviceProps): multiProcessorCount"
+            },
+            "clock_mhz": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 10000,
+              "description": "Fingerprint (nvidia-smi): max SM clock"
+            },
+            "mem_clock_mhz": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 40000,
+              "description": "Fingerprint (nvidia-smi): max memory clock"
+            },
+            "bus_width_bits": {
+              "type": "integer",
+              "minimum": 32,
+              "maximum": 8192,
+              "description": "Fingerprint (deviceProps): memoryBusWidth"
+            },
+            "l2_kib": {
+              "type": "integer",
+              "minimum": 16,
+              "description": "Fingerprint (deviceProps): l2CacheSize in KiB"
+            },
+            "copy_engines": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 64,
+              "description": "Fingerprint (deviceProps): asyncEngineCount"
+            },
+            "pcie_gen": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7,
+              "description": "Fingerprint (nvidia-smi): max PCIe link generation"
+            },
+            "pcie_width": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 32,
+              "description": "Fingerprint (nvidia-smi): max PCIe link width (lanes)"
             }
           }
         },
