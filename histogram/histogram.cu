@@ -15,7 +15,7 @@
  *
  * Requires: SM 1.1, for global atomics.
  *
- * Copyright (c) 2013, Archaea Software, LLC.
+ * Copyright (c) 2013-2026, Archaea Software, LLC.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,7 +46,8 @@
 
 #include <chError.h>
 #include <chCommandLine.h>
-#include <chThread.h>
+#include <thread>
+#include <vector>
 #include <chrono>
 #include <chUtil.h>
 
@@ -71,9 +72,6 @@
 #include "histogramNPP.cuh"
 #endif
 
-using namespace cudahandbook::threading;
-
-workerThread *g_CPUThreadPool;
 int g_numCPUCores;
 
 
@@ -152,6 +150,7 @@ hist1DCPU_threaded(
     start = std::chrono::steady_clock::now();
 
     histDelegation *phist = new histDelegation[ g_numCPUCores ];
+    std::vector<std::thread> threads;
     size_t elementsPerCore = intDivideCeiling( N, g_numCPUCores );
     for ( size_t i = 0; i < g_numCPUCores; i++ ) {
         phist[i].pData = p;
@@ -159,11 +158,9 @@ hist1DCPU_threaded(
         p += elementsPerCore;
         N -= elementsPerCore;
 
-        g_CPUThreadPool[i].delegateAsynchronous( 
-            histWorkerThread, 
-            &phist[i] );
+        threads.emplace_back( histWorkerThread, &phist[i] );
     }
-    workerThread::waitAll( g_CPUThreadPool, g_numCPUCores );
+    for ( auto &t : threads ) t.join();
 
     memset( pHist, 0, 256*sizeof(unsigned int) );
     for ( size_t i = 0; i < g_numCPUCores; i++ ) {
@@ -204,7 +201,7 @@ TestHistogram(
     unsigned int hHist[256];
     
     unsigned int *dHist = NULL;
-    float ms;
+    float ms, msTotal = 0.0f;
 
     cuda(Malloc( (void **) &dHist, 256*sizeof(int) ) );
     cuda(Memset( dHist, 0, 256*sizeof(int) ) );
@@ -220,9 +217,12 @@ TestHistogram(
 
     for ( int i = 0; i < cIterations; i++ ) {
         pfnHistogram( &ms, dHist, dptrBase, dPitch, 0, 0, w, h, threads );
+        msTotal += ms;
     }
 
-    *pixelsPerSecond = (double) w*h*cIterations*1000.0 / ms;
+    // msTotal accumulates the elapsed time of every iteration, so this is
+    // the aggregate throughput over all cIterations launches.
+    *pixelsPerSecond = (double) w*h*cIterations*1000.0 / msTotal;
     cuda(Memcpy( hHist, dHist, sizeof(hHist), cudaMemcpyDeviceToHost ) );
 
     if ( outputFilename ) {
@@ -266,14 +266,7 @@ main(int argc, char *argv[])
 
 
     {
-        g_numCPUCores = processorCount();
-        g_CPUThreadPool = new workerThread[g_numCPUCores];
-        for ( size_t i = 0; i < g_numCPUCores; i++ ) {
-            if ( ! g_CPUThreadPool[i].initialize( ) ) {
-                fprintf( stderr, "Error initializing thread pool\n" );
-                return 1;
-            }
-        }
+        g_numCPUCores = std::thread::hardware_concurrency();
     }
 
     if ( chCommandLineGetBool( "help", argc, argv ) ) {
@@ -367,7 +360,6 @@ main(int argc, char *argv[])
         }
     }
 
-
     {
         cudaDeviceProp prop;
         cuda(GetDeviceProperties( &prop, 0 ) );
@@ -450,7 +442,7 @@ main(int argc, char *argv[])
     ret = 0;
 Error:
     free( hidata );
-    cudaFree(didata); 
+    cudaFree(didata);
 
     return ret;
 }
