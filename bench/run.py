@@ -30,7 +30,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 # Suite name -> list of ProgramSpec (binary, args, stdout parser); merge
 # folds parsed metrics and lives beside the parsers so plausibility.py can
 # re-derive a doc from a raw log with identical folding.
-from suites import SUITES, SUITE_META, merge  # noqa: E402  (see bench/suites.py)
+from suites import (SUITES, SUITE_META, merge,       # noqa: E402
+                    FINGERPRINT_SPEC)                # (see bench/suites.py)
 
 
 # ---------------------------------------------------------------- environment
@@ -47,6 +48,66 @@ def gpu_info(device: int) -> dict:
     name, driver, mem, cc = [f.strip() for f in out.split(",")]
     return {"name": name, "sm": cc, "vram_mib": int(float(mem)),
             "driver": driver}
+
+
+def smi_fingerprint(device: int) -> tuple[dict, str]:
+    """Max clocks and PCIe link caps -- optional environment.gpu fields the
+    plausibility checks derive hardware ceilings from. Returns (fields,
+    raw-log block). One combined query: an old driver that rejects any of
+    the fields fails the whole query, and absence is fine -- the submission
+    just carries a reduced fingerprint."""
+    fields = ("clocks.max.sm,clocks.max.memory,"
+              "pcie.link.gen.max,pcie.link.width.max")
+    cmd = ["nvidia-smi", f"--query-gpu={fields}",
+           "--format=csv,noheader,nounits", "-i", str(device)]
+    try:
+        out = _run(cmd)
+        vals = [f.strip() for f in out.split(",")]
+        keys = ("clock_mhz", "mem_clock_mhz", "pcie_gen", "pcie_width")
+        fp = {k: int(float(v)) for k, v in zip(keys, vals)
+              if v and not v.startswith("[")}       # "[N/A]" -> omit field
+        return fp, f"$ {' '.join(cmd)}\n{out}\n"
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        return {}, ""
+
+
+def capture_fingerprint(bin_dir: Path, device: int, raw_log) -> dict:
+    """The optional hardware fingerprint: nvidia-smi clock/PCIe caps plus
+    cudaGetDeviceProperties fields from microbench/deviceProps. Both are
+    echoed into the raw log as ordinary '$ command' blocks, making the
+    fingerprint raw-log-backed evidence for bench/validate.py. Everything
+    here is best-effort: a missing deviceProps binary or an old driver
+    yields a reduced fingerprint, which validate treats as a warning."""
+    fp, block = smi_fingerprint(device)
+    if block:
+        raw_log.write(block)
+    exe = find_binary(bin_dir, FINGERPRINT_SPEC)
+    if exe is None:
+        print("  deviceProps not built -- submission will carry a "
+              "reduced fingerprint")
+        return fp
+    env = {**os.environ, "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+           "CUDA_VISIBLE_DEVICES": str(device)}
+    raw_log.write(f"$ {exe.name}\n")
+    try:
+        proc = subprocess.run([str(exe)], capture_output=True, text=True,
+                              timeout=FINGERPRINT_SPEC.timeout, check=True,
+                              env=env)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        out = (getattr(e, "output", "") or "") + \
+              (getattr(e, "stderr", "") or "")
+        raw_log.write(str(out) + f"\n[FAILED: {e}]\n\n")
+        print("  deviceProps failed -- submission will carry a "
+              "reduced fingerprint")
+        return fp
+    raw_log.write(proc.stdout + "\n")
+    props = FINGERPRINT_SPEC.parse(proc.stdout, None)
+    # nvidia-smi's name/sm/vram_mib/driver stay authoritative; validate.py
+    # cross-checks them against the deviceProps raw block instead.
+    fp.update({k: v for k, v in props.items()
+               if k in ("sm_count", "bus_width_bits",
+                        "l2_kib", "copy_engines")})
+    return fp
 
 
 def cuda_version() -> str:
@@ -228,6 +289,8 @@ def main() -> None:
     raw_path = args.out.with_suffix("").with_suffix(".raw.txt") \
         if args.out.suffix == ".json" else args.out.with_name(args.out.name + ".raw.txt")
     with open(raw_path, "w") as raw_log:
+        env["gpu"].update(
+            capture_fingerprint(args.bin_dir, args.device, raw_log))
         results = run_suites(suites, args.bin_dir, args.device, raw_log)
     if not results:
         sys.exit("no results collected — check --bin-dir and the build")
