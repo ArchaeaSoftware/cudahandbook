@@ -36,6 +36,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
+add_executable( deviceProps deviceProps.cu )
 add_executable( reportClocks reportClocks.cu )
 #add_executable( globalRead globalRead.cu )
 #add_executable( globalWrite globalWrite.cu )
