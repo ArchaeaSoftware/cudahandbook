@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import statistics
+import sys
 from dataclasses import dataclass
 from typing import Callable
 
@@ -24,6 +25,22 @@ class ProgramSpec:
 
 
 _NUM = r"(\d+(?:\.\d+)?)"
+
+
+def merge(results: dict, parsed: dict) -> None:
+    """Fold one run's metrics in; series metrics accumulate across runs
+    (e.g. histogram is invoked once per --random values count). Shared by
+    run.py (building a results doc) and plausibility.py (re-deriving one
+    from a raw log) so both fold identically."""
+    for key, meas in parsed.items():
+        prior = results.get(key)
+        if prior is None:
+            results[key] = meas
+        elif ("series" in prior and "series" in meas
+              and prior["unit"] == meas["unit"]):
+            prior["series"].update(meas["series"])
+        else:
+            sys.exit(f"internal error: duplicate metric key '{key}'")
 
 
 # ------------------------------------------------------------------ histogram
@@ -211,6 +228,55 @@ def parse_global_peak(key: str) -> Callable:
                 series[size] = max(peaks)
         return {key: {"unit": "GB/s", "series": series}} if series else {}
     return parse
+
+
+# --------------------------------------------------------------- fingerprint
+# microbench/deviceProps prints the cudaGetDeviceProperties fields the
+# plausibility checks need but nvidia-smi cannot report (bus width, L2 size,
+# copy-engine count, SM count). Its printf contract is append-only — this
+# parser and validate.py both depend on the exact "key: value" lines.
+#
+# Unlike the suite parsers, parse_device_props returns ENVIRONMENT field
+# names (merged into doc["environment"]["gpu"] by run.py), not metric
+# measurements — FINGERPRINT_SPEC is deliberately NOT in SUITES, so the
+# program is never treated as a benchmark and its output never lands in
+# doc["results"].
+
+_PROPS_FIELDS = {
+    "name":                ("name", str),
+    "computeCapability":   ("sm", str),
+    "multiProcessorCount": ("sm_count", int),
+    "memoryBusWidth":      ("bus_width_bits", int),   # "192 bits"
+    "l2CacheSize":         ("l2_kib", int),           # "2304 KiB"
+    "asyncEngineCount":    ("copy_engines", int),
+    "totalGlobalMem":      ("vram_mib", int),         # "12043 MiB"
+}
+
+
+def parse_device_props(out: str, param) -> dict:
+    """deviceProps stdout -> environment.gpu field names. Lines that are
+    missing (a future CUDA release dropping a property, as CUDA 13 dropped
+    the clock fields) are simply omitted."""
+    res = {}
+    for line in out.splitlines():
+        key, sep, val = line.partition(":")
+        field = _PROPS_FIELDS.get(key.strip())
+        if not sep or field is None:
+            continue
+        name, conv = field
+        val = val.strip()
+        if conv is int:                 # strip a units suffix ("192 bits")
+            m = re.match(r"(\d+)", val)
+            if not m:
+                continue
+            res[name] = int(m.group(1))
+        else:
+            res[name] = val
+    return res
+
+
+FINGERPRINT_SPEC = ProgramSpec("microbench", "deviceProps", [(None, [])],
+                               parse_device_props, timeout=60)
 
 
 # -------------------------------------------------------------------- suites

@@ -27,8 +27,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-# Suite name -> list of ProgramSpec (binary, args, stdout parser).
-from suites import SUITES, SUITE_META  # noqa: E402  (see bench/suites.py)
+# Suite name -> list of ProgramSpec (binary, args, stdout parser); merge
+# folds parsed metrics and lives beside the parsers so plausibility.py can
+# re-derive a doc from a raw log with identical folding.
+from suites import SUITES, SUITE_META, merge  # noqa: E402  (see bench/suites.py)
 
 
 # ---------------------------------------------------------------- environment
@@ -126,20 +128,6 @@ def find_binary(bin_dir: Path, spec) -> Path | None:
         if cand.is_file():
             return cand
     return None
-
-
-def merge(results: dict, parsed: dict) -> None:
-    """Fold one run's metrics in; series metrics accumulate across runs
-    (e.g. histogram is invoked once per --random values count)."""
-    for key, meas in parsed.items():
-        prior = results.get(key)
-        if prior is None:
-            results[key] = meas
-        elif ("series" in prior and "series" in meas
-              and prior["unit"] == meas["unit"]):
-            prior["series"].update(meas["series"])
-        else:
-            sys.exit(f"internal error: duplicate metric key '{key}'")
 
 
 def run_suites(names: list[str], bin_dir: Path, device: int,

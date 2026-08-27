@@ -205,5 +205,50 @@ class TestContracts(unittest.TestCase):
             self.assertLess(lo, hi, key)
 
 
+class TestDeviceProps(unittest.TestCase):
+    # microbench/deviceProps.cu printf contract (append-only)
+    OUT = ("name: NVIDIA GeForce RTX 3060\n"
+           "computeCapability: 8.6\n"
+           "multiProcessorCount: 28\n"
+           "memoryBusWidth: 192 bits\n"
+           "l2CacheSize: 2304 KiB\n"
+           "asyncEngineCount: 2\n"
+           "totalGlobalMem: 12043 MiB\n")
+
+    def test_full_output(self):
+        res = suites.parse_device_props(self.OUT, None)
+        self.assertEqual(res, {"name": "NVIDIA GeForce RTX 3060",
+                               "sm": "8.6", "sm_count": 28,
+                               "bus_width_bits": 192, "l2_kib": 2304,
+                               "copy_engines": 2, "vram_mib": 12043})
+
+    def test_missing_lines_omitted(self):
+        # A future CUDA release dropping a property (as CUDA 13 dropped the
+        # clock fields) must not break the parse — the field is just absent.
+        out = "name: Foo GPU\nmultiProcessorCount: 4\nnew-future-line: 9\n"
+        res = suites.parse_device_props(out, None)
+        self.assertEqual(res, {"name": "Foo GPU", "sm_count": 4})
+
+    def test_not_a_suite(self):
+        # The fingerprint program must never be run as a benchmark suite.
+        self.assertNotIn("deviceProps",
+                         [s.binary for specs in suites.SUITES.values()
+                          for s in specs])
+
+
+class TestMerge(unittest.TestCase):
+    def test_series_accumulate(self):
+        res = {}
+        suites.merge(res, {"m": {"unit": "us", "series": {"1": 1.0}}})
+        suites.merge(res, {"m": {"unit": "us", "series": {"2": 2.0}}})
+        self.assertEqual(res["m"]["series"], {"1": 1.0, "2": 2.0})
+
+    def test_duplicate_scalar_exits(self):
+        res = {}
+        suites.merge(res, {"m": {"unit": "us", "value": 1.0}})
+        with self.assertRaises(SystemExit):
+            suites.merge(res, {"m": {"unit": "us", "value": 2.0}})
+
+
 if __name__ == "__main__":
     unittest.main()
