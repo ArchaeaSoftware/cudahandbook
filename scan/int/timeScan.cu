@@ -36,6 +36,7 @@
  *
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 
 //#include <thrust/host_vector.h>
