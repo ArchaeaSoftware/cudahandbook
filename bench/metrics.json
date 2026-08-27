@@ -5,7 +5,11 @@
       0.1,
       10000000.0
     ],
-    "description": "histogram/histogram.cu: one histogram in global memory, atomics fired per-pixel"
+    "description": "histogram/histogram.cu: one histogram in global memory, atomics fired per-pixel",
+    "warn_bounds": [
+      0.1,
+      3000000.0
+    ]
   },
   "histogram.per-block": {
     "unit": "Mpix/s",
@@ -13,7 +17,11 @@
       0.1,
       10000000.0
     ],
-    "description": "histogram/histogram.cu: per-block privatized histograms in shared memory, atomics"
+    "description": "histogram/histogram.cu: per-block privatized histograms in shared memory, atomics",
+    "warn_bounds": [
+      0.1,
+      3000000.0
+    ]
   },
   "histogram.per-block-4x": {
     "unit": "Mpix/s",
@@ -21,7 +29,11 @@
       0.1,
       10000000.0
     ],
-    "description": "histogram/histogram.cu: per-block, 4 pixels per thread"
+    "description": "histogram/histogram.cu: per-block, 4 pixels per thread",
+    "warn_bounds": [
+      0.1,
+      3000000.0
+    ]
   },
   "histogram.per-block-offset": {
     "unit": "Mpix/s",
@@ -29,7 +41,11 @@
       0.1,
       10000000.0
     ],
-    "description": "histogram/histogram.cu: per-block with per-warp offset to spread contention"
+    "description": "histogram/histogram.cu: per-block with per-warp offset to spread contention",
+    "warn_bounds": [
+      0.1,
+      3000000.0
+    ]
   },
   "histogram.per-block-4x-offset": {
     "unit": "Mpix/s",
@@ -37,7 +53,11 @@
       0.1,
       10000000.0
     ],
-    "description": "histogram/histogram.cu: per-block, 4x unrolled, warp-offset"
+    "description": "histogram/histogram.cu: per-block, 4x unrolled, warp-offset",
+    "warn_bounds": [
+      0.1,
+      3000000.0
+    ]
   },
   "histogram.per-block-reduce": {
     "unit": "Mpix/s",
@@ -45,7 +65,11 @@
       0.1,
       10000000.0
     ],
-    "description": "histogram/histogram.cu: per-block histograms merged by reduction"
+    "description": "histogram/histogram.cu: per-block histograms merged by reduction",
+    "warn_bounds": [
+      0.1,
+      3000000.0
+    ]
   },
   "histogram.per-block-reduce-offset": {
     "unit": "Mpix/s",
@@ -53,7 +77,11 @@
       0.1,
       10000000.0
     ],
-    "description": "histogram/histogram.cu: per-block reduction merge, warp-offset"
+    "description": "histogram/histogram.cu: per-block reduction merge, warp-offset",
+    "warn_bounds": [
+      0.1,
+      3000000.0
+    ]
   },
   "histogram.per-thread-64": {
     "unit": "Mpix/s",
@@ -61,7 +89,11 @@
       0.1,
       10000000.0
     ],
-    "description": "histogram/histogram.cu: per-thread histograms, 64-count cells"
+    "description": "histogram/histogram.cu: per-thread histograms, 64-count cells",
+    "warn_bounds": [
+      0.1,
+      3000000.0
+    ]
   },
   "histogram.per-thread-4x64": {
     "unit": "Mpix/s",
@@ -69,7 +101,11 @@
       0.1,
       10000000.0
     ],
-    "description": "histogram/histogram.cu: per-thread 64-count, 4x unrolled"
+    "description": "histogram/histogram.cu: per-thread 64-count, 4x unrolled",
+    "warn_bounds": [
+      0.1,
+      3000000.0
+    ]
   },
   "histogram.per-thread-4x64-periodic-merge": {
     "unit": "Mpix/s",
@@ -77,7 +113,11 @@
       0.1,
       10000000.0
     ],
-    "description": "histogram/histogram.cu: per-thread 4x64 with periodic merge"
+    "description": "histogram/histogram.cu: per-thread 4x64 with periodic merge",
+    "warn_bounds": [
+      0.1,
+      3000000.0
+    ]
   },
   "histogram.per-thread-4x32": {
     "unit": "Mpix/s",
@@ -85,7 +125,11 @@
       0.1,
       10000000.0
     ],
-    "description": "histogram/histogram.cu: per-thread histograms, 32-count cells, 4x unrolled"
+    "description": "histogram/histogram.cu: per-thread histograms, 32-count cells, 4x unrolled",
+    "warn_bounds": [
+      0.1,
+      3000000.0
+    ]
   },
   "histogram.per-thread-4x32-periodic-merge": {
     "unit": "Mpix/s",
@@ -93,7 +137,11 @@
       0.1,
       10000000.0
     ],
-    "description": "histogram/histogram.cu: per-thread 4x32 with periodic merge"
+    "description": "histogram/histogram.cu: per-thread 4x32 with periodic merge",
+    "warn_bounds": [
+      0.1,
+      3000000.0
+    ]
   },
   "histogram.npp": {
     "unit": "Mpix/s",
@@ -101,7 +149,11 @@
       0.1,
       10000000.0
     ],
-    "description": "histogram/histogram.cu: NVIDIA Performance Primitives nppiHistogramEven"
+    "description": "histogram/histogram.cu: NVIDIA Performance Primitives nppiHistogramEven",
+    "warn_bounds": [
+      0.1,
+      3000000.0
+    ]
   },
   "histogram.cpu.single": {
     "unit": "Mpix/s",
@@ -171,73 +223,109 @@
     "unit": "Ginteractions/s",
     "bounds": [
       0.001,
-      1000000.0
+      20000
     ],
-    "description": "nbody/nbody.cu: gpu aos implementation, 65536 bodies, median of 12 iterations"
+    "description": "nbody/nbody.cu: gpu aos implementation, 65536 bodies, median of 12 iterations",
+    "warn_bounds": [
+      0.001,
+      6000
+    ]
   },
   "nbody.gpu-shared": {
     "unit": "Ginteractions/s",
     "bounds": [
       0.001,
-      1000000.0
+      20000
     ],
-    "description": "nbody/nbody.cu: gpu shared implementation, 65536 bodies, median of 12 iterations"
+    "description": "nbody/nbody.cu: gpu shared implementation, 65536 bodies, median of 12 iterations",
+    "warn_bounds": [
+      0.001,
+      6000
+    ]
   },
   "nbody.gpu-const": {
     "unit": "Ginteractions/s",
     "bounds": [
       0.001,
-      1000000.0
+      20000
     ],
-    "description": "nbody/nbody.cu: gpu const implementation, 65536 bodies, median of 12 iterations"
+    "description": "nbody/nbody.cu: gpu const implementation, 65536 bodies, median of 12 iterations",
+    "warn_bounds": [
+      0.001,
+      6000
+    ]
   },
   "nbody.multigpu-singlecputhread": {
     "unit": "Ginteractions/s",
     "bounds": [
       0.001,
-      1000000.0
+      20000
     ],
-    "description": "nbody/nbody.cu: multigpu singlecputhread implementation, 65536 bodies, median of 12 iterations"
+    "description": "nbody/nbody.cu: multigpu singlecputhread implementation, 65536 bodies, median of 12 iterations",
+    "warn_bounds": [
+      0.001,
+      6000
+    ]
   },
   "nbody.multigpu-multicputhread": {
     "unit": "Ginteractions/s",
     "bounds": [
       0.001,
-      1000000.0
+      20000
     ],
-    "description": "nbody/nbody.cu: multigpu multicputhread implementation, 65536 bodies, median of 12 iterations"
+    "description": "nbody/nbody.cu: multigpu multicputhread implementation, 65536 bodies, median of 12 iterations",
+    "warn_bounds": [
+      0.001,
+      6000
+    ]
   },
   "nbody.gpu-shuffle": {
     "unit": "Ginteractions/s",
     "bounds": [
       0.001,
-      1000000.0
+      20000
     ],
-    "description": "nbody/nbody.cu: gpu shuffle implementation, 65536 bodies, median of 12 iterations"
+    "description": "nbody/nbody.cu: gpu shuffle implementation, 65536 bodies, median of 12 iterations",
+    "warn_bounds": [
+      0.001,
+      6000
+    ]
   },
   "memcpy.htod.null-latency": {
     "unit": "us",
     "bounds": [
-      0.05,
+      0.5,
       500
     ],
-    "description": "concurrency/nullHtoDMemcpyAsync.cu: 0-byte host-to-device memcpy"
+    "description": "concurrency/nullHtoDMemcpyAsync.cu: 0-byte host-to-device memcpy",
+    "warn_bounds": [
+      1.0,
+      100
+    ]
   },
   "memcpy.dtoh.null-latency-sync": {
     "unit": "us",
     "bounds": [
-      0.05,
+      0.5,
       500
     ],
-    "description": "concurrency/nullDtoHMemcpySync.cu: 0-byte device-to-host memcpy + sync"
+    "description": "concurrency/nullDtoHMemcpySync.cu: 0-byte device-to-host memcpy + sync",
+    "warn_bounds": [
+      1.0,
+      100
+    ]
   },
   "memcpy.dtoh.null-latency": {
     "unit": "us",
     "bounds": [
-      0.05,
+      0.5,
       500
     ],
-    "description": "concurrency/nullDtoHMemcpyAsync.cu: 0-byte device-to-host memcpy"
+    "description": "concurrency/nullDtoHMemcpyAsync.cu: 0-byte device-to-host memcpy",
+    "warn_bounds": [
+      1.0,
+      100
+    ]
   },
   "memcpy.htod.breakeven": {
     "unit": "us",
@@ -259,17 +347,25 @@
     "unit": "GB/s",
     "bounds": [
       0.1,
-      5000
+      1000
     ],
-    "description": "memory/pinnedBandwidth.cu: 64MB pinned host-to-device, 100 iterations"
+    "description": "memory/pinnedBandwidth.cu: 64MB pinned host-to-device, 100 iterations",
+    "warn_bounds": [
+      1.0,
+      130
+    ]
   },
   "memcpy.dtoh.pinned-bandwidth": {
     "unit": "GB/s",
     "bounds": [
       0.1,
-      5000
+      1000
     ],
-    "description": "memory/pinnedBandwidth.cu: 64MB pinned device-to-host, 100 iterations"
+    "description": "memory/pinnedBandwidth.cu: 64MB pinned device-to-host, 100 iterations",
+    "warn_bounds": [
+      1.0,
+      130
+    ]
   },
   "concurrency.memcpy-kernel.htod": {
     "unit": "ms",
@@ -315,25 +411,37 @@
     "unit": "x",
     "bounds": [
       0.01,
-      100
+      3.05
     ],
-    "description": "concurrency/concurrencyMemcpyKernel.cu: sequential/concurrent by cycles"
+    "description": "concurrency/concurrencyMemcpyKernel.cu: sequential/concurrent by cycles",
+    "warn_bounds": [
+      0.2,
+      2.9
+    ]
   },
   "launch.async": {
     "unit": "us",
     "bounds": [
-      0.05,
+      0.5,
       500
     ],
-    "description": "concurrency/nullKernelAsync.cu: asynchronous null-kernel launch time"
+    "description": "concurrency/nullKernelAsync.cu: asynchronous null-kernel launch time",
+    "warn_bounds": [
+      1.0,
+      50
+    ]
   },
   "launch.sync": {
     "unit": "us",
     "bounds": [
-      0.05,
+      1.0,
       2000
     ],
-    "description": "concurrency/nullKernelSync.cu: synchronous null-kernel launch time"
+    "description": "concurrency/nullKernelSync.cu: synchronous null-kernel launch time",
+    "warn_bounds": [
+      1.5,
+      100
+    ]
   },
   "memcpy.htod.pageable-staged": {
     "unit": "MB/s",
@@ -363,24 +471,36 @@
     "unit": "GB/s",
     "bounds": [
       0.5,
-      100000
+      20000
     ],
-    "description": "memory/globalRead.cu: peak device-memory read bandwidth per operand size (max over unroll x block-size shmoo); series keyed by operand bytes"
+    "description": "memory/globalRead.cu: peak device-memory read bandwidth per operand size (max over unroll x block-size shmoo); series keyed by operand bytes",
+    "warn_bounds": [
+      0.5,
+      9000
+    ]
   },
   "global.write.peak": {
     "unit": "GB/s",
     "bounds": [
       0.5,
-      100000
+      20000
     ],
-    "description": "memory/globalWrite.cu: peak device-memory write bandwidth per operand size (max over unroll x block-size shmoo); series keyed by operand bytes"
+    "description": "memory/globalWrite.cu: peak device-memory write bandwidth per operand size (max over unroll x block-size shmoo); series keyed by operand bytes",
+    "warn_bounds": [
+      0.5,
+      9000
+    ]
   },
   "global.copy.peak": {
     "unit": "GB/s",
     "bounds": [
       0.5,
-      100000
+      20000
     ],
-    "description": "memory/globalCopy.cu: peak device-memory copy bandwidth per operand size (max over unroll x block-size shmoo); series keyed by operand bytes"
+    "description": "memory/globalCopy.cu: peak device-memory copy bandwidth per operand size (max over unroll x block-size shmoo); series keyed by operand bytes",
+    "warn_bounds": [
+      0.5,
+      9000
+    ]
   }
 }
