@@ -166,5 +166,71 @@ class TestCeilingFormulas(unittest.TestCase):
         self.assertIsNone(plausibility._fp32_cores("99.9"))
 
 
+class TestInterconnect(unittest.TestCase):
+    """Transfer ceilings must bound PCIe-attached parts without rejecting
+    coherent-CPU platforms (Grace-class C2C, integrated Tegra)."""
+
+    def setUp(self):
+        self.doc = json.loads(SEED_JSON.read_text())
+        self.doc["environment"]["gpu"].update(
+            {**FP, "pcie_gen": 5, "pcie_width": 16})
+        for k in ("memcpy.htod.pinned-bandwidth",
+                  "memcpy.dtoh.pinned-bandwidth"):
+            self.doc["results"][k] = {"unit": "GB/s", "value": 400.0}
+
+    def _ceilings(self, doc):
+        errors, warnings = [], []
+        plausibility.check_ceilings(doc, errors, warnings)
+        return ([e for e in errors if e.startswith("ceiling")],
+                [w for w in warnings if w.startswith("ceiling")])
+
+    def test_c2c_link_is_not_rejected(self):
+        self.doc["environment"]["gpu"]["link"] = "c2c"
+        self.doc["environment"]["cpu"]["arch"] = "aarch64"
+        errors, warnings = self._ceilings(self.doc)
+        self.assertEqual(errors, [])
+        self.assertTrue(any("c2c" in w for w in warnings), warnings)
+
+    def test_integrated_part_is_not_rejected(self):
+        self.doc["environment"]["gpu"].update({"integrated": 1,
+                                               "link": "integrated"})
+        errors, _ = self._ceilings(self.doc)
+        self.assertEqual(errors, [])
+
+    def test_undetected_link_on_arm_host_warns(self):
+        """C2C detection is best effort; an Arm host is corroboration
+        enough to hand the excess to a reviewer rather than reject it."""
+        self.doc["environment"]["cpu"]["arch"] = "aarch64"
+        errors, warnings = self._ceilings(self.doc)
+        self.assertEqual(errors, [])
+        self.assertTrue(any("faster host link" in w for w in warnings))
+
+    def test_pcie_host_still_rejects_impossible_bandwidth(self):
+        self.doc["environment"]["gpu"]["link"] = "pcie"
+        self.doc["environment"]["cpu"]["arch"] = "x86_64"
+        errors, _ = self._ceilings(self.doc)
+        self.assertTrue(any("exceeds the PCIe" in e for e in errors), errors)
+
+    def test_x86_without_link_field_still_rejects(self):
+        self.doc["environment"]["cpu"]["arch"] = "x86_64"
+        errors, _ = self._ceilings(self.doc)
+        self.assertTrue(any("exceeds the PCIe" in e for e in errors), errors)
+
+
+class TestCpuArch(unittest.TestCase):
+    def test_arch_recorded(self):
+        import run
+        self.assertIn("arch", run.cpu_info())
+
+    def test_model_is_not_bare_machine_name(self):
+        """On Arm, /proc/cpuinfo has no 'model name'; cpu_info must fall
+        back to something more specific than the machine type."""
+        import platform, run
+        info = run.cpu_info()
+        if platform.machine() not in ("aarch64", "arm64"):
+            self.skipTest("x86 host")
+        self.assertNotEqual(info["model"], platform.machine())
+
+
 if __name__ == "__main__":
     unittest.main()

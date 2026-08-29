@@ -117,6 +117,21 @@
               "minimum": 1,
               "maximum": 32,
               "description": "Fingerprint (nvidia-smi): max PCIe link width (lanes)"
+            },
+            "integrated": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Fingerprint (deviceProps): shares physical memory with the CPU"
+            },
+            "link": {
+              "type": "string",
+              "enum": [
+                "pcie",
+                "c2c",
+                "integrated"
+              ],
+              "description": "How host memory reaches the GPU; bounds the transfer benchmarks"
             }
           }
         },
@@ -143,6 +158,11 @@
             "max_mhz": {
               "type": "integer",
               "minimum": 100
+            },
+            "arch": {
+              "type": "string",
+              "maxLength": 20,
+              "description": "Host CPU architecture, e.g. \"x86_64\" or \"aarch64\""
             }
           }
         },

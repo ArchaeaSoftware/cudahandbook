@@ -68,6 +68,10 @@ main( int argc, char *argv[] )
     printf( "asyncEngineCount: %d\n", prop.asyncEngineCount );
     printf( "totalGlobalMem: %d MiB\n",
         (int) (prop.totalGlobalMem / 1048576) );
+    // Integrated parts (Tegra) share physical memory with the CPU, so a
+    // host/device copy never crosses a bus. The plausibility checks need
+    // to know that before applying any interconnect ceiling.
+    printf( "integrated: %d\n", prop.integrated );
 
     return 0;
 Error:

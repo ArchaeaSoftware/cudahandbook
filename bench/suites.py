@@ -250,6 +250,7 @@ _PROPS_FIELDS = {
     "l2CacheSize":         ("l2_kib", int),           # "2304 KiB"
     "asyncEngineCount":    ("copy_engines", int),
     "totalGlobalMem":      ("vram_mib", int),         # "12043 MiB"
+    "integrated":          ("integrated", int),       # 0 | 1
 }
 
 

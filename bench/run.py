@@ -71,6 +71,17 @@ def smi_fingerprint(device: int) -> tuple[dict, str]:
         return {}, ""
 
 
+def c2c_present() -> bool:
+    """True when the driver reports a chip-to-chip link, as on Grace Hopper
+    and its successors, where the CPU/GPU path is NVLink-C2C rather than
+    PCIe. Best effort: `nvidia-smi -q` grows a C2C section on those parts."""
+    try:
+        return bool(re.search(r"^\s*C2C(\s|:)", _run(["nvidia-smi", "-q"]),
+                              re.M))
+    except (OSError, subprocess.CalledProcessError):
+        return False
+
+
 def capture_fingerprint(bin_dir: Path, device: int, raw_log) -> dict:
     """The optional hardware fingerprint: nvidia-smi clock/PCIe caps plus
     cudaGetDeviceProperties fields from microbench/deviceProps. Both are
@@ -107,6 +118,17 @@ def capture_fingerprint(bin_dir: Path, device: int, raw_log) -> dict:
     fp.update({k: v for k, v in props.items()
                if k in ("sm_count", "bus_width_bits",
                         "l2_kib", "copy_engines")})
+    # How host memory reaches the GPU. The transfer benchmarks are bounded by
+    # this link, and it is not always PCIe: an integrated part (Tegra) shares
+    # physical memory with the CPU, and a Grace-class host reaches a discrete
+    # GPU over NVLink-C2C at several times any PCIe rate. Recording the link
+    # keeps the plausibility ceilings from rejecting those platforms.
+    if props.get("integrated"):
+        fp["link"] = "integrated"
+    elif c2c_present():
+        fp["link"] = "c2c"
+    elif "pcie_gen" in fp:
+        fp["link"] = "pcie"
     return fp
 
 
@@ -125,6 +147,9 @@ def cuda_version() -> str:
 
 
 def cpu_info() -> dict:
+    """Host CPU, including its architecture: the launch-overhead and memcpy
+    benchmarks are as much a measurement of the host as of the GPU, and an
+    Arm host (Grace, Tegra) is not comparable with an x86 one."""
     model = platform.processor() or platform.machine()
     try:
         for line in Path("/proc/cpuinfo").read_text().splitlines():
@@ -133,7 +158,31 @@ def cpu_info() -> dict:
                 break
     except OSError:
         pass
-    info = {"model": model, "cores": os.cpu_count()}
+    if model in ("", "aarch64", "arm64", "unknown"):
+        # Arm kernels usually omit "model name". The device tree names the
+        # board on Tegra ("NVIDIA Jetson AGX Orin"), and Grace hosts report
+        # a part number through the CPU implementer fields.
+        try:
+            dt = Path("/proc/device-tree/model").read_bytes()
+            model = dt.decode("utf-8", "replace").strip("\x00").strip() or model
+        except OSError:
+            pass
+    if model in ("", "aarch64", "arm64", "unknown"):
+        try:
+            fields = {}
+            for line in Path("/proc/cpuinfo").read_text().splitlines():
+                key, sep, val = line.partition(":")
+                if sep:
+                    fields[key.strip()] = val.strip()
+            part = fields.get("CPU part")
+            impl = fields.get("CPU implementer")
+            if part:
+                model = (f"Arm CPU part {part}"
+                         + (f" (implementer {impl})" if impl else ""))
+        except OSError:
+            pass
+    info = {"model": model, "arch": platform.machine(),
+            "cores": os.cpu_count()}
     try:  # kHz -> MHz; absent on some platforms, then omitted
         khz = int(Path("/sys/devices/system/cpu/cpu0/cpufreq"
                        "/cpuinfo_max_freq").read_text())

@@ -75,9 +75,25 @@ def check_ceilings(doc: dict, errors: list, warnings: list) -> None:
     gpu = doc.get("environment", {}).get("gpu", {})
     results = doc.get("results", {})
 
-    # --- PCIe: pinned/pageable memcpy bandwidth cannot beat the link ---
+    # --- Host/device link: transfer bandwidth cannot beat the interconnect ---
+    #
+    # Only a PCIe-attached discrete GPU is bounded by the PCIe rate. An
+    # integrated part (Tegra) shares physical memory with the CPU, and a
+    # Grace-class host reaches its GPU over NVLink-C2C at several times any
+    # PCIe generation, so applying the PCIe ceiling there would reject the
+    # platform rather than a bad measurement. Treat the PCIe rate as a hard
+    # ceiling only when the link is known to be PCIe; where the link is
+    # unstated and the host is Arm -- every coherent-CPU NVIDIA platform so
+    # far pairs the GPU with an Arm CPU -- report the excess for the reviewer
+    # instead of rejecting it.
     gen, width = gpu.get("pcie_gen"), gpu.get("pcie_width")
-    if gen in PCIE_GBPS_PER_LANE and width:
+    link = gpu.get("link")
+    if link is None:
+        link = "integrated" if gpu.get("integrated") else None
+    arch = (doc.get("environment", {}).get("cpu", {}) or {}).get("arch", "")
+    fatal = link == "pcie" or (link is None and gen and width
+                               and not arch.startswith(("aarch64", "arm")))
+    if link in (None, "pcie") and gen in PCIE_GBPS_PER_LANE and width:
         ceil = width * PCIE_GBPS_PER_LANE[gen]
         checks = [("memcpy.htod.pinned-bandwidth", 1.0),
                   ("memcpy.dtoh.pinned-bandwidth", 1.0),
@@ -88,13 +104,29 @@ def check_ceilings(doc: dict, errors: list, warnings: list) -> None:
                 continue
             gbps = v * scale
             if gbps > 1.05 * ceil:
-                errors.append(
-                    f"ceiling: {key} {gbps:.1f} GB/s exceeds the PCIe "
-                    f"gen{gen} x{width} ceiling of {ceil:.1f} GB/s")
+                msg = (f"ceiling: {key} {gbps:.1f} GB/s exceeds the PCIe "
+                       f"gen{gen} x{width} ceiling of {ceil:.1f} GB/s")
+                if fatal:
+                    errors.append(msg)
+                else:
+                    warnings.append(
+                        msg + " -- a faster host link (NVLink-C2C or an "
+                        "integrated part) would explain it; confirm the "
+                        "platform")
             elif gbps > 0.95 * ceil:
                 warnings.append(
                     f"ceiling: {key} {gbps:.1f} GB/s is implausibly close "
                     f"to the PCIe gen{gen} x{width} ceiling ({ceil:.1f})")
+    elif link in ("c2c", "integrated"):
+        # No bus-rate ceiling applies; the metric bounds in metrics.json
+        # still cap these at physically absurd values.
+        for key in ("memcpy.htod.pinned-bandwidth",
+                    "memcpy.dtoh.pinned-bandwidth"):
+            v = _scalar(doc, key)
+            if v is not None and v > 0.95 * (width or 16) * PCIE_GBPS_PER_LANE.get(gen or 5, 3.938):
+                warnings.append(
+                    f"ceiling: {key} {v:.1f} GB/s exceeds PCIe rates, "
+                    f"consistent with the reported {link} link")
 
     # --- DRAM: global-memory and histogram rates cannot beat the DRAM ---
     mem_clock, bus = gpu.get("mem_clock_mhz"), gpu.get("bus_width_bits")
@@ -374,7 +406,8 @@ def check_raw_evidence(doc: dict, raw: str, errors: list,
                         if _normalize_cmd(cmd).split()[:1] == ["deviceProps"]),
                        None)
     doc_props = {k: gpu[k] for k in ("sm_count", "bus_width_bits", "l2_kib",
-                                     "copy_engines") if k in gpu}
+                                     "copy_engines", "integrated")
+                 if k in gpu}
     if props_block is not None:
         props = suites.parse_device_props(props_block, None)
         for field in ("name", "sm"):
