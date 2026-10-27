@@ -286,6 +286,7 @@ def _block_map() -> dict:
             for param, extra in spec.runs:
                 key = " ".join([spec.binary] + extra)
                 out[key] = (spec.parse, param)
+    out.update(getattr(suites, "LEGACY_RUNS", {}))
     return out
 
 

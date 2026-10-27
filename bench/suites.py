@@ -100,6 +100,15 @@ _NBODY_LINE = re.compile(
     rf"interactions/s")
 
 
+# nbody reports one algorithm per non-interactive run, so each is selected by
+# name with --algorithm. The list stops at GPU_Shuffle because that is where
+# nbody.cu clamps g_maxAlgorithm, and it matches the nbody keys in
+# bench/metrics.json. CPU algorithms are excluded by --nocpu: at 64K bodies
+# they take far longer than the GPU paths.
+NBODY_ALGORITHMS = ["GPU_AOS", "GPU_Shared", "GPU_Const", "GPU_Shuffle",
+                    "multiGPU_SingleCPUThread", "multiGPU_MultiCPUThread"]
+
+
 def parse_nbody(out: str, param) -> dict:
     per_algo: dict[str, list[float]] = {}
     for m in _NBODY_LINE.finditer(out):
@@ -301,6 +310,16 @@ SUITE_META: dict[str, dict] = {
                     "group": "apps", "chapter": 14},
 }
 
+# Command lines retired from SUITES, kept so that results submitted under them
+# still re-derive from their raw logs. Canonical arguments are part of the
+# contract with past submissions as much as with future ones: when a suite's
+# invocation changes, the old one moves here rather than disappearing.
+LEGACY_RUNS: dict = {
+    # nbody ran one algorithm per submission until --algorithm was added.
+    "nbody --numbodies 64 --iterations 12 --nocpu": (parse_nbody, None),
+}
+
+
 SUITES: dict[str, list[ProgramSpec]] = {
     "histogram": [
         ProgramSpec("histogram", "histogram",
@@ -311,8 +330,9 @@ SUITES: dict[str, list[ProgramSpec]] = {
     ],
     "nbody": [
         ProgramSpec("nbody", "nbody",
-                    [(None, ["--numbodies", "64", "--iterations", "12",
-                             "--nocpu"])],
+                    [(a, ["--numbodies", "64", "--iterations", "12",
+                          "--nocpu", "--algorithm", a])
+                     for a in NBODY_ALGORITHMS],
                     parse_nbody, timeout=900),
     ],
     "launch": [
