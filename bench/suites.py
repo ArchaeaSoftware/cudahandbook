@@ -107,7 +107,8 @@ _NBODY_LINE = re.compile(
 # bench/metrics.json. CPU algorithms are excluded by --nocpu: at 64K bodies
 # they take far longer than the GPU paths.
 NBODY_ALGORITHMS = ["GPU_AOS", "GPU_Shared", "GPU_Const", "GPU_Shuffle",
-                    "multiGPU_SingleCPUThread", "multiGPU_MultiCPUThread"]
+                    "multiGPU_SingleCPUThread", "multiGPU_MultiCPUThread",
+                    "multiGPU_Ring"]
 
 
 def _nbody_per_algo(out: str) -> dict:

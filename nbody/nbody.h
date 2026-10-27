@@ -93,6 +93,7 @@ enum nbodyAlgorithm_enum {
     GPU_Const,
     multiGPU_SingleCPUThread,
     multiGPU_MultiCPUThread,
+    multiGPU_Ring,
 // SM 3.0 only
     GPU_Shuffle,
     GPU_AOS_tiled,
@@ -119,6 +120,7 @@ static const char *rgszAlgorithmNames[] = {
     "GPU_Const",
     "multiGPU_SingleCPUThread",
     "multiGPU_MultiCPUThread",
+    "multiGPU_Ring",
 // SM 3.0 only
     "GPU_Shuffle",
     "GPU_AOS_tiled",
@@ -144,8 +146,13 @@ extern int g_numCPUCores;
 
 extern int g_numGPUs;
 
+// Verify the ring's all-gather on every timestep, not just the first.
+extern bool g_bRingCheck;
+
 extern float ComputeGravitation_GPU_Shared           ( float *force, float *posMass, float softeningSquared, size_t N );
 extern float ComputeGravitation_multiGPU_singlethread( float *force, float *posMass, float softeningSquared, size_t N );
+extern float ComputeGravitation_multiGPU_ring        ( float *force, float *posMass, float softeningSquared, size_t N );
+extern void  multiGPURingRelease( void );
 extern float ComputeGravitation_multiGPU_threaded    ( float *force, float *posMass, float softeningSquared, size_t N );
 
 

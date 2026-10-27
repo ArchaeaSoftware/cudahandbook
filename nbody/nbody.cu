@@ -412,6 +412,23 @@ ComputeGravitation(
                 g_softening*g_softening,
                 g_N );
             break;
+        case multiGPU_Ring:
+            // The ring zeroes its force accumulators on the device, so the
+            // host array needs no memset; each device overwrites its own
+            // slice of it.
+            *ms = ComputeGravitation_multiGPU_ring( 
+                g_hostAOS_Force,
+                g_hostAOS_PosMass,
+                g_softening*g_softening,
+                g_N );
+            // A zero elapsed time means the ring could not run or could not
+            // confirm its all-gather. Fail the timestep rather than divide by
+            // it and report an infinite interaction rate.
+            if ( 0.0f == *ms ) {
+                fprintf( stderr, "multiGPU_Ring: timestep failed\n" );
+                goto Error;
+            }
+            break;
 #endif
         default:
             fprintf(stderr, "Unrecognized algorithm index: %d\n", algorithm);
@@ -501,6 +518,7 @@ Error:
 int g_numCPUCores;
 
 int g_numGPUs;
+bool g_bRingCheck;
 
 struct gpuInit_struct
 {
@@ -560,6 +578,7 @@ main( int argc, char *argv[] )
         exit(1);
     }
     g_bNoCPU = chCommandLineGetBool( "nocpu", argc, argv );
+    g_bRingCheck = chCommandLineGetBool( "ringcheck", argc, argv );
     if ( g_bNoCPU && ! g_bCUDAPresent ) {
         printf( "--nocpu specified, but no CUDA present...exiting\n" );
         exit(1);
@@ -692,7 +711,7 @@ main( int argc, char *argv[] )
     if ( g_bCUDAPresent || g_bNoCPU ) {
         // max algorithm is different depending on whether SM 3.0 is present
         //g_maxAlgorithm = g_bSM30Present ? GPU_AOS_tiled_const : multiGPU_MultiCPUThread;
-        g_maxAlgorithm = g_bSM30Present ? GPU_Shuffle : multiGPU_MultiCPUThread;
+        g_maxAlgorithm = g_bSM30Present ? GPU_Shuffle : multiGPU_Ring;
     }
 
     if ( g_bCUDAPresent ) {
@@ -703,7 +722,7 @@ main( int argc, char *argv[] )
         if ( propForVersion.major < 3 ) {
             // Only SM 3.x supports shuffle and fast atomics, so we cannot run
             // some algorithms on this board.
-            g_maxAlgorithm = multiGPU_MultiCPUThread;
+            g_maxAlgorithm = multiGPU_Ring;
         }
 
         // Select the algorithm by name, now that g_maxAlgorithm reflects what

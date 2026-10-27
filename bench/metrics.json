@@ -279,6 +279,18 @@
       6000
     ]
   },
+  "nbody.multigpu-ring": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      0.001,
+      20000
+    ],
+    "description": "nbody/nbody_multiGPU_ring.cu: ring all-gather of positions, 65536 bodies, median of 12 iterations",
+    "warn_bounds": [
+      0.001,
+      6000
+    ]
+  },
   "nbody.gpu-shuffle": {
     "unit": "Ginteractions/s",
     "bounds": [
