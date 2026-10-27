@@ -43,6 +43,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 
 // for kbhit()
 #include <ch_conio.h>
@@ -688,7 +689,6 @@ main( int argc, char *argv[] )
     g_maxAlgorithm = CPU_SOA;
 #endif
     g_Algorithm = g_bCUDAPresent ? GPU_AOS : g_maxAlgorithm;
-	g_Algorithm = multiGPU_SingleCPUThread;
     if ( g_bCUDAPresent || g_bNoCPU ) {
         // max algorithm is different depending on whether SM 3.0 is present
         //g_maxAlgorithm = g_bSM30Present ? GPU_AOS_tiled_const : multiGPU_MultiCPUThread;
@@ -704,6 +704,38 @@ main( int argc, char *argv[] )
             // Only SM 3.x supports shuffle and fast atomics, so we cannot run
             // some algorithms on this board.
             g_maxAlgorithm = multiGPU_MultiCPUThread;
+        }
+
+        // Select the algorithm by name, now that g_maxAlgorithm reflects what
+        // this hardware can run. Without this, a non-interactive run measures
+        // only the default algorithm.
+        {
+            char *szAlgorithm = NULL;
+            if ( chCommandLineGet( &szAlgorithm, "algorithm", argc, argv ) ) {
+                size_t cAlgorithms =
+                    sizeof(rgszAlgorithmNames)/sizeof(rgszAlgorithmNames[0]);
+                size_t i;
+                for ( i = 0; i < cAlgorithms; i++ ) {
+                    if ( ! strcmp( szAlgorithm, rgszAlgorithmNames[i] ) ) {
+                        break;
+                    }
+                }
+                if ( cAlgorithms == i ) {
+                    fprintf( stderr, "unknown algorithm '%s'\n", szAlgorithm );
+                    fprintf( stderr, "available:" );
+                    for ( i = 0; i < cAlgorithms; i++ ) {
+                        fprintf( stderr, " %s", rgszAlgorithmNames[i] );
+                    }
+                    fprintf( stderr, "\n" );
+                    exit(1);
+                }
+                if ( (int) i > (int) g_maxAlgorithm ) {
+                    fprintf( stderr, "algorithm '%s' is not supported on this "
+                        "hardware\n", szAlgorithm );
+                    exit(1);
+                }
+                g_Algorithm = (enum nbodyAlgorithm_enum) i;
+            }
         }
 
         cuda(HostAlloc( (void **) &g_hostAOS_PosMass, 4*g_N*sizeof(float), cudaHostAllocPortable|cudaHostAllocMapped ) );
