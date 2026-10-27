@@ -205,7 +205,8 @@ main( int argc, char *argv[] )
         printf( "%.2f MB/s\n", MBpers );
     }
 
-    cudaFree( deviceInt );
+    cudaFree( deviceInt[0] );
+    cudaFree( deviceInt[1] );
     cudaFreeHost( hostInt );
     return 0;
 Error:

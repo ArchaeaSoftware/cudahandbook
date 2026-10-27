@@ -281,6 +281,39 @@ class TestPeerToPeer(unittest.TestCase):
         self.assertEqual(spec.min_gpus, 2)
 
 
+class TestPeerToPeerHostStaged(unittest.TestCase):
+    """concurrency/peer2peerMemcpy.cu measures the staged fallback path. Its
+    source was in the tree all along with no CMake target, because memory/
+    already had a target of that name and CMake names are project-wide."""
+
+    SAMPLE = "Peer-to-peer memcpy... 9876.54 MB/s\n"
+
+    def test_reports_bandwidth_in_gbps(self):
+        res = suites.parse_peer2peer_staged(self.SAMPLE, None)
+        self.assertEqual(res["p2p.memcpy.host-staged"]["value"], 9.88)
+        self.assertEqual(res["p2p.memcpy.host-staged"]["unit"], "GB/s")
+
+    def test_single_gpu_reports_nothing(self):
+        self.assertEqual(
+            suites.parse_peer2peer_staged(
+                "Peer-to-peer memcpy... Peer-to-peer requires at least "
+                "2 devices\n", None), {})
+
+    def test_failure_reports_nothing(self):
+        self.assertEqual(
+            suites.parse_peer2peer_staged(
+                "Peer-to-peer memcpy... Error\n", None), {})
+
+    def test_metric_is_registered(self):
+        known = json.loads((BENCH / "metrics.json").read_text())
+        self.assertIn("p2p.memcpy.host-staged", known)
+
+    def test_needs_two_devices(self):
+        spec = [s for s in suites.SUITES["multigpu"]
+                if "peer2peerMemcpyPinned" == s.binary][0]
+        self.assertEqual(spec.min_gpus, 2)
+
+
 class TestMultiGPUScaling(unittest.TestCase):
     """The scaling sweep turns one algorithm's runs at several device counts
     into one metric whose series is keyed by that count."""

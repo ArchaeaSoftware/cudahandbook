@@ -575,6 +575,18 @@
     ],
     "description": "memory/peer2peerMemcpy.cu: peer-to-peer device-to-device copy bandwidth, median over the directed pairs where peer access is enabled"
   },
+  "p2p.memcpy.host-staged": {
+    "unit": "GB/s",
+    "bounds": [
+      0.01,
+      20000
+    ],
+    "description": "concurrency/peer2peerMemcpy.cu: peer-to-peer memcpy staged through portable pinned memory between devices 0 and 1, 32 MiB x 10 iterations; the path the driver falls back to when devices cannot address each other directly",
+    "warn_bounds": [
+      0.01,
+      2000
+    ]
+  },
   "p2p.pairs-enabled": {
     "unit": "pairs",
     "bounds": [

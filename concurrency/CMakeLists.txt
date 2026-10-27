@@ -59,6 +59,12 @@ add_executable( nullKernelAsync nullKernelAsync.cu )
 add_executable( nullKernelAsyncGraph nullKernelAsyncGraph.cu )
 add_executable( nullKernelSync nullKernelSync.cu )
 
+# The target is named for what it measures rather than after its source,
+# because memory/ already has a peer2peerMemcpy target and CMake target names
+# are unique across the whole project. That collision is why this program was
+# never built: the source has been here all along with nothing to compile it.
+add_executable( peer2peerMemcpyPinned peer2peerMemcpy.cu )
+
 add_executable( pageableMemcpyHtoD pageableMemcpyHtoD.cu )
 add_executable( pageableMemcpyHtoD16Blocking pageableMemcpyHtoD16Blocking.cu memcpy16.cpp )
 add_executable( pageableMemcpyHtoD16Broken pageableMemcpyHtoD16Broken.cu memcpy16.cpp )

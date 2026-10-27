@@ -303,6 +303,32 @@ def parse_peer2peer(out: str, param) -> dict:
     return res
 
 
+# The host-staged peer-to-peer path: concurrency/peer2peerMemcpy.cu copies
+# between two devices through portable pinned memory, which is the strategy
+# the driver falls back to when two GPUs cannot address each other directly.
+# Measuring it next to the direct path puts a number on what that fallback
+# costs, which is the whole reason ncclProbe reports the peer matrix: the
+# fallback is silent, and a submission that hit it otherwise looks merely
+# disappointing.
+
+_P2P_STAGED = re.compile(r"Peer-to-peer memcpy\.\.\.\s*([0-9.]+) MB/s")
+
+
+def parse_peer2peer_staged(out: str, param) -> dict:
+    m = _P2P_STAGED.search(out)
+    if not m:
+        return {}            # fewer than two devices, or the run failed
+    return {
+        "p2p.memcpy.host-staged": {
+            "unit": "GB/s",
+            # The program divides by 1048576 and labels the result MB/s; the
+            # direct-path parser treats that label as decimal MB, so follow it
+            # rather than have two peer-to-peer metrics in different units.
+            "value": round(float(m.group(1)) / 1000.0, 2),
+        }
+    }
+
+
 # ------------------------------------------------------- multi-GPU scaling
 # The scaling sweep is what a multi-GPU run is for: the same decomposition at
 # 1, 2, 4 and 8 devices, so the curve shows what the decomposition's
@@ -484,6 +510,8 @@ SUITES: dict[str, list[ProgramSpec]] = {
     "multigpu": [
         ProgramSpec("memory", "peer2peerMemcpy", [(None, [])],
                     parse_peer2peer, timeout=600, min_gpus=2),
+        ProgramSpec("concurrency", "peer2peerMemcpyPinned", [(None, [])],
+                    parse_peer2peer_staged, timeout=600, min_gpus=2),
         # The scaling sweep runs on one device too: the single-device point is
         # the baseline the curve is measured against.
         ProgramSpec("nbody", "nbody", NBODY_SCALING_RUNS,
