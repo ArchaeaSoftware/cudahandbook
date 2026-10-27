@@ -281,5 +281,100 @@ class TestPeerToPeer(unittest.TestCase):
         self.assertEqual(spec.min_gpus, 2)
 
 
+class TestMultiGPUScaling(unittest.TestCase):
+    """The scaling sweep turns one algorithm's runs at several device counts
+    into one metric whose series is keyed by that count."""
+
+    SAMPLE = ("2D: 4 devices as a 2x2 grid\n"
+              "multiGPU_2D:     4.10 ms =  1050.000x10^9 interactions/s "
+              "(Rel. error: 2.0E-04)\n"
+              "multiGPU_2D:     4.00 ms =  1075.000x10^9 interactions/s "
+              "(Rel. error: 2.0E-04)\n"
+              "multiGPU_2D:     4.05 ms =  1060.000x10^9 interactions/s "
+              "(Rel. error: 2.0E-04)\n")
+
+    def test_series_is_keyed_by_device_count(self):
+        res = suites.parse_nbody_scaling(self.SAMPLE, ("multiGPU_2D", 4))
+        self.assertEqual(list(res), ["nbody.scaling.multigpu-2d"])
+        self.assertEqual(res["nbody.scaling.multigpu-2d"]["series"],
+                         {"4": 1060.0})
+
+    def test_reported_value_appears_in_the_output(self):
+        """median_low, so the number can be found in the raw log."""
+        res = suites.parse_nbody_scaling(self.SAMPLE, ("multiGPU_2D", 4))
+        value = res["nbody.scaling.multigpu-2d"]["series"]["4"]
+        self.assertIn(f"{value:.3f}", self.SAMPLE)
+
+    def test_points_accumulate_into_one_series(self):
+        results = {}
+        for n in (1, 2, 4):
+            out = self.SAMPLE.replace("1060.000", f"{1000 + n}.000")
+            suites.merge(results,
+                         suites.parse_nbody_scaling(out, ("multiGPU_2D", n)))
+        self.assertEqual(
+            sorted(results["nbody.scaling.multigpu-2d"]["series"]),
+            ["1", "2", "4"])
+
+    def test_absent_algorithm_reports_nothing(self):
+        self.assertEqual(
+            suites.parse_nbody_scaling(self.SAMPLE,
+                                       ("multiGPU_Ring", 4)), {})
+
+    def test_every_metric_key_is_registered(self):
+        known = json.loads((BENCH / "metrics.json").read_text())
+        for algorithm in suites.NBODY_SCALING_ALGORITHMS:
+            name = algorithm.lower().replace("_", "-")
+            self.assertIn(f"nbody.scaling.{name}", known)
+
+
+class TestCommandLinesAreUnique(unittest.TestCase):
+    """Re-derivation maps a command line to one parser, so two suites must
+    never issue the same command line. They did once: the scaling sweep's
+    one-device run matched the nbody suite's run exactly, and re-derivation
+    then applied the sweep's parser to both log blocks -- reporting a
+    mismatch for the sweep's metrics and 'not derivable' for the others."""
+
+    def test_no_two_runs_share_a_command_line(self):
+        seen = {}
+        for suite, specs in suites.SUITES.items():
+            for spec in specs:
+                for run in spec.runs:
+                    _, extra, _ = suites.run_fields(run)
+                    key = " ".join([spec.binary] + extra)
+                    self.assertNotIn(
+                        key, seen,
+                        f"'{key}' is issued by both {seen.get(key)} "
+                        f"and {suite}")
+                    seen[key] = suite
+
+    def test_block_map_covers_every_run(self):
+        from plausibility import _block_map
+        block_map = _block_map()
+        for specs in suites.SUITES.values():
+            for spec in specs:
+                for run in spec.runs:
+                    _, extra, _ = suites.run_fields(run)
+                    self.assertIn(" ".join([spec.binary] + extra), block_map)
+
+
+class TestRunFields(unittest.TestCase):
+    """A run may declare the device count it needs; nbody does not clamp
+    --numgpus, so a run that asks for more devices than exist fails rather
+    than measuring something smaller."""
+
+    def test_two_tuple_declares_no_requirement(self):
+        self.assertEqual(suites.run_fields((None, ["-x"])),
+                         (None, ["-x"], None))
+
+    def test_three_tuple_declares_its_requirement(self):
+        self.assertEqual(suites.run_fields(("p", ["-x"], 8)),
+                         ("p", ["-x"], 8))
+
+    def test_sweep_runs_require_the_count_they_pass(self):
+        for run in suites.NBODY_SCALING_RUNS:
+            _, extra, need = suites.run_fields(run)
+            self.assertEqual(str(need), extra[extra.index("--numgpus") + 1])
+
+
 if __name__ == "__main__":
     unittest.main()

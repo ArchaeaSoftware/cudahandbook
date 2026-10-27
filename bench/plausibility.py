@@ -283,7 +283,8 @@ def _block_map() -> dict:
     out = {}
     for specs in suites.SUITES.values():
         for spec in specs:
-            for param, extra in spec.runs:
+            for run in spec.runs:
+                param, extra, _ = suites.run_fields(run)
                 key = " ".join([spec.binary] + extra)
                 out[key] = (spec.parse, param)
     out.update(getattr(suites, "LEGACY_RUNS", {}))

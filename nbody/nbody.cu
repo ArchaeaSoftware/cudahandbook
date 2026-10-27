@@ -412,6 +412,19 @@ ComputeGravitation(
                 g_softening*g_softening,
                 g_N );
             break;
+#ifdef USE_NCCL
+        case multiGPU_2D:
+            *ms = ComputeGravitation_multiGPU_2D( 
+                g_hostAOS_Force,
+                g_hostAOS_PosMass,
+                g_softening*g_softening,
+                g_N );
+            if ( 0.0f == *ms ) {
+                fprintf( stderr, "multiGPU_2D: timestep failed\n" );
+                goto Error;
+            }
+            break;
+#endif
         case multiGPU_Ring:
             // The ring zeroes its force accumulators on the device, so the
             // host array needs no memset; each device overwrites its own
@@ -711,7 +724,11 @@ main( int argc, char *argv[] )
     if ( g_bCUDAPresent || g_bNoCPU ) {
         // max algorithm is different depending on whether SM 3.0 is present
         //g_maxAlgorithm = g_bSM30Present ? GPU_AOS_tiled_const : multiGPU_MultiCPUThread;
+#ifdef USE_NCCL
+        g_maxAlgorithm = g_bSM30Present ? GPU_Shuffle : multiGPU_2D;
+#else
         g_maxAlgorithm = g_bSM30Present ? GPU_Shuffle : multiGPU_Ring;
+#endif
     }
 
     if ( g_bCUDAPresent ) {
@@ -722,7 +739,11 @@ main( int argc, char *argv[] )
         if ( propForVersion.major < 3 ) {
             // Only SM 3.x supports shuffle and fast atomics, so we cannot run
             // some algorithms on this board.
+#ifdef USE_NCCL
+            g_maxAlgorithm = multiGPU_2D;
+#else
             g_maxAlgorithm = multiGPU_Ring;
+#endif
         }
 
         // Select the algorithm by name, now that g_maxAlgorithm reflects what

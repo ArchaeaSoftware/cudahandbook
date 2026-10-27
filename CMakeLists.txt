@@ -42,6 +42,23 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wno-unused-result")
 
 include_directories( chLib )
 
+# NCCL is not part of the CUDA toolkit, so look for it where it is usually
+# found: a prefix the user names, one unpacked into a home directory on a
+# machine without root, or the system paths a Deep Learning AMI uses.
+find_path(NCCL_INCLUDE_DIR nccl.h
+    HINTS ${NCCL_HOME} $ENV{NCCL_HOME} $ENV{HOME}/opt/nccl /usr/local/nccl
+    PATH_SUFFIXES include)
+find_library(NCCL_LIBRARY nccl
+    HINTS ${NCCL_HOME} $ENV{NCCL_HOME} $ENV{HOME}/opt/nccl /usr/local/nccl
+    PATH_SUFFIXES lib lib64 lib/x86_64-linux-gnu)
+if(NCCL_INCLUDE_DIR AND NCCL_LIBRARY)
+    get_filename_component(NCCL_LIBRARY_DIR ${NCCL_LIBRARY} DIRECTORY)
+    message(STATUS "NCCL: ${NCCL_LIBRARY}")
+else()
+    message(STATUS "NCCL not found; the NCCL-dependent targets are skipped. "
+                   "Set -DNCCL_HOME=<prefix> to build them.")
+endif()
+
 add_subdirectory( chLib )
 add_subdirectory( concurrency )
 add_subdirectory( histogram )

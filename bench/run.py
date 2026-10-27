@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 # Suite name -> list of ProgramSpec (binary, args, stdout parser); merge
 # folds parsed metrics and lives beside the parsers so plausibility.py can
 # re-derive a doc from a raw log with identical folding.
-from suites import (SUITES, SUITE_META, merge,       # noqa: E402
+from suites import (SUITES, SUITE_META, merge, run_fields,   # noqa: E402
                     FINGERPRINT_SPEC)                # (see bench/suites.py)
 
 
@@ -261,7 +261,16 @@ def run_suites(names: list[str], bin_dir: Path, device: int,
             if exe is None:
                 missing.append(spec.binary)
                 continue
-            for param, extra in spec.runs:
+            for run in spec.runs:
+                param, extra, need = run_fields(run)
+                if need is not None and need > n_gpus:
+                    # Name the run by its parameter, not its whole command
+                    # line: a sweep skips a dozen runs on a small machine and
+                    # a dozen command lines bury everything else.
+                    label = (f"{param[0]}@{param[1]}"
+                             if isinstance(param, tuple) else str(param))
+                    skipped.append(f"{spec.binary} {label}")
+                    continue
                 argv = [str(exe)] + extra
                 print(f"  {suite}: {' '.join([exe.name] + extra)} ...",
                       flush=True)

@@ -94,6 +94,9 @@ enum nbodyAlgorithm_enum {
     multiGPU_SingleCPUThread,
     multiGPU_MultiCPUThread,
     multiGPU_Ring,
+#ifdef USE_NCCL
+    multiGPU_2D,
+#endif
 // SM 3.0 only
     GPU_Shuffle,
     GPU_AOS_tiled,
@@ -121,6 +124,9 @@ static const char *rgszAlgorithmNames[] = {
     "multiGPU_SingleCPUThread",
     "multiGPU_MultiCPUThread",
     "multiGPU_Ring",
+#ifdef USE_NCCL
+    "multiGPU_2D",
+#endif
 // SM 3.0 only
     "GPU_Shuffle",
     "GPU_AOS_tiled",
@@ -153,6 +159,10 @@ extern float ComputeGravitation_GPU_Shared           ( float *force, float *posM
 extern float ComputeGravitation_multiGPU_singlethread( float *force, float *posMass, float softeningSquared, size_t N );
 extern float ComputeGravitation_multiGPU_ring        ( float *force, float *posMass, float softeningSquared, size_t N );
 extern void  multiGPURingRelease( void );
+#ifdef USE_NCCL
+extern float ComputeGravitation_multiGPU_2D          ( float *force, float *posMass, float softeningSquared, size_t N );
+extern void  multiGPU2DRelease( void );
+#endif
 extern float ComputeGravitation_multiGPU_threaded    ( float *force, float *posMass, float softeningSquared, size_t N );
 
 

@@ -225,7 +225,7 @@
       0.001,
       20000
     ],
-    "description": "nbody/nbody.cu: gpu aos implementation, 65536 bodies, median of 12 iterations",
+    "description": "nbody/nbody.cu: gpu aos implementation, 65536 bodies on one device, median of 12 iterations",
     "warn_bounds": [
       0.001,
       6000
@@ -237,7 +237,7 @@
       0.001,
       20000
     ],
-    "description": "nbody/nbody.cu: gpu shared implementation, 65536 bodies, median of 12 iterations",
+    "description": "nbody/nbody.cu: gpu shared implementation, 65536 bodies on one device, median of 12 iterations",
     "warn_bounds": [
       0.001,
       6000
@@ -249,7 +249,7 @@
       0.001,
       20000
     ],
-    "description": "nbody/nbody.cu: gpu const implementation, 65536 bodies, median of 12 iterations",
+    "description": "nbody/nbody.cu: gpu const implementation, 65536 bodies on one device, median of 12 iterations",
     "warn_bounds": [
       0.001,
       6000
@@ -261,7 +261,7 @@
       0.001,
       20000
     ],
-    "description": "nbody/nbody.cu: multigpu singlecputhread implementation, 65536 bodies, median of 12 iterations",
+    "description": "nbody/nbody.cu: multigpu singlecputhread implementation, 65536 bodies on one device, median of 12 iterations",
     "warn_bounds": [
       0.001,
       6000
@@ -273,7 +273,7 @@
       0.001,
       20000
     ],
-    "description": "nbody/nbody.cu: multigpu multicputhread implementation, 65536 bodies, median of 12 iterations",
+    "description": "nbody/nbody.cu: multigpu multicputhread implementation, 65536 bodies on one device, median of 12 iterations",
     "warn_bounds": [
       0.001,
       6000
@@ -285,7 +285,55 @@
       0.001,
       20000
     ],
-    "description": "nbody/nbody_multiGPU_ring.cu: ring all-gather of positions, 65536 bodies, median of 12 iterations",
+    "description": "nbody/nbody_multiGPU_ring.cu: ring all-gather of positions, 65536 bodies on one device, median of 12 iterations",
+    "warn_bounds": [
+      0.001,
+      6000
+    ]
+  },
+  "nbody.scaling.multigpu-singlecputhread": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      0.001,
+      20000
+    ],
+    "description": "nbody/nbody_multiGPU.cu: host-staged, one CPU thread; 65536 bodies, median of 12 iterations, series keyed by device count",
+    "warn_bounds": [
+      0.001,
+      6000
+    ]
+  },
+  "nbody.scaling.multigpu-multicputhread": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      0.001,
+      20000
+    ],
+    "description": "nbody/nbody_multiGPU_threaded.cu: host-staged, one CPU thread per device; 65536 bodies, median of 12 iterations, series keyed by device count",
+    "warn_bounds": [
+      0.001,
+      6000
+    ]
+  },
+  "nbody.scaling.multigpu-ring": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      0.001,
+      20000
+    ],
+    "description": "nbody/nbody_multiGPU_ring.cu: ring all-gather of positions; 65536 bodies, median of 12 iterations, series keyed by device count",
+    "warn_bounds": [
+      0.001,
+      6000
+    ]
+  },
+  "nbody.scaling.multigpu-2d": {
+    "unit": "Ginteractions/s",
+    "bounds": [
+      0.001,
+      20000
+    ],
+    "description": "nbody/nbody_multiGPU_nccl.cu: two-dimensional force decomposition, NCCL row all-reduce; 65536 bodies, median of 12 iterations, series keyed by device count",
     "warn_bounds": [
       0.001,
       6000
@@ -297,7 +345,7 @@
       0.001,
       20000
     ],
-    "description": "nbody/nbody.cu: gpu shuffle implementation, 65536 bodies, median of 12 iterations",
+    "description": "nbody/nbody.cu: gpu shuffle implementation, 65536 bodies on one device, median of 12 iterations",
     "warn_bounds": [
       0.001,
       6000

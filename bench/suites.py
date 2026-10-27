@@ -28,6 +28,15 @@ class ProgramSpec:
 _NUM = r"(\d+(?:\.\d+)?)"
 
 
+def run_fields(run):
+    """A runs entry is (param, args), or (param, args, min_gpus) when that one
+    run needs more devices than the rest of the program's runs. Keeping the
+    shape in one place lets run.py and plausibility.py agree about it."""
+    param, extra = run[0], run[1]
+    need = run[2] if len(run) > 2 else None
+    return param, extra, need
+
+
 def merge(results: dict, parsed: dict) -> None:
     """Fold one run's metrics in; series metrics accumulate across runs
     (e.g. histogram is invoked once per --random values count). Shared by
@@ -106,9 +115,11 @@ _NBODY_LINE = re.compile(
 # nbody.cu clamps g_maxAlgorithm, and it matches the nbody keys in
 # bench/metrics.json. CPU algorithms are excluded by --nocpu: at 64K bodies
 # they take far longer than the GPU paths.
-NBODY_ALGORITHMS = ["GPU_AOS", "GPU_Shared", "GPU_Const", "GPU_Shuffle",
-                    "multiGPU_SingleCPUThread", "multiGPU_MultiCPUThread",
-                    "multiGPU_Ring"]
+# The single-device algorithms. The multi-GPU decompositions are measured by
+# the scaling sweep below instead, which reports each one as a series keyed by
+# device count: running them here as well would give two suites the same
+# command line, and re-derivation maps a command line to one parser.
+NBODY_ALGORITHMS = ["GPU_AOS", "GPU_Shared", "GPU_Const", "GPU_Shuffle"]
 
 
 def _nbody_per_algo(out: str) -> dict:
@@ -292,6 +303,51 @@ def parse_peer2peer(out: str, param) -> dict:
     return res
 
 
+# ------------------------------------------------------- multi-GPU scaling
+# The scaling sweep is what a multi-GPU run is for: the same decomposition at
+# 1, 2, 4 and 8 devices, so the curve shows what the decomposition's
+# communication costs as devices are added. Each algorithm becomes one metric
+# whose series is keyed by device count, the shape the managed-memory and
+# bandwidth sweeps already use.
+#
+# A run is tagged with the device count it needs, so a four-GPU machine
+# measures three points and skips the fourth rather than failing: nbody does
+# not clamp --numgpus, it fails on the first device that is not there.
+
+NBODY_SCALING_GPUS = [1, 2, 4, 8]
+
+NBODY_SCALING_ALGORITHMS = [
+    "multiGPU_SingleCPUThread",
+    "multiGPU_MultiCPUThread",
+    "multiGPU_Ring",
+    "multiGPU_2D",
+]
+
+
+def parse_nbody_scaling(out: str, param) -> dict:
+    """One point of one algorithm's scaling curve."""
+    algorithm, n_gpus = param
+    vals = _nbody_per_algo(out).get(algorithm)
+    if not vals:
+        return {}
+    name = algorithm.lower().replace("_", "-")
+    return {
+        f"nbody.scaling.{name}": {
+            "unit": "Ginteractions/s",
+            "series": {str(n_gpus): round(statistics.median_low(vals), 3)},
+        }
+    }
+
+
+NBODY_SCALING_RUNS = [
+    ((algorithm, n),
+     ["--numbodies", "64", "--iterations", "12", "--nocpu",
+      "--numgpus", str(n), "--algorithm", algorithm],
+     n)
+    for algorithm in NBODY_SCALING_ALGORITHMS
+    for n in NBODY_SCALING_GPUS
+]
+
 # --------------------------------------------------------------- fingerprint
 # microbench/deviceProps prints the cudaGetDeviceProperties fields the
 # plausibility checks need but nvidia-smi cannot report (bus width, L2 size,
@@ -384,9 +440,11 @@ SUITES: dict[str, list[ProgramSpec]] = {
                     parse_histogram, timeout=300),
     ],
     "nbody": [
+        # --numgpus 1 is pinned so that a multi-GPU machine reports the
+        # same thing here that a single-GPU machine does.
         ProgramSpec("nbody", "nbody",
                     [(a, ["--numbodies", "64", "--iterations", "12",
-                          "--nocpu", "--algorithm", a])
+                          "--nocpu", "--numgpus", "1", "--algorithm", a])
                      for a in NBODY_ALGORITHMS],
                     parse_nbody, timeout=900),
     ],
@@ -426,6 +484,10 @@ SUITES: dict[str, list[ProgramSpec]] = {
     "multigpu": [
         ProgramSpec("memory", "peer2peerMemcpy", [(None, [])],
                     parse_peer2peer, timeout=600, min_gpus=2),
+        # The scaling sweep runs on one device too: the single-device point is
+        # the baseline the curve is measured against.
+        ProgramSpec("nbody", "nbody", NBODY_SCALING_RUNS,
+                    parse_nbody_scaling, timeout=1800, min_gpus=1),
     ],
     "concurrency": [
         ProgramSpec("concurrency", "concurrencyMemcpyKernel",

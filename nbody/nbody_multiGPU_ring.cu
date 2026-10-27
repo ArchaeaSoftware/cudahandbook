@@ -66,54 +66,29 @@
 #include "nbody.h"
 #include "nbody_multiGPU_buffers.h"
 
-#include "bodybodyInteraction.cuh"
+#include "nbody_multiGPU_tile.cuh"
 
 // The ring launches one kernel per arriving block instead of one kernel per
-// timestep, so the kernel takes the source block as a parameter and
-// accumulates into the force array rather than overwriting it.
+// timestep, so it hands the tile kernel one source block at a time and lets
+// the accumulation in the force array sum them.
 __global__ void
 ComputeNBodyGravitation_Ring( 
     float *force, 
     float *posMass, 
     float softeningSquared, 
-    size_t base,        // index of this device's first body
-    size_t n,           // number of bodies this device owns
-    size_t srcBase,     // index of the source block's first body
-    size_t srcN )       // number of bodies in the source block
+    size_t base, 
+    size_t n, 
+    size_t srcBase, 
+    size_t srcN )
 {
-    extern __shared__ float4 shPosMass[];
-    for ( int m = blockIdx.x*blockDim.x + threadIdx.x;
-              m < n;
-              m += blockDim.x*gridDim.x )
-    {
-        size_t i = base+m;
-        float acc[3] = {0};
-        float4 myPosMass = ((float4 *) posMass)[i];
-        for ( size_t j = 0; j < srcN; j += blockDim.x ) {
-            shPosMass[threadIdx.x] = ((float4 *) posMass)[srcBase+j+threadIdx.x];
-            __syncthreads();
-            for ( size_t k = 0; k < blockDim.x; k++ ) {
-                float fx, fy, fz;
-                float4 bodyPosMass = shPosMass[k];
-
-                bodyBodyInteraction( 
-                    &fx, &fy, &fz, 
-                    myPosMass.x, myPosMass.y, myPosMass.z, 
-                    bodyPosMass.x, 
-                    bodyPosMass.y, 
-                    bodyPosMass.z, 
-                    bodyPosMass.w, 
-                    softeningSquared );
-                acc[0] += fx;
-                acc[1] += fy;
-                acc[2] += fz;
-            }
-            __syncthreads();
-        }
-        force[3*m+0] += acc[0];
-        force[3*m+1] += acc[1];
-        force[3*m+2] += acc[2];
-    }
+    ComputeNBodyGravitation_Tile( 
+        force, 
+        posMass, 
+        softeningSquared, 
+        base, 
+        n, 
+        srcBase, 
+        srcN );
 }
 
 // Each device gets two streams, because a hop has to overlap with the kernels
@@ -229,7 +204,7 @@ multiGPURingAcquire( int numGPUs )
             g_ring.cDirectLinks += 1;
         }
     }
-    fprintf( stderr, "ring: %d of %d hops are direct peer transfers\n", 
+    fprintf( stderr, "\nring: %d of %d hops are direct peer transfers\n", 
         g_ring.cDirectLinks, 
         (1 == numGPUs) ? 0 : numGPUs );
     bRet = true;

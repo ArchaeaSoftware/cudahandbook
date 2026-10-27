@@ -36,30 +36,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
-# NCCL is not part of the CUDA toolkit, so look for it where it is usually
-# found: a prefix the user names, one unpacked into a home directory on a
-# machine without root, or the system paths a Deep Learning AMI uses.
-find_path(NCCL_INCLUDE_DIR nccl.h
-    HINTS ${NCCL_HOME} $ENV{NCCL_HOME} $ENV{HOME}/opt/nccl /usr/local/nccl
-    PATH_SUFFIXES include)
-find_library(NCCL_LIBRARY nccl
-    HINTS ${NCCL_HOME} $ENV{NCCL_HOME} $ENV{HOME}/opt/nccl /usr/local/nccl
-    PATH_SUFFIXES lib lib64 lib/x86_64-linux-gnu)
-
 if(NCCL_INCLUDE_DIR AND NCCL_LIBRARY)
-    message(STATUS "NCCL: ${NCCL_LIBRARY}")
     add_executable(ncclProbe ncclProbe.cu)
     target_include_directories(ncclProbe PRIVATE chLib ${NCCL_INCLUDE_DIR})
     target_link_libraries(ncclProbe PRIVATE ${NCCL_LIBRARY})
     # Record the library's location in the binary, so a prefix outside the
     # loader's search path does not have to be named again at run time.
-    get_filename_component(NCCL_LIBRARY_DIR ${NCCL_LIBRARY} DIRECTORY)
     set_target_properties(ncclProbe PROPERTIES
         BUILD_RPATH ${NCCL_LIBRARY_DIR}
         INSTALL_RPATH ${NCCL_LIBRARY_DIR})
-else()
-    message(STATUS "NCCL not found; skipping the multigpu targets. "
-                   "Set -DNCCL_HOME=<prefix> to build them.")
 endif()
 
 include_directories( chLib )

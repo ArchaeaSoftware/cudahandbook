@@ -38,5 +38,15 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 add_executable(nbody nbody.cu nbody_CPU_SSE.cpp nbody_CPU_AOS.cpp nbody_CPU_AOS_tiled.cpp nbody_CPU_SSE_threaded.cpp nbody_CPU_SOA.cpp nbody_GPU_shared.cu nbody_multiGPU_buffers.cu nbody_multiGPU.cu nbody_multiGPU_ring.cu nbody_multiGPU_threaded.cu )
 
+if(NCCL_INCLUDE_DIR AND NCCL_LIBRARY)
+    target_sources(nbody PRIVATE nbody_multiGPU_nccl.cu)
+    target_compile_definitions(nbody PRIVATE USE_NCCL)
+    target_include_directories(nbody PRIVATE ${NCCL_INCLUDE_DIR})
+    target_link_libraries(nbody PRIVATE ${NCCL_LIBRARY})
+    set_target_properties(nbody PROPERTIES
+        BUILD_RPATH ${NCCL_LIBRARY_DIR}
+        INSTALL_RPATH ${NCCL_LIBRARY_DIR})
+endif()
+
 include_directories( chLib )
 
