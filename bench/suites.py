@@ -109,19 +109,38 @@ NBODY_ALGORITHMS = ["GPU_AOS", "GPU_Shared", "GPU_Const", "GPU_Shuffle",
                     "multiGPU_SingleCPUThread", "multiGPU_MultiCPUThread"]
 
 
-def parse_nbody(out: str, param) -> dict:
+def _nbody_per_algo(out: str) -> dict:
     per_algo: dict[str, list[float]] = {}
     for m in _NBODY_LINE.finditer(out):
         # groups: (1) algorithm, (2) ms, (3) rate, (4) exponent 6|9
         giga = float(m.group(3)) * (1.0 if m.group(4) == "9" else 1e-3)
         per_algo.setdefault(m.group(1), []).append(giga)
+    return per_algo
+
+
+def parse_nbody(out: str, param) -> dict:
+    per_algo = _nbody_per_algo(out)
+    return _nbody_result(per_algo, statistics.median_low)
+
+
+def _nbody_result(per_algo: dict, aggregate) -> dict:
     return {
         f"nbody.{name.lower().replace('_', '-')}": {
             "unit": "Ginteractions/s",
-            "value": round(statistics.median(vals), 3),
+            "value": round(aggregate(vals), 3),
         }
         for name, vals in per_algo.items()
     }
+
+
+def _parse_nbody_median(out: str, param) -> dict:
+    """The aggregator used before 2026-10: an even sample count makes
+    statistics.median interpolate between the two middle measurements, so the
+    reported figure is a number the program never printed and cannot be found
+    in the raw log. New runs report median_low, an actual measurement; this
+    remains so that submissions made under the old contract still re-derive."""
+    per_algo = _nbody_per_algo(out)
+    return _nbody_result(per_algo, statistics.median)
 
 
 # -------------------------------------------------------------- launch/memcpy
@@ -316,7 +335,7 @@ SUITE_META: dict[str, dict] = {
 # invocation changes, the old one moves here rather than disappearing.
 LEGACY_RUNS: dict = {
     # nbody ran one algorithm per submission until --algorithm was added.
-    "nbody --numbodies 64 --iterations 12 --nocpu": (parse_nbody, None),
+    "nbody --numbodies 64 --iterations 12 --nocpu": (_parse_nbody_median, None),
 }
 
 
