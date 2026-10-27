@@ -36,7 +36,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
-add_executable(nbody nbody.cu nbody_CPU_SSE.cpp nbody_CPU_AOS.cpp nbody_CPU_AOS_tiled.cpp nbody_CPU_SSE_threaded.cpp nbody_CPU_SOA.cpp nbody_GPU_shared.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu )
+add_executable(nbody nbody.cu nbody_CPU_SSE.cpp nbody_CPU_AOS.cpp nbody_CPU_AOS_tiled.cpp nbody_CPU_SSE_threaded.cpp nbody_CPU_SOA.cpp nbody_GPU_shared.cu nbody_multiGPU_buffers.cu nbody_multiGPU.cu nbody_multiGPU_threaded.cu )
 
 include_directories( chLib )
 

@@ -41,6 +41,7 @@
 #include <vector>
 
 #include "nbody.h"
+#include "nbody_multiGPU_buffers.h"
 #include "bodybodyInteraction.cuh"
 #include "nbody_multiGPU_shared.cuh"
 
@@ -80,16 +81,15 @@ gpuWorkerThread( void *_p )
 {
     cudaError_t status;
     gpuDelegation *p = (gpuDelegation *) _p;
-    float *dptrPosMass = 0;
-    float *dptrForce = 0;
+    float *dptrPosMass = g_multiGPUBuffers[p->device].posMass;
+    float *dptrForce = g_multiGPUBuffers[p->device].force;
 
     cuda(SetDevice( p->device ) );
 
     //
-    // Each GPU has its own device pointer to the host pointer.
+    // The buffers were acquired before the clock started, so this worker
+    // only copies and computes.
     //
-    cuda(Malloc( &dptrPosMass, 4*p->N*sizeof(float) ) );
-    cuda(Malloc( &dptrForce, 3*p->n*sizeof(float) ) );
     cuda(MemcpyAsync( 
         dptrPosMass, 
         p->hostPosMass, 
@@ -110,8 +110,6 @@ gpuWorkerThread( void *_p )
         3*p->n*sizeof(float), 
         cudaMemcpyDeviceToHost ) );
 Error:
-    cudaFree( dptrPosMass );
-    cudaFree( dptrForce );
     p->status = status;
 }
 
@@ -124,17 +122,27 @@ ComputeGravitation_multiGPU_threaded(
 )
 {
     std::chrono::steady_clock::time_point start, end;
+
+    size_t bodiesPerGPU = N / g_numGPUs;
+    if ( N % g_numGPUs ) {
+        return 0.0f;
+    }
+    // Allocate before starting the clock, so that the timestep measures the
+    // copies and the kernels rather than the allocator.
+    if ( ! multiGPUBuffersAcquire( g_numGPUs, N ) ) {
+        return 0.0f;
+    }
+
     start = std::chrono::steady_clock::now();
     {
         gpuDelegation *pgpu = new gpuDelegation[g_numGPUs];
         std::vector<std::thread> threads;
-        size_t bodiesPerGPU = N / g_numGPUs;
-        if ( N % g_numGPUs ) {
-            return 0.0f;
-        }
 
-        size_t i;
-        for ( i = 0; i < g_numGPUs; i++ ) {
+        // NOTE: these threads are created and joined on every timestep.  A
+        // production implementation would hand the work to a pool of threads
+        // that outlives the timestep; measuring it this way charges the
+        // algorithm for g_numGPUs thread creations per step.
+        for ( int i = 0; i < g_numGPUs; i++ ) {
             pgpu[i].hostPosMass = g_hostAOS_PosMass;
             pgpu[i].hostForce = g_hostAOS_Force;
 
@@ -147,7 +155,9 @@ ComputeGravitation_multiGPU_threaded(
 
             threads.emplace_back( gpuWorkerThread, &pgpu[i] );
         }
-        for ( auto &t : threads ) t.join();
+        for ( auto &t : threads ) {
+            t.join();
+        }
         delete[] pgpu;
     }
 

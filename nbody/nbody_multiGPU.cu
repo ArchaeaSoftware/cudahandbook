@@ -39,6 +39,7 @@
 #include <chrono>
 
 #include "nbody.h"
+#include "nbody_multiGPU_buffers.h"
 #include "nbody_multiGPU_shared.cuh"
 
 #include "bodybodyInteraction.cuh"
@@ -73,32 +74,31 @@ ComputeGravitation_multiGPU_singlethread(
 
     float ret = 0.0f;
 
-    float *dptrPosMass[g_maxGPUs];
-    float *dptrForce[g_maxGPUs];
     int oldDevice;
 
     std::chrono::steady_clock::time_point start, end;
-    start = std::chrono::steady_clock::now();
 
-    memset( dptrPosMass, 0, sizeof(dptrPosMass) );
-    memset( dptrForce, 0, sizeof(dptrForce) );
     size_t bodiesPerGPU = N / g_numGPUs;
     if ( (0 != N % g_numGPUs) || (g_numGPUs > g_maxGPUs) ) {
         return 0.0f;
     }
+    // Allocate before starting the clock.  Acquire is a no-op once the
+    // buffers match this geometry, so only the first timestep pays for it.
+    if ( ! multiGPUBuffersAcquire( g_numGPUs, N ) ) {
+        return 0.0f;
+    }
     cuda(GetDevice( &oldDevice ) );
 
-    // kick off the asynchronous memcpy's - overlap GPUs pulling
-    // host memory with the CPU time needed to do the memory 
-    // allocations.
+    start = std::chrono::steady_clock::now();
+
+    // Kick off the asynchronous memcpy's.  Every device needs every body's
+    // position, so each one pulls the whole array across its own PCIe link:
+    // g_numGPUs copies of 4*N floats per timestep, which is the cost this
+    // decomposition cannot avoid and the ring decomposition reduces.
     for ( int i = 0; i < g_numGPUs; i++ ) {
         cuda(SetDevice( i ) );
-        cuda(Malloc( &dptrPosMass[i], 4*N*sizeof(float) ) );
-        // we only need 3*N floatsw for the cross-check. otherwise we 
-        // would need 3*bodiesPerGPU
-        cuda(Malloc( &dptrForce[i], 3*N*sizeof(float) ) );
         cuda(MemcpyAsync( 
-            dptrPosMass[i], 
+            g_multiGPUBuffers[i].posMass, 
             g_hostAOS_PosMass, 
             4*N*sizeof(float), 
             cudaMemcpyHostToDevice ) );
@@ -107,34 +107,34 @@ ComputeGravitation_multiGPU_singlethread(
         cuda(SetDevice( i ) );
         if ( g_bGPUCrossCheck ) {
             ComputeNBodyGravitation_multiGPU_onethread<<<300,256,256*sizeof(float4)>>>( 
-                dptrForce[i],
-                dptrPosMass[i],
+                g_multiGPUBuffers[i].force,
+                g_multiGPUBuffers[i].posMass,
                 softeningSquared,
                 0,
                 N,
                 N );
             cuda(MemcpyAsync( 
                 g_hostAOS_gpuCrossCheckForce[i], 
-                dptrForce[i], 
+                g_multiGPUBuffers[i].force, 
                 3*N*sizeof(float), 
                 cudaMemcpyDeviceToHost ) );
             cuda(MemcpyAsync( 
                 g_hostAOS_Force+3*bodiesPerGPU*i, 
-                dptrForce[i]+3*bodiesPerGPU*i, 
+                g_multiGPUBuffers[i].force+3*bodiesPerGPU*i, 
                 3*bodiesPerGPU*sizeof(float), 
                 cudaMemcpyDeviceToHost ) );
         }
         else {
             ComputeNBodyGravitation_multiGPU_onethread<<<300,256,256*sizeof(float4)>>>( 
-                dptrForce[i],
-                dptrPosMass[i],
+                g_multiGPUBuffers[i].force,
+                g_multiGPUBuffers[i].posMass,
                 softeningSquared,
                 i*bodiesPerGPU,
                 bodiesPerGPU,
                 N );
             cuda(MemcpyAsync( 
                 g_hostAOS_Force+3*bodiesPerGPU*i, 
-                dptrForce[i], 
+                g_multiGPUBuffers[i].force, 
                 3*bodiesPerGPU*sizeof(float), 
                 cudaMemcpyDeviceToHost ) );
         }
@@ -158,10 +158,6 @@ ComputeGravitation_multiGPU_singlethread(
 
 
 Error:
-    for ( int i = 0; i < g_numGPUs; i++ ) {
-        cudaFree( dptrPosMass[i] );
-        cudaFree( dptrForce[i] );
-    }
     cudaSetDevice( oldDevice );
     return ret;
 }
