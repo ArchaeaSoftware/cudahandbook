@@ -22,6 +22,7 @@ class ProgramSpec:
     runs: list           # [(param, [extra argv...])] — param is passed to parse
     parse: Callable      # (stdout: str, param) -> {metric key: measurement}
     timeout: int = 600   # seconds, per run
+    min_gpus: int = 1    # skipped, not failed, on a machine with fewer
 
 
 _NUM = r"(\d+(?:\.\d+)?)"
@@ -258,6 +259,38 @@ def parse_global_peak(key: str) -> Callable:
     return parse
 
 
+# ---------------------------------------------------------------- multi-GPU
+# memory/peer2peerMemcpy reports one line per directed pair:
+#
+#   Peer-to-peer memcpy... 4 devices detected
+#   1 <- 0...18234.56 MB/s
+#   2 <- 0...Not enabled
+#
+# The pairs cannot be a series: schema.json restricts series keys to numbers,
+# and "1<-0" is not one. The matrix therefore stays in the raw log, where the
+# chapter's topology discussion wants it anyway, and the metric reports the
+# median over the directed pairs that P2P actually reached.
+
+_P2P_PAIR = re.compile(rf"^(\d+) <- (\d+)\.\.\.(?:{_NUM} MB/s|(Not enabled))",
+                       re.M)
+
+
+def parse_peer2peer(out: str, param) -> dict:
+    rates, enabled, total = [], 0, 0
+    for m in _P2P_PAIR.finditer(out):
+        total += 1
+        if m.group(3) is not None:
+            rates.append(float(m.group(3)) / 1000.0)   # MB/s -> GB/s
+            enabled += 1
+    if not total:
+        return {}            # fewer than two devices: nothing to report
+    res = {"p2p.pairs-enabled": {"unit": "pairs", "value": float(enabled)}}
+    if rates:
+        res["p2p.memcpy.bandwidth"] = {
+            "unit": "GB/s", "value": round(statistics.median_low(rates), 2)}
+    return res
+
+
 # --------------------------------------------------------------- fingerprint
 # microbench/deviceProps prints the cudaGetDeviceProperties fields the
 # plausibility checks need but nvidia-smi cannot report (bus width, L2 size,
@@ -323,6 +356,8 @@ SUITE_META: dict[str, dict] = {
                     "group": "microbench", "chapter": 5},
     "concurrency": {"title": "Copy/kernel overlap",
                     "group": "microbench", "chapter": 6},
+    "multigpu":    {"title": "Multiple GPUs",
+                    "group": "microbench", "chapter": 9},
     "histogram":   {"title": "Histograms",
                     "group": "apps", "chapter": 16},
     "nbody":       {"title": "N-body",
@@ -386,6 +421,10 @@ SUITES: dict[str, list[ProgramSpec]] = {
                     parse_global_peak("global.write.peak"), timeout=1800),
         ProgramSpec("memory", "globalCopy", [(None, [])],
                     parse_global_peak("global.copy.peak"), timeout=1800),
+    ],
+    "multigpu": [
+        ProgramSpec("memory", "peer2peerMemcpy", [(None, [])],
+                    parse_peer2peer, timeout=600, min_gpus=2),
     ],
     "concurrency": [
         ProgramSpec("concurrency", "concurrencyMemcpyKernel",

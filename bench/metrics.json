@@ -502,5 +502,25 @@
       0.5,
       9000
     ]
+  },
+  "p2p.memcpy.bandwidth": {
+    "unit": "GB/s",
+    "bounds": [
+      0.1,
+      2000
+    ],
+    "warn_bounds": [
+      1.0,
+      1000
+    ],
+    "description": "memory/peer2peerMemcpy.cu: peer-to-peer device-to-device copy bandwidth, median over the directed pairs where peer access is enabled"
+  },
+  "p2p.pairs-enabled": {
+    "unit": "pairs",
+    "bounds": [
+      0,
+      4096
+    ],
+    "description": "memory/peer2peerMemcpy.cu: directed GPU pairs that support peer access, of n*(n-1) possible"
   }
 }

@@ -250,5 +250,36 @@ class TestMerge(unittest.TestCase):
             suites.merge(res, {"m": {"unit": "us", "value": 2.0}})
 
 
+class TestPeerToPeer(unittest.TestCase):
+    """memory/peer2peerMemcpy.cu printf contract (lines 157, 214, 216, 230)."""
+
+    SAMPLE = ("Peer-to-peer memcpy... 4 devices detected\n"
+              "1 <- 0...18234.56 MB/s\n"
+              "2 <- 0...Not enabled\n"
+              "3 <- 0...17900.00 MB/s\n"
+              "0 <- 1...18100.25 MB/s\n")
+
+    def test_counts_only_enabled_pairs(self):
+        res = suites.parse_peer2peer(self.SAMPLE, None)
+        self.assertEqual(res["p2p.pairs-enabled"]["value"], 3.0)
+
+    def test_bandwidth_is_a_measured_value_in_gbps(self):
+        res = suites.parse_peer2peer(self.SAMPLE, None)
+        # median_low of 18.23456, 17.9, 18.10025, converted from MB/s
+        self.assertAlmostEqual(res["p2p.memcpy.bandwidth"]["value"], 18.1,
+                               places=2)
+
+    def test_single_gpu_reports_nothing_rather_than_failing(self):
+        """The program exits non-zero with one device; the suite skips it on
+        such a machine, but the parser must still be harmless."""
+        self.assertEqual(
+            suites.parse_peer2peer(
+                "Peer-to-peer demo requires at least 2 devices\n", None), {})
+
+    def test_declared_minimum_gpus(self):
+        spec = suites.SUITES["multigpu"][0]
+        self.assertEqual(spec.min_gpus, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

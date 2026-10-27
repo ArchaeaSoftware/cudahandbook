@@ -241,16 +241,22 @@ def find_binary(bin_dir: Path, spec) -> Path | None:
 
 
 def run_suites(names: list[str], bin_dir: Path, device: int,
-               raw_log) -> dict:
+               raw_log, n_gpus: int = 1) -> dict:
     # Most of the book's benchmarks have no --device switch; steer them all
     # to the chosen GPU via the environment. PCI_BUS_ID ordering keeps CUDA's
     # device numbering consistent with nvidia-smi's (used for gpu_info).
     env = {**os.environ, "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
            "CUDA_VISIBLE_DEVICES": str(device)}
     results: dict = {}
-    missing, failed = [], []
+    missing, failed, skipped = [], [], []
     for suite in names:
         for spec in SUITES[suite]:
+            if spec.min_gpus > n_gpus:
+                # Needing hardware this machine does not have is not a
+                # failure: most submitters have one GPU, and the multi-GPU
+                # programs exit non-zero rather than measuring nothing.
+                skipped.append(f"{spec.binary} (needs {spec.min_gpus} GPUs)")
+                continue
             exe = find_binary(bin_dir, spec)
             if exe is None:
                 missing.append(spec.binary)
@@ -279,6 +285,8 @@ def run_suites(names: list[str], bin_dir: Path, device: int,
                     failed.append(spec.binary)
                     break
                 merge(results, parsed)
+    if skipped:
+        print(f"  skipped (hardware): {', '.join(skipped)}")
     if missing:
         print(f"  skipped (not built): {', '.join(missing)}")
     if failed:
@@ -340,7 +348,8 @@ def main() -> None:
     with open(raw_path, "w") as raw_log:
         env["gpu"].update(
             capture_fingerprint(args.bin_dir, args.device, raw_log))
-        results = run_suites(suites, args.bin_dir, args.device, raw_log)
+        results = run_suites(suites, args.bin_dir, args.device, raw_log,
+                             env["gpu_count"])
     if not results:
         sys.exit("no results collected — check --bin-dir and the build")
 
