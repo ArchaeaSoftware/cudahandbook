@@ -351,6 +351,11 @@ def main() -> None:
         results = run_suites(suites, args.bin_dir, args.device, raw_log,
                              env["gpu_count"])
     if not results:
+        if env["gpu_count"] < 2 and all(
+                s.min_gpus > env["gpu_count"]
+                for name in suites for s in SUITES[name]):
+            sys.exit("nothing to measure: every program in the selected "
+                     "suite(s) needs more GPUs than this machine has")
         sys.exit("no results collected — check --bin-dir and the build")
 
     doc = {
