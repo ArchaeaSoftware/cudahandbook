@@ -203,9 +203,9 @@ chGetErrorString( CUresult status )
     } while (0);
 
 #define cu( fn ) do { \
-        (status) =  (cuda##fn); \
+        (status) =  (cu##fn); \
         if ( CUDA_SUCCESS != (status) ) { \
-            fprintf( stderr, "CUDA Runtime Failure (line %d of file %s):\n\t%s "\
+            fprintf( stderr, "CUDA Driver Failure (line %d of file %s):\n\t%s "\
                 "returned 0x%x (%s)\n", \
                 __LINE__, __FILE__, #fn, status, chGetErrorString(status) ); \
             goto Error; \
