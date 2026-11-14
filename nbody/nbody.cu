@@ -106,6 +106,17 @@ float *g_dptrAOS_Force;
 //
 double g_ZeroThreshold;
 
+// Tolerance on the RMS difference between the GPU forces and the CPU golden
+// values, normalized by the RMS of the golden values themselves.  Forces that
+// exceed it are treated as wrong rather than imprecise.  The maximum relative
+// error this program has always printed cannot serve that purpose: relError
+// divides by the golden component, and in a random body distribution plenty of
+// components sit arbitrarily close to zero, so the maximum is dominated by
+// those and says nothing about whether the forces are right.  An RMS over all
+// 3N components is insensitive to that, and still moves by orders of magnitude
+// when a decomposition drops, duplicates or misplaces a block of interactions.
+double g_RMSErrorThreshold = 1.0e-4;
+
 bool g_bGPUTest;
 
 // Buffer to hold the golden version of the forces, used for comparison
@@ -496,13 +507,36 @@ ComputeGravitation(
 
     if ( bCrossCheck ) {
         float max = 0.0f;
+        double sumSqErr = 0.0;
+        double sumSqGolden = 0.0;
         for ( size_t i = 0; i < 3*g_N; i++ ) {
             float err = relError( g_hostAOS_Force[i], g_hostAOS_Force_Golden[i] );
             if ( err > max ) {
                 max = err;
             }
+            double diff = (double) g_hostAOS_Force[i] - 
+                          (double) g_hostAOS_Force_Golden[i];
+            sumSqErr += diff * diff;
+            sumSqGolden += (double) g_hostAOS_Force_Golden[i] * 
+                           (double) g_hostAOS_Force_Golden[i];
         }
         *maxRelError = max;
+        // Draw a conclusion from the comparison.  Until now this loop computed
+        // a number, printed it and acted on it in no way, so a wrong answer
+        // reported its interaction rate like any other.  Hand inspection has
+        // covered for that in the single-GPU algorithms for years; it cannot
+        // cover for a multi-GPU decomposition whose geometry changes with the
+        // device count.
+        if ( 0.0 != sumSqGolden ) {
+            double rmsError = sqrt( sumSqErr / sumSqGolden );
+            if ( rmsError > g_RMSErrorThreshold ) {
+                fprintf( stderr, 
+                    "CROSSCHECK FAILURE: RMS error %E exceeds threshold %E\n",
+                    rmsError,
+                    g_RMSErrorThreshold );
+                goto Error;
+            }
+        }
     }
     else {
         KahanAdder sumX;
@@ -689,6 +723,7 @@ main( int argc, char *argv[] )
     }
 
     chCommandLineGet( &g_ZeroThreshold, "zero", argc, argv );
+    chCommandLineGet( &g_RMSErrorThreshold, "rmserror", argc, argv );
 
     if ( g_numGPUs ) {
         // optionally override GPU count from command line
