@@ -70,10 +70,40 @@ class TestNbody(unittest.TestCase):
         self.assertEqual(m["unit"], "Ginteractions/s")
         self.assertEqual(m["value"], 350.1)          # median of three
 
-        out_mega = ("\rCPU_SOA:  4100.00 ms =  262.144x10^6 "
+        out_mega = ("Running simulation with 65536 particles, "
+                    "crosscheck disabled, CPU disabled\n"
+                    "\rCPU_SOA:  4100.00 ms =  262.144x10^6 "
                     "interactions/s (Rel. error: 1.900000E-05)\n")
         res = parse_nbody(out_mega, None)
         self.assertAlmostEqual(res["nbody.cpu-soa"]["value"], 0.262)
+
+    def test_wrong_body_count_is_refused(self):
+        """No nbody metric key names the body count, so a measurement taken at
+        a different count cannot be filed under one. nbody used to round the
+        count down to a multiple of the host's core count, which gave a
+        48-core machine 65520 bodies under the key that claims 65536."""
+        out = ("Running simulation with 65520 particles, "
+               "crosscheck disabled, CPU disabled\n"
+               "\rGPU_Shared:    12.40 ms =  346.420x10^9 "
+               "interactions/s (Rel. error: 0.000000E+00)\n")
+        with self.assertRaises(ValueError):
+            parse_nbody(out, None)
+
+    def test_missing_body_count_is_refused(self):
+        out = ("\rGPU_Shared:    12.40 ms =  346.420x10^9 "
+               "interactions/s (Rel. error: 0.000000E+00)\n")
+        with self.assertRaises(ValueError):
+            parse_nbody(out, None)
+
+    def test_old_submissions_still_rederive(self):
+        """The retired parser deliberately skips the check: it exists to
+        re-derive logs already submitted, and a log recorded before the
+        rounding was fixed is still the log that was submitted."""
+        out = ("Running simulation with 65520 particles\n"
+               "\rGPU_Shared:    12.40 ms =  346.420x10^9 "
+               "interactions/s (Rel. error: 0.000000E+00)\n")
+        res = suites._parse_nbody_median(out, None)
+        self.assertEqual(res["nbody.gpu-shared"]["value"], 346.42)
 
 
 class TestMemcpy(unittest.TestCase):
@@ -318,7 +348,9 @@ class TestMultiGPUScaling(unittest.TestCase):
     """The scaling sweep turns one algorithm's runs at several device counts
     into one metric whose series is keyed by that count."""
 
-    SAMPLE = ("2D: 4 devices as a 2x2 grid\n"
+    SAMPLE = ("Running simulation with 65536 particles, "
+              "crosscheck disabled, CPU disabled\n"
+              "2D: 4 devices as a 2x2 grid\n"
               "multiGPU_2D:     4.10 ms =  1050.000x10^9 interactions/s "
               "(Rel. error: 2.0E-04)\n"
               "multiGPU_2D:     4.00 ms =  1075.000x10^9 interactions/s "
@@ -352,6 +384,15 @@ class TestMultiGPUScaling(unittest.TestCase):
         self.assertEqual(
             suites.parse_nbody_scaling(self.SAMPLE,
                                        ("multiGPU_Ring", 4)), {})
+
+    def test_every_point_is_the_same_problem_size(self):
+        """A curve whose points are different problem sizes is not a scaling
+        curve. The body count is rounded to the kernels' staging block size,
+        which no host and no device count varies, so every point of every
+        curve is taken at the one count the command line asks for."""
+        for _, args, _ in suites.NBODY_SCALING_RUNS:
+            self.assertEqual(args[args.index("--numbodies") + 1],
+                             str(suites.NBODY_BODIES // 1024))
 
     def test_every_metric_key_is_registered(self):
         known = json.loads((BENCH / "metrics.json").read_text())

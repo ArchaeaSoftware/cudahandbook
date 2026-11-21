@@ -113,8 +113,18 @@ ComputeGravitation_SIMD_threaded(
     {
         sseDelegation *psse = new sseDelegation[g_numCPUCores];
         std::vector<std::thread> threads;
-        size_t bodiesPerCore = N / g_numCPUCores;
+        // Divide the bodies among the cores.  A ceiling divide and a clamped
+        // final chunk are what let the count be something other than a
+        // multiple of the core count: an exact divide drops the remainder,
+        // and rounding the body count down to a multiple of the core count,
+        // which is what this program used to do instead, makes the problem
+        // size depend on the machine that measured it.
+        size_t bodiesPerCore = (N + g_numCPUCores - 1) / g_numCPUCores;
         for ( size_t i = 0; i < g_numCPUCores; i++ ) {
+            size_t base = bodiesPerCore*i;
+            if ( base >= N ) {
+                break;
+            }
             psse[i].hostPosSOA[0] = pos[0];
             psse[i].hostPosSOA[1] = pos[1];
             psse[i].hostPosSOA[2] = pos[2];
@@ -124,8 +134,8 @@ ComputeGravitation_SIMD_threaded(
             psse[i].hostForceSOA[2] = force[2];
             psse[i].softeningSquared = softeningSquared;
 
-            psse[i].i = bodiesPerCore*i;
-            psse[i].n = bodiesPerCore;
+            psse[i].i = base;
+            psse[i].n = (N - base < bodiesPerCore) ? N - base : bodiesPerCore;
             psse[i].N = N;
 
             threads.emplace_back( sseWorkerThread, &psse[i] );

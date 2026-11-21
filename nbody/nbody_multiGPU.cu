@@ -79,7 +79,17 @@ ComputeGravitation_multiGPU_singlethread(
     std::chrono::steady_clock::time_point start, end;
 
     size_t bodiesPerGPU = N / g_numGPUs;
-    if ( (0 != N % g_numGPUs) || (g_numGPUs > g_maxGPUs) ) {
+    if ( g_numGPUs > g_maxGPUs ) {
+        return 0.0f;
+    }
+    // Say why, rather than returning a zero the caller has to interpret.  The
+    // ring and the two-dimensional decomposition print their own geometry
+    // complaints for the same reason.
+    if ( 0 != N % g_numGPUs ) {
+        fprintf( stderr,
+            "multiGPU: %zu bodies do not divide evenly over %d devices\n",
+            N,
+            g_numGPUs );
         return 0.0f;
     }
     // Allocate before starting the clock.  Acquire is a no-op once the

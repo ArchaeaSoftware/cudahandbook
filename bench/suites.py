@@ -104,10 +104,38 @@ def parse_histogram(out: str, values: int) -> dict:
 # reports one algorithm per run (space cycles them interactively), so the
 # parser keys metrics off whatever algorithm name each line reports.
 # 65536 bodies is the canonical workload; --nocpu skips the (slow) CPU path.
+#
+# None of the nbody metric keys names the body count, so the count has to be
+# the same number on every machine for two submissions to mean the same thing.
+# It was not: nbody rounded it down to a multiple of the host's core count, so
+# a 48-core machine measured 65520 bodies and a 96-core machine 65472, each
+# filed under the key that claims 65536.  The program rounds to the kernels'
+# staging block size now, which no host varies, and the parsers below refuse a
+# measurement taken at any other count rather than file it under this key.
+
+NBODY_BODIES = 64 * 1024
 
 _NBODY_LINE = re.compile(
     rf"([A-Za-z_][A-Za-z0-9_]*):\s*{_NUM} ms = \s*{_NUM}x10\^([69]) "
     rf"interactions/s")
+
+_NBODY_PARTICLES = re.compile(r"Running simulation with (\d+) particles")
+
+
+def _check_nbody_bodies(out: str) -> None:
+    """Refuse a measurement that is not of the canonical problem size.
+
+    Raising here is what makes the mismatch audible: run.py logs a parse error
+    and marks the program failed, where returning no metrics would leave a
+    successful-looking run with one measurement quietly missing."""
+    m = _NBODY_PARTICLES.search(out)
+    if m is None:
+        raise ValueError("nbody did not report a particle count")
+    if int(m.group(1)) != NBODY_BODIES:
+        raise ValueError(
+            f"nbody ran {m.group(1)} bodies, not {NBODY_BODIES}: the "
+            f"measurement is of a different problem and does not belong "
+            f"under the same metric key")
 
 
 # nbody reports one algorithm per non-interactive run, so each is selected by
@@ -132,6 +160,7 @@ def _nbody_per_algo(out: str) -> dict:
 
 
 def parse_nbody(out: str, param) -> dict:
+    _check_nbody_bodies(out)
     per_algo = _nbody_per_algo(out)
     return _nbody_result(per_algo, statistics.median_low)
 
@@ -151,7 +180,11 @@ def _parse_nbody_median(out: str, param) -> dict:
     statistics.median interpolate between the two middle measurements, so the
     reported figure is a number the program never printed and cannot be found
     in the raw log. New runs report median_low, an actual measurement; this
-    remains so that submissions made under the old contract still re-derive."""
+    remains so that submissions made under the old contract still re-derive.
+
+    Deliberately without the body-count check: this parser exists to re-derive
+    logs that were already submitted, and a log recorded on a host whose core
+    count rounded the body count down is still the log that was submitted."""
     per_algo = _nbody_per_algo(out)
     return _nbody_result(per_algo, statistics.median)
 
@@ -353,6 +386,7 @@ NBODY_SCALING_ALGORITHMS = [
 def parse_nbody_scaling(out: str, param) -> dict:
     """One point of one algorithm's scaling curve."""
     algorithm, n_gpus = param
+    _check_nbody_bodies(out)
     vals = _nbody_per_algo(out).get(algorithm)
     if not vals:
         return {}
@@ -367,7 +401,8 @@ def parse_nbody_scaling(out: str, param) -> dict:
 
 NBODY_SCALING_RUNS = [
     ((algorithm, n),
-     ["--numbodies", "64", "--iterations", "12", "--nocpu",
+     ["--numbodies", str(NBODY_BODIES // 1024),
+      "--iterations", "12", "--nocpu",
       "--numgpus", str(n), "--algorithm", algorithm],
      n)
     for algorithm in NBODY_SCALING_ALGORITHMS
@@ -469,7 +504,8 @@ SUITES: dict[str, list[ProgramSpec]] = {
         # --numgpus 1 is pinned so that a multi-GPU machine reports the
         # same thing here that a single-GPU machine does.
         ProgramSpec("nbody", "nbody",
-                    [(a, ["--numbodies", "64", "--iterations", "12",
+                    [(a, ["--numbodies", str(NBODY_BODIES // 1024),
+                          "--iterations", "12",
                           "--nocpu", "--numgpus", "1", "--algorithm", a])
                      for a in NBODY_ALGORITHMS],
                     parse_nbody, timeout=900),

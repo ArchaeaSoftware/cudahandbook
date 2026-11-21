@@ -53,6 +53,16 @@ extern float *g_hostAOS_Force;
 
 // for GPU cross-check
 const int g_maxGPUs = 32;
+
+// Every shared-memory kernel here stages one block of threads' worth of
+// source bodies into shared memory at a time, and none of them has a path for
+// a partial block, so the number of bodies a kernel sweeps has to be a
+// multiple of its block size.  All of them launch 256 threads to a block: the
+// ring and the two-dimensional decomposition name the same number locally,
+// because they also have to check their own per-device share of the bodies
+// against it.  Rounding the requested body count to this multiple is what
+// keeps the last staging iteration inside the bodies it was given.
+const size_t g_stagingBlockSize = 256;
 extern float *g_hostAOS_gpuCrossCheckForce[g_maxGPUs];
 
 extern float *g_dptrAOS_PosMass;

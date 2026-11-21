@@ -603,6 +603,9 @@ main( int argc, char *argv[] )
         printf( "    --nocpu implies --nocrosscheck.\n\n" );
         printf( "    --nosimd uses serial CPU implementation instead of SIMD.\n" );
         printf( "    --iterations specifies a fixed number of iterations to execute\n");
+        printf( "    --numgpus overrides the number of devices to use.\n" );
+        printf( "    --numcores overrides the number of CPU workers the\n" );
+        printf( "    threaded CPU implementation divides the bodies among.\n" );
         return 1;
     }
 
@@ -611,6 +614,16 @@ main( int argc, char *argv[] )
 
     {
         g_numCPUCores = std::thread::hardware_concurrency();
+    }
+    // Overridable for the same reason the device count is: the threaded CPU
+    // implementation divides the bodies among this many workers, and on a
+    // host whose own core count happens to divide the body count evenly, the
+    // partitioning of a count that does not divide evenly is unreachable and
+    // therefore untested.
+    chCommandLineGet( &g_numCPUCores, "numcores", argc, argv );
+    if ( g_numCPUCores < 1 ) {
+        fprintf( stderr, "nbody: --numcores must be at least 1\n" );
+        exit(1);
     }
 
     status = cudaGetDeviceCount( &g_numGPUs );
@@ -644,9 +657,31 @@ main( int argc, char *argv[] )
 
     chCommandLineGet( &kMaxIterations, "iterations", argc, argv);
 
-    // Round down to the nearest multiple of the CPU count (e.g. if we have
-    // a system with a CPU count that isn't a power of two, we need to round)
-    g_N -= g_N % g_numCPUCores;
+    // The staging block size, not the host's core count, is what the body
+    // count has to divide by: every shared-memory kernel here stages a block
+    // of threads' worth of source bodies at a time and has no path for a
+    // partial block.  Rounding to the core count instead is what broke the
+    // four-GPU run.  On a 48-core host it turned the 65536 bodies the command
+    // line asked for into 65520, which 256 does not divide, so every one of
+    // those kernels read past its source block and summed in bodies it was
+    // never given; a host whose core count divides 65536, as 8 and 16 do, saw
+    // nothing wrong.  Rounding to the core count also made the problem size
+    // depend on the machine, which is not a property a measurement should
+    // inherit from the box it ran on.
+    //
+    // Since a count given in units of 1024 is already a multiple of 256, the
+    // rounding below cannot fire as the program stands, and that is the
+    // point: what the command line asks for already satisfies the kernels.
+    // It stays because the invariant is the kernels' rather than this
+    // function's, and a body count that violates it produces wrong forces
+    // instead of an error.
+    g_N -= g_N % g_stagingBlockSize;
+    if ( 0 == g_N ) {
+        fprintf( stderr,
+            "nbody: --numbodies must ask for at least %zu bodies\n",
+            g_stagingBlockSize );
+        exit(1);
+    }
 
     if ( chCommandLineGetBool( "gpu-crosscheck", argc, argv ) ) {
         g_bGPUCrossCheck = true;
@@ -913,6 +948,21 @@ main( int argc, char *argv[] )
 
             if ( ! ComputeGravitation( &ms, &err, g_Algorithm, g_bCrossCheck ) ) {
                 fprintf( stderr, "Error computing timestep\n" );
+                exit(1);
+            }
+            // A decomposition that cannot run the geometry it was handed
+            // returns zero milliseconds instead of a measurement.  Dividing
+            // by it prints an infinite interaction rate, which the benchmark
+            // harness's parser does not match and therefore drops without
+            // complaint: the run exits successfully and the measurement
+            // simply is not there.  Stop instead, so that a refusal to run is
+            // as loud as a failure to run.
+            if ( 0.0f == ms ) {
+                fprintf( stderr,
+                    "%s declined %zu bodies on %d device(s)\n",
+                    rgszAlgorithmNames[g_Algorithm],
+                    g_N,
+                    g_numGPUs );
                 exit(1);
             }
             double interactionsPerSecond = (double) g_N*g_N*1000.0f / ms;
