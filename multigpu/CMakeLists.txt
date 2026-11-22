@@ -47,4 +47,10 @@ if(NCCL_INCLUDE_DIR AND NCCL_LIBRARY)
         INSTALL_RPATH ${NCCL_LIBRARY_DIR})
 endif()
 
+# p2pAllToAll needs no NCCL, so it is deliberately outside the guard above.
+# Putting a target inside that guard is what once produced an nbody with three
+# multi-GPU algorithms instead of four, with no error anywhere.
+add_executable(p2pAllToAll p2pAllToAll.cu)
+target_include_directories(p2pAllToAll PRIVATE chLib)
+
 include_directories( chLib )
