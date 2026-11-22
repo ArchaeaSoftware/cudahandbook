@@ -131,11 +131,23 @@ main( int argc, char *argv[] )
     }
 
     //
-    // NVLink shows up as a nonzero performance rank between two devices.  A
-    // machine whose peer matrix is all P2P may still be routing over PCIe,
-    // which this distinguishes.
+    // The performance rank orders a device's peers by how good the link to
+    // each one is, and lower is better: rank 0 is the best link this device
+    // has.  It is a relative ordering and nothing more.  It does not name the
+    // interconnect, and it does not say whether a link is NVLink or PCIe --
+    // an earlier version of this program claimed a rank of zero meant "not
+    // NVLink", which inverted the truth and labeled an eight-way NVSwitch
+    // machine, where every pair is equidistant and so every pair ranks 0, as
+    // having no NVLink at all.
     //
-    printf( "\nNVLink performance rank (0 = not NVLink):\n     " );
+    // What the ordering is good for is choosing peers: on a machine whose
+    // links are not uniform, prefer the pairs that rank lowest.  A uniform
+    // matrix means the choice does not matter, which is the whole point of a
+    // switched fabric.  To identify the physical interconnect, ask NVML
+    // (nvmlDeviceGetNvLinkState) or read nvidia-smi topo -m, where NVSwitch
+    // shows as NV12 between every pair and PCIe as PHB or SYS.
+    //
+    printf( "\nPeer performance rank (lower is better; n/a = no rank):\n     " );
     for ( int j = 0; j < cDevices; j++ ) {
         printf( "%6d", j );
     }
@@ -148,11 +160,16 @@ main( int argc, char *argv[] )
                 printf( "%6s", "-" );
                 continue;
             }
-            // A device pair that is not linked reports an error rather than a
-            // zero, so ask without the checking macro.
+            // A pair with no link between them reports an error rather than a
+            // rank, so ask without the checking macro -- and print the failure
+            // as such.  Substituting a zero here would have been worse than
+            // useless: zero is the best rank a link can have, so an
+            // unqueryable pair and the fastest pair on the machine printed
+            // identically.
             if ( cudaSuccess != cudaDeviceGetP2PAttribute( &perfRank,
                      cudaDevP2PAttrPerformanceRank, i, j ) ) {
-                perfRank = 0;
+                printf( "%6s", "n/a" );
+                continue;
             }
             printf( "%6d", perfRank );
         }
